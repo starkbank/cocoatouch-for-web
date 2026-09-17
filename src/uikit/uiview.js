@@ -120,6 +120,10 @@ export class UIView extends UIResponder {
     }
 
     addSubview(view) {
+        if (_isControllerRootView(view)) {
+            view.next._embed(this)
+            return
+        }
         view.layoutSubviews()
         var id = view.identifier
         var nib = `<div id="${id}">${view.nib}</div>`
@@ -156,8 +160,20 @@ export class UIView extends UIResponder {
         this.$el.append(view)
     }
 
+    // A controller's root view leaves its container empty and tears the
+    // controller down; any other view takes its element out of the page.
     removeFromSuperview() {
-        this.$el.empty().show()
+        if (_isControllerRootView(this)) {
+            this.next._unembed()
+            return
+        }
+        this.$el.remove()
+        var superview = this._superview
+        if (!superview) { return }
+        var index = superview.subviews.indexOf(this)
+        if (index !== -1) { superview.subviews.splice(index, 1) }
+        this._superview = null
+        this._dispose()
     }
 
     static loadFromNib(nib) {
@@ -180,4 +196,10 @@ export class UIView extends UIResponder {
         super._dispose()
     }
 
+}
+
+
+function _isControllerRootView(view) {
+    var controller = view.next
+    return !!controller && typeof controller._embed === "function" && controller._view === view
 }
