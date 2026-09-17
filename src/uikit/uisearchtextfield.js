@@ -8,7 +8,7 @@ import { UITextField } from "./uitextfield.js"
 export class UISearchTextField extends UITextField {
 
     _tokens = []
-    _invalidTokens = []
+    _invalidTokenList = []
     _mask = {}
     _delegate = null
     _entryLimit = null
@@ -75,7 +75,7 @@ export class UISearchTextField extends UITextField {
     }
 
     get validEntries() {
-        return this._invalidTokens.length === 0
+        return this._invalidTokenList.length === 0
     }
 
     get delegate() {
@@ -185,14 +185,14 @@ export class UISearchTextField extends UITextField {
 
     removeToken({data, tag}) {
         var index = this._tokens.indexOf(data)
-        var invalidIndex = this._invalidTokens.indexOf(data)
+        var invalidIndex = this._invalidTokenList.indexOf(data)
         tag.remove()
         if (index !== -1) {
             this._tokens.splice(index, 1)
             this._selectionCursor = this._tokens.length
         }
         if (invalidIndex !== -1) {
-            this._invalidTokens.splice(invalidIndex, 1)
+            this._invalidTokenList.splice(invalidIndex, 1)
         }
         this._tokensUpdated()
         this._updatePlaceholder()
@@ -201,7 +201,7 @@ export class UISearchTextField extends UITextField {
 
     removeAllTokens() {
         this._tokens = []
-        this._invalidTokens = []
+        this._invalidTokenList = []
         this._allSelected = false
         this.$el.children(".tag").remove()
         this._updatePlaceholder()
@@ -341,7 +341,7 @@ export class UISearchTextField extends UITextField {
 
     _validate(data, id) {
         if (this._validationFunction(data)) { return }
-        this._invalidTokens.push(data)
+        this._invalidTokenList.push(data)
         $("#" + id).addClass("tag-invalid")
     }
 
@@ -360,6 +360,6 @@ export class UISearchTextField extends UITextField {
     }
 
     _checkForInvalidInput() {
-        this.highlightInvalidTextField = this._invalidTokens.length > 0 && this._tokens.length > 0
+        this.highlightInvalidTextField = this._invalidTokenList.length > 0 && this._tokens.length > 0
     }
 }
