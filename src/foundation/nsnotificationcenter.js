@@ -14,7 +14,7 @@ export class NSNotificationCenter {
         if (target) {
             target.addEventListener(name, callback)
         }
-        _entriesFor(observer).push({name, object, target, callback})
+        _entriesFor(observer).push({observer, name, object, target, callback})
     }
 
     static removeObserver(observer, {name, object} = {}) {
@@ -40,15 +40,23 @@ export class NSNotificationCenter {
         NSNotificationCenter._observers.set(observer, kept)
     }
 
+    // Delivery goes to the observers registered when the post starts: one
+    // registered by a receiver (a controller presented in response) does not
+    // get the same notification, and one removed meanwhile is skipped.
     static postNotification({name, object = null, userInfo = null}) {
         var notification = {name, object, userInfo}
+        var recipients = []
         for (var entries of NSNotificationCenter._observers.values()) {
             for (var entry of entries) {
                 if (entry.target) { continue }
                 if (entry.name !== name) { continue }
                 if (entry.object !== null && entry.object !== object) { continue }
-                entry.callback(notification)
+                recipients.push(entry)
             }
+        }
+        for (var recipient of recipients) {
+            if (!_isRegistered(recipient)) { continue }
+            recipient.callback(notification)
         }
     }
 }
@@ -64,4 +72,9 @@ function _entriesFor(observer) {
     entries = []
     NSNotificationCenter._observers.set(observer, entries)
     return entries
+}
+
+function _isRegistered(entry) {
+    var entries = NSNotificationCenter._observers.get(entry.observer)
+    return !!entries && entries.indexOf(entry) !== -1
 }

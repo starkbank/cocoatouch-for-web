@@ -62,3 +62,28 @@ test("an in-app object filters notifications by sender", function() {
     assert.equal(hits, 1)
     NSNotificationCenter.removeObserver(responder)
 })
+
+test("an observer registered while a notification is delivered does not receive it", function() {
+    var late = {}
+    var hits = 0
+    var first = {}
+    NSNotificationCenter.addObserver(first, {name: "step", selector: function() {
+        NSNotificationCenter.removeObserver(first)
+        NSNotificationCenter.addObserver(late, {name: "step", selector: function() { hits += 1 }})
+    }})
+    NSNotificationCenter.postNotification({name: "step"})
+    assert.equal(hits, 0)
+    NSNotificationCenter.postNotification({name: "step"})
+    assert.equal(hits, 1)
+    NSNotificationCenter.removeObserver(late)
+})
+
+test("an observer removed while a notification is delivered is skipped", function() {
+    var hits = 0
+    var a = {}, b = {}
+    NSNotificationCenter.addObserver(a, {name: "step", selector: function() { NSNotificationCenter.removeObserver(b) }})
+    NSNotificationCenter.addObserver(b, {name: "step", selector: function() { hits += 1 }})
+    NSNotificationCenter.postNotification({name: "step"})
+    assert.equal(hits, 0)
+    NSNotificationCenter.removeObserver(a)
+})
