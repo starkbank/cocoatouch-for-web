@@ -28,10 +28,13 @@ export class UICollectionView extends UIView {
         return this._delegate
     }
 
-    register(cellClassOrNib, {forCellWithReuseIdentifier, identifier, nib}) {
-        var key = forCellWithReuseIdentifier || identifier
-        var html = nib !== undefined ? nib : (typeof cellClassOrNib === "string" ? cellClassOrNib : cellClassOrNib.nib)
-        this._registeredNibs[key] = html
+    // register(CellClass, {forCellWithReuseIdentifier}) or register({nib, identifier})
+    register(cellClassOrNib, options) {
+        if (options === undefined) {
+            this._registeredNibs[cellClassOrNib.identifier] = cellClassOrNib.nib
+            return
+        }
+        this._registeredNibs[options.forCellWithReuseIdentifier] = typeof cellClassOrNib === "string" ? cellClassOrNib : cellClassOrNib.nib
     }
 
     reloadData() {
