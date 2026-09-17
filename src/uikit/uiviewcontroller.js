@@ -32,9 +32,10 @@ export class UIViewController extends UIResponder {
         var body = $("cocoatouch")
         var display = body.css("display")
 
-        body.prop("id", viewController.identifier)
+        _adoptHost(viewController, body)
         body.css("display", "none")
         body.html(nib).ready(() => {
+            viewController._$el = body
             Bind.ibOutlet(viewController)
             Bind.ibAction(viewController)
             body.css("display", display)
@@ -49,7 +50,7 @@ export class UIViewController extends UIResponder {
     restore(viewController) {
         _dismissRootViewController()
         var body = $("cocoatouch")
-        body.prop("id", viewController.identifier)
+        _adoptHost(viewController, body)
         viewController._$el = body
         Bind.ibOutletRestore(viewController)
         Bind.ibAction(viewController)
@@ -89,4 +90,18 @@ function _dismissRootViewController() {
     viewController.viewWillDisappear()
     viewController._dispose()
     viewController.viewDidDisappear()
+}
+
+
+// The controller takes over the host element. A host that already has an id
+// keeps it, so stylesheets and code addressing that id keep working; a bare
+// <cocoatouch> gets the controller's own id.
+function _adoptHost(viewController, body) {
+    var id = body.attr("id")
+    if (id) {
+        viewController.selector = "#" + id
+        viewController._identifier = id
+        return
+    }
+    body.prop("id", viewController.identifier)
 }
