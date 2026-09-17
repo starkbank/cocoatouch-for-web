@@ -80,6 +80,26 @@ restore(controller)   rebinds outlets and actions on pre-rendered html: viewWill
 
 Views get `awakeFromNib` after their outlets are bound and `layoutSubviews` before their nib is inserted. `addSubview` and `addSubviews` link the child into the responder chain, so `view.next`, `view.superview`, `view.subviews` and `view.parentViewController()` work.
 
+## Child view controllers
+
+A controller composes others the way UIKit's containment API does: add the child, then put its view in one of your container views. The container element becomes the child's root, its nib fills it, its outlets and actions bind inside it and `viewDidLoad -> viewWillAppear -> viewDidAppear` run. Removing the child empties the container, runs `viewWillDisappear -> viewDidDisappear` and releases the observers it registered.
+
+```js
+class OnboardViewController extends UIViewController {
+
+    @IBOutlet("#content", UIView) contentView
+
+    show(step) {
+        if (this.current) { this.current.removeFromParent() }
+        this.current = new step()
+        this.addChild(this.current)
+        this.contentView.addSubview(this.current.view)
+    }
+}
+```
+
+`children`, `parent`, `willMove({toParent})` and `didMove({toParent})` follow UIKit. A plain view's `removeFromSuperview()` takes its element out of the page.
+
 ## Table views
 
 A table view works the way it does on iOS: register a cell class for a reuse identifier, dequeue it in the data source, configure its outlets. The cell's row html lives in the `.xib` of the same name as the cell class.
