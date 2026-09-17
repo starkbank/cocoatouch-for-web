@@ -178,3 +178,17 @@ test("a keyboard-only view is not revived by selector scan", function() {
     Bind.restoreRegisteredViews(scopeMatching([]), new UIViewController())
     assert.deepEqual(log, [])
 })
+
+test("a host element that already has an id keeps it and becomes the controller's selector", function() {
+    var Controller = recordingController("hosted", [])
+    var controller = new Controller()
+    var host = $("cocoatouch")
+    host.attr = function(name, value) { if (value === undefined) { return "container" } return host }
+    host.prop = function(name, value) { throw new Error("id must not be overwritten") }
+    var original = globalThis.$
+    globalThis.$ = function(selector) { return selector === "cocoatouch" ? host : original(selector) }
+    controller.present(controller, {})
+    globalThis.$ = original
+    assert.equal(controller.selector, "#container")
+    assert.equal(controller.identifier, "container")
+})
