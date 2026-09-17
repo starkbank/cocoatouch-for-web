@@ -7,6 +7,16 @@ export class UIView extends UIResponder {
 
     nib = this.constructor.nib || ""
 
+    constructor(selector) {
+        super(selector)
+        this.init()
+    }
+
+    // Runs once the view object exists, before it is attached to a nib.
+    init() {
+
+    }
+
     awakeFromNib() {
 
     }
@@ -69,6 +79,25 @@ export class UIView extends UIResponder {
 
     set borderColor(color) {
         this.$el.css("border-color", color.hex)
+    }
+
+    // The accent for selection and emphasis; defaults to the page's design token.
+    set tintColor(color) {
+        this._tintColor = color
+    }
+
+    get tintColor() {
+        if (this._tintColor) { return this._tintColor }
+        var element = this.$el[0]
+        var token = element ? getComputedStyle(element).getPropertyValue("--action-or-selection-color").trim() : ""
+        return {hex: token || "#0070E0"}
+    }
+
+    addGestureRecognizer(recognizer) {
+        recognizer.view = this
+        this.$el.off(recognizer.event).on(recognizer.event, () => {
+            return recognizer.action.call(recognizer.target, recognizer)
+        })
     }
 
     mask(mask, bool) {
