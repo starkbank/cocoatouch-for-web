@@ -11,7 +11,7 @@ src/uipages/home/
 ```
 
 ```js
-import { UIViewController, UILabel, UIButton, IBOutlet, IBAction, Keyboard } from "cocoatouch"
+import "UIKit"
 
 
 export class HomeViewController extends UIViewController {
@@ -38,6 +38,17 @@ export class HomeViewController extends UIViewController {
 ```
 npm install cocoatouch
 ```
+
+`import "UIKit"` works like Swift's `import UIKit`: the framework's classes become ambient in the page, so files use `UIViewController`, `UILabel` or `@IBOutlet` unqualified. Point webpack at the framework names once:
+
+```js
+// webpack.config.js
+resolve: {
+    alias: require("cocoatouch/webpack/aliases"),
+}
+```
+
+The same goes for `import "Foundation"`, `import "CoreAnimation"` and `import "AVKit"`. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
 
 Requirements:
 

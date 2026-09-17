@@ -1,17 +1,22 @@
 {
     "name": "cocoatouch",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
     "main": "./src/index.js",
     "exports": {
         ".": "./src/index.js",
+        "./UIKit": "./src/UIKit.js",
+        "./Foundation": "./src/Foundation.js",
+        "./CoreAnimation": "./src/CoreAnimation.js",
+        "./AVKit": "./src/AVKit.js",
         "./uikit": "./src/uikit/index.js",
         "./foundation": "./src/foundation/index.js",
         "./coreanimation": "./src/coreanimation/index.js",
         "./avkit": "./src/avkit/index.js",
-        "./webpack/xibLoader": "./webpack/xibLoader.cjs"
+        "./webpack/xibLoader": "./webpack/xibLoader.cjs",
+        "./webpack/aliases": "./webpack/aliases.cjs"
     },
     "files": [
         "src",
