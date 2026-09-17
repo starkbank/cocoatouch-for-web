@@ -45,8 +45,15 @@ export class UIView extends UIResponder {
         return this._subviews
     }
 
+    // Unhiding restores the stylesheet's display; a view the stylesheet keeps
+    // hidden until code shows it, like a spinner, becomes a block.
     set isHidden(bool) {
-        this.$el.css("display", bool ? "none" : "")
+        if (bool) {
+            this.$el.css("display", "none")
+            return
+        }
+        this.$el.css("display", "")
+        if (this.$el.css("display") === "none") { this.$el.css("display", "block") }
     }
 
     get isHidden() {
