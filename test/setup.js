@@ -13,7 +13,8 @@ function fakeJQuery() {
         el.addClass = function(c) { el._classes.push(c); return el }
         el.removeClass = function(c) { el._classes = el._classes.filter(function(x) { return x !== c }); return el }
         el.hasClass = function(c) { return el._classes.indexOf(c) !== -1 }
-        el.toggleClass = el.append = el.prepend = el.before = el.empty = el.show = el.remove = el.each = el.removeAttr = el.siblings = el.parent = function() { return el }
+        el.toggleClass = el.append = el.prepend = el.before = el.show = el.remove = el.each = el.removeAttr = el.siblings = el.parent = function() { return el }
+        el.empty = function() { el._html = ""; return el }
         el.off = function() { return el }
         el.on = function(event, handler) { el._handlers[event.split(".")[0]] = handler; return el }
         el.trigger = function(event) { var h = el._handlers[event]; if (h) { h({stopImmediatePropagation: function() {}, preventDefault: function() {}, target: el}) } return el }
