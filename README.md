@@ -11,7 +11,7 @@ src/uipages/home/
 ```
 
 ```js
-import { UIViewController, UILabel, UIButton, IBOutlet, IBAction, Keyboard } from "cocoatouch"
+import "UIKit"
 
 
 export class HomeViewController extends UIViewController {
@@ -38,6 +38,17 @@ export class HomeViewController extends UIViewController {
 ```
 npm install cocoatouch
 ```
+
+`import "UIKit"` works like Swift's `import UIKit`: the framework's classes become ambient in the page, so files use `UIViewController`, `UILabel` or `@IBOutlet` unqualified. Point webpack at the framework names once:
+
+```js
+// webpack.config.js
+resolve: {
+    alias: require("cocoatouch/webpack/aliases"),
+}
+```
+
+The same goes for `import "Foundation"`, `import "CoreAnimation"` and `import "AVKit"`. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
 
 Requirements:
 
@@ -81,6 +92,27 @@ NSNotificationCenter.removeObserver(this)
 ```
 
 Everything a view or controller observes is released when its root controller is dismissed, so window and document listeners never pile up across navigations. Keyboard `@IBAction`s register the same way.
+
+## Editor and linter support
+
+The ambient names are declared, so an editor can still jump to `UIViewController`, complete its members and underline a typo before the build does. The package ships generated `.d.ts` files for every entry plus `types/globals.d.ts` for the names `import "UIKit"` makes ambient. In a JavaScript project, point `jsconfig.json` at them once:
+
+```json
+{
+    "compilerOptions": {
+        "checkJs": true,
+        "experimentalDecorators": true,
+        "paths": {
+            "UIKit": ["./node_modules/cocoatouch/types/UIKit.d.ts"],
+            "Foundation": ["./node_modules/cocoatouch/types/Foundation.d.ts"]
+        }
+    },
+    "files": ["node_modules/cocoatouch/types/globals.d.ts"],
+    "include": ["src"]
+}
+```
+
+For ESLint, `cocoatouch/eslint/globals` exports the same names as a `globals` object, so `no-undef` accepts them and still flags misspellings.
 
 ## Server side rendering
 
