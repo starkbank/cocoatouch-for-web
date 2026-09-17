@@ -23,7 +23,7 @@
 
     <section class="demo">
         <h2>addTarget and isEnabled</h2>
-        <p>A UISwitch is a checkbox. Its <code>valueChanged</code> event is wired with <code>addTarget</code>, and it enables or disables the button.</p>
+        <p>A UISwitch is a checkbox. Its <code>valueChanged</code> event is wired with <code>addTarget</code>, whose action receives <code>(target, sender)</code>, and it enables or disables the button.</p>
         <div class="row">
             <label class="switch"><input id="buttons-enabled-switch" type="checkbox" checked> Enabled</label>
             <button id="buttons-target" class="button">Tap me</button>

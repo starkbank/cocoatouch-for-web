@@ -34,15 +34,6 @@ module.exports = {
                 test: /\.css$/,
                 use: ["style-loader", "css-loader"],
             },
-            {
-                // Table view cells are html fragments fetched by URL when the table reloads.
-                test: /\.html$/,
-                exclude: /index\.html$/,
-                type: "asset/resource",
-                generator: {
-                    filename: "html/[name][ext]",
-                },
-            },
         ],
     },
     resolve: {

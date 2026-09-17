@@ -23,7 +23,7 @@
         </a>
         <a id="home-table-view" class="home-option" href="/table-view">
             <h3>Table view</h3>
-            <p>A UITableView subclass with a custom cell, data source and delegate</p>
+            <p>A UITableView with a registered custom cell, data source and delegate</p>
         </a>
     </div>
 </main>
