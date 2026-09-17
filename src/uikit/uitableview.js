@@ -1,42 +1,33 @@
 import { UIScrollView } from "./uiscrollview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
+import { IndexPath } from "../foundation/indexpath.js"
+import { Bind } from "../utils/bind.js"
 
 
+// Rows are <tr id="cell-<row>"> children of the table's tbody. A cell class
+// registered for a reuse identifier supplies the row html through its nib,
+// the .xib of the same name, and is instantiated bound to that row so its
+// outlets work like any other view's.
 export class UITableView extends UIScrollView {
 
     constructor(selector) {
         super(selector)
         this._dataSource = null
         this._delegate = null
-        this._isEditable = false
-        this.indexPath = 0
+        this._isEditing = false
+        this._allowsSelection = true
         this._allowsMultipleSelection = false
-        this._allowsSelection = false
-        this._indexPathsForSelectedRows = []
+        this._selectedRows = []
+        this._registeredCells = {}
+        this._cells = []
     }
 
     set isHidden(bool) {
-        $(this.selector).css("display", bool ? "none" : "table")
+        this.$el.css("display", bool ? "none" : "table")
     }
 
     get isHidden() {
-        return $(this.selector).css("display") === "none"
-    }
-
-    set isEditable(bool) {
-        this._isEditable = bool
-    }
-
-    get isEditable() {
-        return this._isEditable
-    }
-
-    set delegate(delegate) {
-        this._delegate = delegate
-    }
-
-    get delegate() {
-        return this._delegate
+        return this.$el.css("display") === "none"
     }
 
     set dataSource(dataSource) {
@@ -48,16 +39,12 @@ export class UITableView extends UIScrollView {
         return this._dataSource
     }
 
-    set allowsMultipleSelection(bool) {
-        this._allowsMultipleSelection = bool
+    set delegate(delegate) {
+        this._delegate = delegate
     }
 
-    get allowsMultipleSelection() {
-        return this._allowsMultipleSelection
-    }
-
-    get indexPathsForSelectedRows() {
-        return this._indexPathsForSelectedRows
+    get delegate() {
+        return this._delegate
     }
 
     set allowsSelection(bool) {
@@ -68,126 +55,165 @@ export class UITableView extends UIScrollView {
         return this._allowsSelection
     }
 
+    set allowsMultipleSelection(bool) {
+        this._allowsMultipleSelection = bool
+    }
+
+    get allowsMultipleSelection() {
+        return this._allowsMultipleSelection
+    }
+
+    get isEditing() {
+        return this._isEditing
+    }
+
+    setEditing(editing, {animated} = {}) {
+        this._isEditing = editing
+        this._bindRows()
+    }
+
+    get indexPathsForSelectedRows() {
+        return this._selectedRows.map(function(row) { return new IndexPath({row: row}) })
+    }
+
+    get indexPathForSelectedRow() {
+        if (this._selectedRows.length === 0) { return null }
+        return new IndexPath({row: this._selectedRows[0]})
+    }
+
+    register(cellClass, {forCellReuseIdentifier}) {
+        this._registeredCells[forCellReuseIdentifier] = cellClass
+    }
+
+    numberOfRows({inSection} = {inSection: 0}) {
+        if (this._dataSource === null) { return 0 }
+        return this._dataSource.tableViewNumberOfRowsInSection(this, inSection)
+    }
+
+    cellForRow({at}) {
+        return this._cells[_row(at)] || null
+    }
+
     reloadData() {
-        var tableView = this
-        var dataSource = this._dataSource
-        var delegate = this._delegate
-
-        if (dataSource === null) { return }
-
-        this.indexPath = 0
-
-        var newNumberOfRows = dataSource.tableViewNumberOfRowsInSection(tableView, 0)
-
-        if (newNumberOfRows === 0) {
-            this._indexPathsForSelectedRows = []
-            $(this.selector).find("tbody").empty()
-            return
+        if (this._dataSource === null) { return }
+        var numberOfRows = this.numberOfRows()
+        var body = this._body()
+        body.find("> tr[id^=cell-]").each(function() {
+            if (Number(this.id.slice("cell-".length)) >= numberOfRows) { $(this).remove() }
+        })
+        this._cells = []
+        this._selectedRows = this._selectedRows.filter(function(row) { return row < numberOfRows })
+        for (var row = 0; row < numberOfRows; row++) {
+            this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row: row}))
         }
+        this._bindRows()
+    }
 
-        var identifier = dataSource.tableViewCellForRowAtIndexPath(tableView, 0).identifier
+    // Reuses the row element when it exists and creates it from the registered
+    // cell's nib otherwise; the cell class is bound to that element.
+    dequeueReusableCell({withIdentifier, for: indexPath}) {
+        var cellClass = this._registeredCells[withIdentifier] || UITableViewCell
+        var row = _row(indexPath)
+        var id = "cell-" + row
+        var element = this._body().find("> #" + id)
+        if (element.length === 0) {
+            element = $(cellClass.nib || "<tr></tr>").first()
+            element.attr("id", id)
+            this._body().append(element)
+        }
+        var cell = new cellClass(this.selector + " #" + id, indexPath)
+        cell.reuseIdentifier = withIdentifier
+        cell._$el = element
+        this._link(cell)
+        Bind.ibOutlet(cell)
+        cell.awakeFromNib()
+        Bind.ibAction(cell)
+        return cell
+    }
 
-        this._getHtml(identifier, (html) => {
-            var oldNumberOfRows = $(this.selector + ' > tbody:last > tr').length
-            var maxNumberOfRows = Math.max(newNumberOfRows, oldNumberOfRows)
+    selectRow({at, animated}) {
+        var row = _row(at)
+        if (this._selectedRows.indexOf(row) !== -1) { return }
+        if (!this._allowsMultipleSelection) {
+            this._selectedRows.slice().forEach((selected) => this._deselect(selected))
+        }
+        this._selectedRows.push(row)
+        this._rowElement(row).addClass("selected").find("[id^=table-cell-selected] :input").prop("checked", true)
+    }
 
-            for (var indexPath = 0; indexPath < maxNumberOfRows; indexPath++) {
-                var id = "cell-" + indexPath
+    deselectRow({at, animated}) {
+        this._deselect(_row(at))
+    }
 
-                if (indexPath >= newNumberOfRows && indexPath < oldNumberOfRows) {
-                    $(this.selector + ' tbody tr#' + id).remove()
-                    continue
-                }
+    selectAllRows() {
+        for (var row = 0; row < this.numberOfRows(); row++) {
+            this.selectRow({at: row})
+        }
+    }
 
-                if (indexPath >= oldNumberOfRows && indexPath < newNumberOfRows) {
-                    var cell = $(html)
-                    cell.attr("id", id)
-                    $(this.selector).append(cell)
-                }
+    deselectAllRows() {
+        this._selectedRows.slice().forEach((row) => this._deselect(row))
+    }
 
-                var tableViewCell = dataSource.tableViewCellForRowAtIndexPath(tableView, indexPath)
-            }
+    _deselect(row) {
+        var index = this._selectedRows.indexOf(row)
+        if (index === -1) { return }
+        this._selectedRows.splice(index, 1)
+        this._rowElement(row).removeClass("selected").find("[id^=table-cell-selected] :input").prop("checked", false)
+    }
 
-            this.indexPath = newNumberOfRows
+    _body() {
+        var body = this.$el.find("tbody")
+        if (body.length === 0) { return this.$el }
+        return body.last()
+    }
 
-            if (delegate === null) { return }
+    _rowElement(row) {
+        return this._body().find("> #cell-" + row)
+    }
 
-            $(this.selector).find("[id^=cell-]").unbind("click").on("click", function (event) {
-                event.stopImmediatePropagation()
-                var indexPath = $(this).index()
-                delegate.tableViewDidSelectRowAtIndexPath(tableView, indexPath)
-            })
-
-            let cells = $(this.selector).find("[id^=cell-]")
-
-            var isEditable = this._isEditable
-
-            if (isEditable) {
-                for (let index = 0; index < cells.length; index++) {
-                    const element = cells[index]
-                    $(element).find("[id^=delete-button]").unbind("click").click(function (event) {
-                        event.stopImmediatePropagation()
-                        var indexPath = index
-                        delegate.deleteRowAt(indexPath, tableView)
-                    })
-                }
-            }
-
-            for (let index = 0; index < cells.length; index++) {
-                const element = cells[index]
-                const cell = $(element).find("[id^=table-cell-selected]").unbind("click").on("click", (event) => {
+    _bindRows() {
+        var tableView = this
+        var rows = this._body().find("> tr[id^=cell-]")
+        rows.off("click").on("click", function(event) {
+            event.stopImmediatePropagation()
+            if (!tableView._allowsSelection) { return }
+            var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
+            tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+        })
+        rows.each((index, element) => {
+            var indexPath = new IndexPath({row: index})
+            var deleteButton = $(element).find("[id^=delete-button]").off("click")
+            if (this._isEditing) {
+                deleteButton.on("click", (event) => {
                     event.stopImmediatePropagation()
-                    const checkbox = cell.find(":input")
-                    if ($(checkbox).is(":checked")) {
-                        this.updateIndexPathsForSelectedRows(index)
-                    }
+                    this._delegateCall("tableViewCommitEditingStyleForRowAt", "delete", indexPath)
                 })
             }
+            var selection = $(element).find("[id^=table-cell-selected]")
+            selection.off("click").on("click", function(event) { event.stopImmediatePropagation() })
+            selection.find(":checkbox").off("change").on("change", (event) => {
+                if (event.target.checked) {
+                    this.selectRow({at: indexPath})
+                    this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+                    return
+                }
+                this.deselectRow({at: indexPath})
+                this._delegateCall("tableViewDidDeselectRowAtIndexPath", indexPath)
+            })
         })
     }
 
-    selectAllRows(bool) {
-        var cells = $(this.selector).find("[id^=table-cell-selected]")
-        const checkbox = cells.find(":input")
-        $(checkbox).prop('checked', bool)
-        this._indexPathsForSelectedRows = []
-
-        if (!bool) {
-            this._delegate.tableViewAccessoryButtonTapped()
-            return
-        }
-
-        var tableView = this
-        var dataSource = this._dataSource
-        if (dataSource === null) { return }
-        this._indexPathsForSelectedRows = []
-
-        var numberOfRows = dataSource.tableViewNumberOfRowsInSection(tableView, 0)
-
-        for (let index = 0; index < numberOfRows; index++) {
-            this.updateIndexPathsForSelectedRows(index)
-        }
+    _delegateCall(method) {
+        var delegate = this._delegate
+        if (!delegate || typeof delegate[method] !== "function") { return }
+        var args = Array.prototype.slice.call(arguments, 1)
+        delegate[method].apply(delegate, [this].concat(args))
     }
+}
 
-    dequeueReusableCell({identifier, indexPath}) {
-        return new UITableViewCell({identifier, indexPath})
-    }
 
-    updateIndexPathsForSelectedRows(indexPath) {
-        const i = this._indexPathsForSelectedRows.findIndex(_item => _item === indexPath)
-        if (i > -1) {
-            this._indexPathsForSelectedRows.splice(i, 1)
-        } else {
-            this._indexPathsForSelectedRows.push(indexPath)
-        }
-        this._delegate.tableViewAccessoryButtonTapped()
-    }
-
-    _getHtml(htmlPath, callback) {
-        var tempDiv = $("<div></div>").addClass("hidden")
-        tempDiv.load(htmlPath, function() {
-            callback(tempDiv.html())
-            tempDiv.remove()
-        })
-    }
+function _row(indexPath) {
+    if (indexPath instanceof IndexPath) { return indexPath.row }
+    return indexPath
 }

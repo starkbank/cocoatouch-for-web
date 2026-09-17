@@ -23,17 +23,31 @@ export class UIPickerView extends UIView {
     }
 
     titleForRow(rows) {
-        if(rows.length == 0) { return }
-        rows.forEach(row => {
-            $(this.selector).append("<option value=" + row.value + ">" + row.description + "</option>")
+        if (rows.length === 0) { return }
+        this.$el.empty()
+        rows.forEach((row) => {
+            this.$el.append("<option value=\"" + row.value + "\">" + row.description + "</option>")
         })
     }
 
     selectedValue() {
-        return $(this.selector).children("option:selected").val()
+        return this.$el.children("option:selected").val() || ""
+    }
+
+    selectedDescription() {
+        return this.$el.children("option:selected").text() || ""
     }
 
     set defaultValue(value) {
-        $(this.selector).val(value)
+        this.$el.val(value)
+    }
+
+    set userInteractionEnabled(bool) {
+        this.$el.prop("disabled", !bool)
+        this.$el.css("pointer-events", bool ? "" : "none")
+    }
+
+    get userInteractionEnabled() {
+        return !this.$el.prop("disabled")
     }
 }

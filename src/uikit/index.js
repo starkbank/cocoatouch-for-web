@@ -13,6 +13,11 @@ import { UIColor } from "./uicolor.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIPickerView } from "./uipickerview.js"
 import { UIProgressView } from "./uiprogressview.js"
+import { UICollectionView, UICollectionViewCell } from "./uicollectionview.js"
+import { UIDatePicker } from "./uidatepicker.js"
+import { UISearchTextField } from "./uisearchtextfield.js"
+import { UIDevice } from "./uidevice.js"
+import { UIGestureRecognizer, UITapGestureRecognizer } from "./uigesturerecognizer.js"
 import { UISegmentedControl } from "./uisegmentedcontrol.js"
 import { UIViewController } from "./uiviewcontroller.js"
 import { UIResponder } from "./uiresponder.js"
@@ -39,6 +44,13 @@ export {
      UIControlEvent,
      UIPickerView,
      UIProgressView,
+     UICollectionView,
+     UICollectionViewCell,
+     UIDatePicker,
+     UISearchTextField,
+     UIDevice,
+     UIGestureRecognizer,
+     UITapGestureRecognizer,
      UISegmentedControl,
      UIViewController,
      UIResponder,
