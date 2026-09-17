@@ -1,0 +1,29 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Custom views</h1>
+    <p class="lead">CardView is a UIView subclass with its own <code>cardView.xib</code>, outlets and action, reused in two ways.</p>
+
+    <section class="demo">
+        <h2>As an @IBOutlet</h2>
+        <p>The xib holds an empty element; the build injects the card's nib into it and the controller configures it in <code>viewDidLoad</code>.</p>
+        <div id="custom-views-featured"></div>
+    </section>
+
+    <section class="demo">
+        <h2>Via addSubview</h2>
+        <p>Cards created at runtime join the responder chain, so <code>superview</code> and <code>parentViewController()</code> resolve.</p>
+        <div class="row">
+            <button id="custom-views-add" class="button">Add card</button>
+            <button id="custom-views-add-three" class="button button-secondary">Add three</button>
+            <span id="custom-views-count" class="custom-views-muted"></span>
+        </div>
+        <div id="custom-views-grid"></div>
+    </section>
+
+    <section class="demo">
+        <h2>Notifications from a view</h2>
+        <p>Every card posts <code>cardDidTap</code>; the controller observes it once.</p>
+        <p id="custom-views-log" class="output">No taps yet.</p>
+    </section>
+</main>
