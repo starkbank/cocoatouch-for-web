@@ -12,10 +12,11 @@
 
     <section class="demo">
         <h2>Via addSubview</h2>
-        <p>Cards created at runtime join the responder chain, so <code>superview</code> and <code>parentViewController()</code> resolve.</p>
+        <p>Cards created at runtime join the responder chain, so <code>superview</code> and <code>parentViewController()</code> resolve. <code>removeFromSuperview</code> takes one out again and releases what it observed.</p>
         <div class="row">
             <button id="custom-views-add" class="button">Add card</button>
             <button id="custom-views-add-three" class="button button-secondary">Add three</button>
+            <button id="custom-views-remove" class="button button-secondary">Remove last</button>
             <span id="custom-views-count" class="custom-views-muted"></span>
         </div>
         <div id="custom-views-grid"></div>

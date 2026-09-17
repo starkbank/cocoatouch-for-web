@@ -6,7 +6,8 @@
 
     <section class="demo">
         <h2>delegate</h2>
-        <p><code>textFieldDidEndEditing</code> runs on every edit; <code>textFieldShouldReturn</code> runs on <kbd>Enter</kbd>. Placeholders are set from the controller.</p>
+        <p><code>textFieldDidBeginEditing</code> runs on focus, <code>textFieldDidEndEditing</code> on every edit and <code>textFieldShouldReturn</code> on <kbd>Enter</kbd>. Placeholders are set from the controller.</p>
+        <p id="text-fields-editing" class="text-fields-muted">Nothing focused yet.</p>
         <label class="field">
             <span>Name</span>
             <input id="text-fields-name" type="text">

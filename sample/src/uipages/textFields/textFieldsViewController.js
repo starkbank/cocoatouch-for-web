@@ -14,6 +14,7 @@ export class TextFieldsViewController extends UIViewController {
     @IBOutlet("#text-fields-preview", UILabel) previewLabel
     @IBOutlet("#text-fields-show-password", UISwitch) showPasswordSwitch
     @IBOutlet("#text-fields-lock-name", UISwitch) lockNameSwitch
+    @IBOutlet("#text-fields-editing", UILabel) editingLabel
 
     viewDidLoad() {
         this.nameField.placeholder = "Ada Lovelace"
@@ -34,6 +35,10 @@ export class TextFieldsViewController extends UIViewController {
 
     // UITextFieldDelegate
 
+    textFieldDidBeginEditing(textField) {
+        this.editingLabel.text = `Editing ${textField.identifier.replace("text-fields-", "")}`
+    }
+
     textFieldDidEndEditing(textField) {
         this.updateForm()
     }
@@ -52,12 +57,13 @@ export class TextFieldsViewController extends UIViewController {
         this.previewLabel.text = `Submitted ${this.nameField.text} (${this.emailField.text})` + (this.notesField.text ? ` with notes: ${this.notesField.text}` : "")
     }
 
-    showPasswordChanged(sender) {
-        this.passwordField.secureTextEntry = !sender.isOn()
+    // addTarget actions receive (target, sender); see the Buttons page.
+    showPasswordChanged(target, sender) {
+        target.passwordField.secureTextEntry = !sender.isOn()
     }
 
-    lockNameChanged(sender) {
-        this.nameField.userInteractionEnabled = !sender.isOn()
+    lockNameChanged(target, sender) {
+        target.nameField.userInteractionEnabled = !sender.isOn()
     }
 
     updateForm() {

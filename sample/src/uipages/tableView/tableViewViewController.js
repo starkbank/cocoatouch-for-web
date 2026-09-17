@@ -1,7 +1,6 @@
 import "UIKit"
 import { MenuView } from "../../uicomponents/menu/menuView.js"
-import { ContactsTableView } from "./contactsTableView.js"
-import contactCellUrl from "./contactTableViewCell.html"
+import { ContactTableViewCell } from "./contactTableViewCell.js"
 
 
 const CONTACTS = [
@@ -16,14 +15,15 @@ const CONTACTS = [
 export class TableViewViewController extends UIViewController {
 
     @IBOutlet("#menu", MenuView) menuView
-    @IBOutlet("#table-view-contacts", ContactsTableView) tableView
+    @IBOutlet("#table-view-contacts", UITableView) tableView
     @IBOutlet("#table-view-count", UILabel) countLabel
     @IBOutlet("#table-view-selected", UILabel) selectedLabel
 
     contacts = CONTACTS.slice(0, 3)
 
     viewDidLoad() {
-        this.tableView.isEditable = true
+        this.tableView.register(ContactTableViewCell, {forCellReuseIdentifier: "contact"})
+        this.tableView.setEditing(true)
         this.tableView.delegate = this
         // Assigning the data source triggers the first reloadData.
         this.tableView.dataSource = this
@@ -37,20 +37,22 @@ export class TableViewViewController extends UIViewController {
     }
 
     tableViewCellForRowAtIndexPath(tableView, indexPath) {
-        var cell = tableView.dequeueReusableCell({identifier: contactCellUrl, indexPath: indexPath})
-        cell.contact = this.contacts[indexPath]
+        var cell = tableView.dequeueReusableCell({withIdentifier: "contact", for: indexPath})
+        cell.contact = this.contacts[indexPath.row]
         return cell
     }
 
     // UITableViewDelegate
 
     tableViewDidSelectRowAtIndexPath(tableView, indexPath) {
-        var contact = this.contacts[indexPath]
-        this.selectedLabel.text = `Selected row ${indexPath}: ${contact.name} (${contact.role})`
+        tableView.selectRow({at: indexPath})
+        var contact = this.contacts[indexPath.row]
+        this.selectedLabel.text = `Selected row ${indexPath.row}: ${contact.name} (${contact.role})`
     }
 
-    deleteRowAt(indexPath, tableView) {
-        this.contacts.splice(indexPath, 1)
+    tableViewCommitEditingStyleForRowAt(tableView, editingStyle, indexPath) {
+        if (editingStyle !== "delete") { return }
+        this.contacts.splice(indexPath.row, 1)
         this.reload()
     }
 
