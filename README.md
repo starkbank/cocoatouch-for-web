@@ -130,6 +130,18 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 | | UIProgressView, UIActivityIndicatorView | |
 | | IBOutlet, IBAction, Keyboard | |
 
+## Sample
+
+`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib, and a table view with a custom cell. It depends on this package through `file:..`, so it runs against the working tree.
+
+```
+cd sample
+npm install
+npm start
+```
+
+Then open http://localhost:8080.
+
 ## Tests
 
 ```

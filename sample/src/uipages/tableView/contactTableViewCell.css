@@ -1,0 +1,24 @@
+.contact-cell {
+    cursor: pointer;
+}
+
+.contact-cell:hover td {
+    background: var(--color-bg);
+}
+
+.contact-name {
+    font-weight: 600;
+}
+
+.contact-email {
+    color: var(--color-muted);
+    font-size: 14px;
+}
+
+.contact-role {
+    color: var(--color-muted);
+}
+
+.contact-actions {
+    text-align: right;
+}

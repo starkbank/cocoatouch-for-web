@@ -1,0 +1,29 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1 id="home-title">CocoaTouch for Web</h1>
+    <p id="home-subtitle" class="lead"></p>
+
+    <div class="home-grid">
+        <a id="home-buttons" class="home-option" href="/buttons">
+            <h3>Buttons</h3>
+            <p>@IBAction, addTarget, keyboard shortcuts, isEnabled</p>
+        </a>
+        <a id="home-labels" class="home-option" href="/labels">
+            <h3>Labels</h3>
+            <p>text, textColor, isHidden, style, lifecycle and notifications</p>
+        </a>
+        <a id="home-text-fields" class="home-option" href="/text-fields">
+            <h3>Text fields</h3>
+            <p>placeholder, delegate, secureTextEntry, first responder</p>
+        </a>
+        <a id="home-custom-views" class="home-option" href="/custom-views">
+            <h3>Custom views</h3>
+            <p>A UIView subclass with its own nib, as an outlet and via addSubview</p>
+        </a>
+        <a id="home-table-view" class="home-option" href="/table-view">
+            <h3>Table view</h3>
+            <p>A UITableView subclass with a custom cell, data source and delegate</p>
+        </a>
+    </div>
+</main>
