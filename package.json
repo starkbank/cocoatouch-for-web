@@ -1,0 +1,56 @@
+{
+    "name": "cocoatouch",
+    "version": "1.0.0",
+    "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
+    "license": "MIT",
+    "type": "module",
+    "main": "./src/index.js",
+    "exports": {
+        ".": "./src/index.js",
+        "./uikit": "./src/uikit/index.js",
+        "./foundation": "./src/foundation/index.js",
+        "./coreanimation": "./src/coreanimation/index.js",
+        "./avkit": "./src/avkit/index.js",
+        "./webpack/xibLoader": "./webpack/xibLoader.cjs"
+    },
+    "files": [
+        "src",
+        "webpack",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "test": "node --test test/*.test.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/starkbank/cocoatouch-for-web.git"
+    },
+    "homepage": "https://github.com/starkbank/cocoatouch-for-web#readme",
+    "bugs": {
+        "url": "https://github.com/starkbank/cocoatouch-for-web/issues"
+    },
+    "keywords": [
+        "cocoatouch",
+        "uikit",
+        "foundation",
+        "uiviewcontroller",
+        "iboutlet",
+        "ibaction",
+        "xib",
+        "nib",
+        "ios",
+        "jquery",
+        "webpack-loader"
+    ],
+    "author": "Stark Bank S.A.",
+    "peerDependencies": {
+        "jquery": ">=3"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
