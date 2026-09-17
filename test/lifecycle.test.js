@@ -178,3 +178,86 @@ test("a keyboard-only view is not revived by selector scan", function() {
     Bind.restoreRegisteredViews(scopeMatching([]), new UIViewController())
     assert.deepEqual(log, [])
 })
+
+test("a host element that already has an id keeps it and becomes the controller's selector", function() {
+    var Controller = recordingController("hosted", [])
+    var controller = new Controller()
+    var host = $("cocoatouch")
+    host.attr = function(name, value) { if (value === undefined) { return "container" } return host }
+    host.prop = function(name, value) { throw new Error("id must not be overwritten") }
+    var original = globalThis.$
+    globalThis.$ = function(selector) { return selector === "cocoatouch" ? host : original(selector) }
+    controller.present(controller, {})
+    globalThis.$ = original
+    assert.equal(controller.selector, "#container")
+    assert.equal(controller.identifier, "container")
+})
+
+function containerStub() {
+    var el = $("<div></div>")
+    el.attr = function(name, value) { if (value === undefined) { return "" } return el }
+    return el
+}
+
+test("a child controller fills its container view and runs its lifecycle", function() {
+    var log = []
+    var Parent = recordingController("parent", log)
+    var Child = recordingController("child", log)
+    var parent = new Parent()
+    var child = new Child()
+    var container = new UIView("#content")
+    container._$el = containerStub()
+    parent.addChild(child)
+    assert.deepEqual(parent.children, [child])
+    assert.equal(child.parent, parent)
+    assert.equal(child.next, parent)
+    container.addSubview(child.view)
+    assert.deepEqual(log, ["child.viewDidLoad", "child.viewWillAppear", "child.viewDidAppear"])
+    assert.equal(child.selector, "#content")
+    assert.ok(container._$el.html().indexOf("<div id=\"child\"></div>") !== -1)
+    assert.equal(child.view.parentViewController(), child)
+})
+
+test("removing a child empties its container, tears it down and releases its observers", function() {
+    var log = []
+    var hits = 0
+    var target = new EventTarget()
+    var Parent = recordingController("parent", log)
+    var Child = recordingController("child", log)
+    var parent = new Parent()
+    var child = new Child()
+    var container = new UIView("#content")
+    container._$el = containerStub()
+    parent.addChild(child)
+    container.addSubview(child.view)
+    NSNotificationCenter.addObserver(child, {selector: function() { hits += 1 }, name: "tick", object: target})
+    log.length = 0
+    child.removeFromParent()
+    target.dispatchEvent(new Event("tick"))
+    assert.deepEqual(log, ["child.viewWillDisappear", "child.viewDidDisappear"])
+    assert.equal(hits, 0)
+    assert.deepEqual(parent.children, [])
+    assert.equal(child.parent, null)
+    assert.equal(container._$el.html(), "")
+})
+
+test("disposing a parent disposes its children", function() {
+    var hits = 0
+    var target = new EventTarget()
+    var parent = new UIViewController()
+    var child = new UIViewController()
+    parent.addChild(child)
+    NSNotificationCenter.addObserver(child, {selector: function() { hits += 1 }, name: "tick", object: target})
+    parent._dispose()
+    target.dispatchEvent(new Event("tick"))
+    assert.equal(hits, 0)
+})
+
+test("removeFromSuperview takes a plain view out of its superview", function() {
+    var parent = new UIView("#parent")
+    var child = new UIView("#child")
+    parent.addSubview(child)
+    child.removeFromSuperview()
+    assert.deepEqual(parent.subviews, [])
+    assert.equal(child.superview, null)
+})

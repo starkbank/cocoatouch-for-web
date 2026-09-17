@@ -32,6 +32,13 @@ export class CustomViewsViewController extends UIViewController {
         this.updateCount()
     }
 
+    @IBAction("#custom-views-remove", UIButton) removeTapped() {
+        var subviews = this.gridView.subviews
+        if (subviews.length === 0) { return }
+        subviews[subviews.length - 1].removeFromSuperview()
+        this.updateCount()
+    }
+
     cardDidTap(notification) {
         var card = notification.object
         var inGrid = card.superview === this.gridView

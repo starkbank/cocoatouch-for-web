@@ -1,6 +1,6 @@
 {
     "name": "cocoatouch",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
@@ -46,13 +46,15 @@
         "./types/globals.d.ts": "./types/globals.d.ts",
         "./webpack/xibLoader": "./webpack/xibLoader.cjs",
         "./webpack/aliases": "./webpack/aliases.cjs",
-        "./eslint/globals": "./eslint/globals.cjs"
+        "./eslint/globals": "./eslint/globals.cjs",
+        "./uikit.css": "./styles/uikit.css"
     },
     "files": [
         "src",
         "types",
         "webpack",
         "eslint",
+        "styles",
         "README.md",
         "LICENSE"
     ],
@@ -95,5 +97,10 @@
     },
     "devDependencies": {
         "typescript": "^5.9.3"
+    },
+    "peerDependenciesMeta": {
+        "jquery-ui": {
+            "optional": true
+        }
     }
 }

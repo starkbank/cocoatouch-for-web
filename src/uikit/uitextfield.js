@@ -32,14 +32,32 @@ export class UITextField extends UIControl {
 
     set delegate(delegate) {
         var textField = this
-        this.$el.on("keyup", function(e){
-            if(e.which == 13) {
-                try {
-                    delegate.textFieldShouldReturn(textField)
-                } catch(e) {}
+        this._delegate = delegate
+        this.$el.off("keyup.delegate").on("keyup.delegate", function(e) {
+            if (e.which === 13 && delegate.textFieldShouldReturn) {
+                delegate.textFieldShouldReturn(textField)
             }
-            delegate.textFieldDidEndEditing(textField)
+            if (delegate.textFieldDidEndEditing) {
+                delegate.textFieldDidEndEditing(textField)
+            }
         })
+        this.$el.off("focusin.delegate").on("focusin.delegate", function() {
+            if (delegate.textFieldDidBeginEditing) {
+                delegate.textFieldDidBeginEditing(textField)
+            }
+        })
+    }
+
+    get delegate() {
+        return this._delegate || null
+    }
+
+    get isFirstResponder() {
+        return this.$el.is(":focus")
+    }
+
+    get borderColor() {
+        return {hex: this.$el.css("border-color")}
     }
 
     set secureTextEntry(bool) {
