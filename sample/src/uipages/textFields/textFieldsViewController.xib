@@ -1,0 +1,41 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Text fields</h1>
+    <p class="lead">UITextField wraps an input or textarea. A delegate hears every edit and the return key.</p>
+
+    <section class="demo">
+        <h2>delegate</h2>
+        <p><code>textFieldDidEndEditing</code> runs on every edit; <code>textFieldShouldReturn</code> runs on <kbd>Enter</kbd>. Placeholders are set from the controller.</p>
+        <label class="field">
+            <span>Name</span>
+            <input id="text-fields-name" type="text">
+        </label>
+        <label class="field">
+            <span>Email</span>
+            <input id="text-fields-email" type="email">
+        </label>
+        <label class="field">
+            <span>Notes</span>
+            <textarea id="text-fields-notes" rows="3"></textarea>
+        </label>
+        <div class="row">
+            <button id="text-fields-submit" class="button">Submit</button>
+            <span id="text-fields-notes-count" class="text-fields-muted"></span>
+        </div>
+        <p id="text-fields-preview" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>secureTextEntry and userInteractionEnabled</h2>
+        <p>The switches flip the password's visibility and lock the name field above.</p>
+        <label class="field">
+            <span>Password</span>
+            <input id="text-fields-password" type="password">
+        </label>
+        <div class="row">
+            <label class="switch"><input id="text-fields-show-password" type="checkbox"> Show password</label>
+            <label class="switch"><input id="text-fields-lock-name" type="checkbox"> Lock name</label>
+        </div>
+    </section>
+</main>

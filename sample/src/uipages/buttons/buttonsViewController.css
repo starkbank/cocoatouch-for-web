@@ -1,0 +1,15 @@
+.buttons-count {
+    min-width: 48px;
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.buttons-output {
+    color: var(--color-muted);
+}
+
+.button-disabled {
+    opacity: .45;
+}

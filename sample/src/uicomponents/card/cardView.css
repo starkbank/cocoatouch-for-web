@@ -1,0 +1,22 @@
+.card {
+    padding: 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.card-title {
+    margin: 0 0 4px;
+    font-size: 17px;
+}
+
+.card-subtitle {
+    margin: 0 0 12px;
+    color: var(--color-muted);
+    font-size: 14px;
+}
+
+.card-taps {
+    color: var(--color-muted);
+    font-size: 14px;
+}

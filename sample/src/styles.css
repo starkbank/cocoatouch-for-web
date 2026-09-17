@@ -1,0 +1,168 @@
+:root {
+    --color-bg: #f5f6f8;
+    --color-surface: #ffffff;
+    --color-border: #e1e4ea;
+    --color-text: #1c1f26;
+    --color-muted: #6b7280;
+    --color-accent: #0070e0;
+    --color-accent-dark: #005bb5;
+    --color-danger: #d64545;
+    --color-success: #1f9d55;
+    --radius: 10px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--color-text);
+    background: var(--color-bg);
+}
+
+cocoatouch {
+    display: block;
+    min-height: 100vh;
+}
+
+.page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+}
+
+.page h1 {
+    margin: 0 0 8px;
+    font-size: 32px;
+}
+
+.lead {
+    margin: 0 0 32px;
+    color: var(--color-muted);
+    font-size: 18px;
+}
+
+.demo {
+    margin-bottom: 24px;
+    padding: 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.demo h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+}
+
+.demo p {
+    margin: 0 0 16px;
+    color: var(--color-muted);
+}
+
+.demo code, .demo kbd {
+    padding: 1px 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    background: var(--color-bg);
+    border-radius: 4px;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.output {
+    min-height: 24px;
+    margin-top: 12px !important;
+    color: var(--color-text) !important;
+}
+
+.button {
+    padding: 10px 18px;
+    font: inherit;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color .15s ease;
+}
+
+.button:hover {
+    background: var(--color-accent-dark);
+}
+
+.button-secondary {
+    color: var(--color-accent);
+    background: var(--color-surface);
+}
+
+.button-secondary:hover {
+    background: var(--color-bg);
+}
+
+.button-danger {
+    color: var(--color-danger);
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+.button-small {
+    padding: 6px 12px;
+    font-size: 14px;
+}
+
+.field {
+    display: block;
+    margin-bottom: 16px;
+}
+
+.field span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.field input, .field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+.field input:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.field input:disabled {
+    background: var(--color-bg);
+    color: var(--color-muted);
+}
+
+.switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+@media (min-width: 900px) {
+    .page {
+        margin-left: 240px;
+    }
+}
