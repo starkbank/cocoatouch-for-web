@@ -1,0 +1,9 @@
+<nav class="menu">
+    <a id="menu-brand" class="menu-brand" href="/">CocoaTouch <span>for Web</span></a>
+    <a id="menu-home" class="menu-option" href="/">Home</a>
+    <a id="menu-buttons" class="menu-option" href="/buttons">Buttons</a>
+    <a id="menu-labels" class="menu-option" href="/labels">Labels</a>
+    <a id="menu-text-fields" class="menu-option" href="/text-fields">Text fields</a>
+    <a id="menu-custom-views" class="menu-option" href="/custom-views">Custom views</a>
+    <a id="menu-table-view" class="menu-option" href="/table-view">Table view</a>
+</nav>

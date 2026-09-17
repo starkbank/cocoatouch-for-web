@@ -1,0 +1,27 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Table view</h1>
+    <p class="lead">ContactsTableView is a UITableView subclass that dequeues ContactTableViewCell. The controller is data source and delegate.</p>
+
+    <section class="demo">
+        <h2>dataSource and delegate</h2>
+        <p>Rows come from <code>tableViewNumberOfRowsInSection</code> and <code>tableViewCellForRowAtIndexPath</code>. Tapping a row calls <code>tableViewDidSelectRowAtIndexPath</code>; the delete button calls <code>deleteRowAt</code> because the table is editable.</p>
+        <div class="row">
+            <button id="table-view-add" class="button">Add contact</button>
+            <button id="table-view-clear" class="button button-secondary">Remove all</button>
+            <span id="table-view-count" class="table-view-muted"></span>
+        </div>
+        <table id="table-view-contacts" class="contacts-table">
+            <thead>
+                <tr>
+                    <th>Contact</th>
+                    <th>Role</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="table-view-selected" class="output">Tap a row to select it.</p>
+    </section>
+</main>

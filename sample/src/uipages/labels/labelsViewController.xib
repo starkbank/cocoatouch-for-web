@@ -1,0 +1,44 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Labels</h1>
+    <p class="lead">UILabel wraps any text element. The controller owns the text; the xib owns the markup.</p>
+
+    <section class="demo">
+        <h2>text and textColor</h2>
+        <p>Text is set in <code>viewDidLoad</code>. Colors are <code>UIColor</code> values.</p>
+        <p id="labels-greeting" class="labels-greeting"></p>
+        <div class="row">
+            <button id="labels-color-accent" class="button button-small button-secondary">Accent</button>
+            <button id="labels-color-success" class="button button-small button-secondary">Success</button>
+            <button id="labels-color-danger" class="button button-small button-secondary">Danger</button>
+            <button id="labels-color-default" class="button button-small button-secondary">Default</button>
+        </div>
+    </section>
+
+    <section class="demo">
+        <h2>isHidden and style</h2>
+        <p><code>isHidden</code> toggles display; <code>style</code> replaces the element's class list.</p>
+        <div class="row">
+            <button id="labels-toggle-hidden" class="button button-small button-secondary">Hide</button>
+            <button id="labels-toggle-style" class="button button-small button-secondary">Emphasize</button>
+        </div>
+        <p id="labels-styled" class="labels-plain output">This label changes class and visibility.</p>
+    </section>
+
+    <section class="demo">
+        <h2>Lifecycle</h2>
+        <p>The clock starts in <code>viewDidAppear</code> and stops in <code>viewWillDisappear</code>, so navigating away leaves no timer behind.</p>
+        <p id="labels-clock" class="labels-clock output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>NSNotificationCenter</h2>
+        <p>Observing <code>window</code> resize as a DOM event, and an in-app notification posted by the button. Both observers are released with the controller.</p>
+        <p id="labels-width" class="output"></p>
+        <div class="row">
+            <button id="labels-ping" class="button button-small">Post notification</button>
+            <span id="labels-pings" class="labels-muted"></span>
+        </div>
+    </section>
+</main>
