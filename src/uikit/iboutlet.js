@@ -1,5 +1,6 @@
 
 
+/** @returns {(target: object, name: string, descriptor?: PropertyDescriptor) => any} */
 export function IBOutlet(selector, cls) {
     return (target, name, descriptor) => {
         var array = target["iboutlets"] || []

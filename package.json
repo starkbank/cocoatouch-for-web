@@ -1,26 +1,66 @@
 {
     "name": "cocoatouch",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
     "main": "./src/index.js",
+    "types": "./types/index.d.ts",
     "exports": {
-        ".": "./src/index.js",
-        "./uikit": "./src/uikit/index.js",
-        "./foundation": "./src/foundation/index.js",
-        "./coreanimation": "./src/coreanimation/index.js",
-        "./avkit": "./src/avkit/index.js",
-        "./webpack/xibLoader": "./webpack/xibLoader.cjs"
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./UIKit": {
+            "types": "./types/UIKit.d.ts",
+            "default": "./src/UIKit.js"
+        },
+        "./Foundation": {
+            "types": "./types/Foundation.d.ts",
+            "default": "./src/Foundation.js"
+        },
+        "./CoreAnimation": {
+            "types": "./types/CoreAnimation.d.ts",
+            "default": "./src/CoreAnimation.js"
+        },
+        "./AVKit": {
+            "types": "./types/AVKit.d.ts",
+            "default": "./src/AVKit.js"
+        },
+        "./uikit": {
+            "types": "./types/uikit/index.d.ts",
+            "default": "./src/uikit/index.js"
+        },
+        "./foundation": {
+            "types": "./types/foundation/index.d.ts",
+            "default": "./src/foundation/index.js"
+        },
+        "./coreanimation": {
+            "types": "./types/coreanimation/index.d.ts",
+            "default": "./src/coreanimation/index.js"
+        },
+        "./avkit": {
+            "types": "./types/avkit/index.d.ts",
+            "default": "./src/avkit/index.js"
+        },
+        "./types/globals.d.ts": "./types/globals.d.ts",
+        "./webpack/xibLoader": "./webpack/xibLoader.cjs",
+        "./webpack/aliases": "./webpack/aliases.cjs",
+        "./eslint/globals": "./eslint/globals.cjs"
     },
     "files": [
         "src",
+        "types",
         "webpack",
+        "eslint",
         "README.md",
         "LICENSE"
     ],
     "scripts": {
-        "test": "node --test test/*.test.js"
+        "build": "tsc -p tsconfig.types.json && node scripts/globals.cjs",
+        "pretest": "npm run build",
+        "test": "node --test test/*.test.js",
+        "prepack": "npm run build"
     },
     "repository": {
         "type": "git",
@@ -52,5 +92,8 @@
     },
     "publishConfig": {
         "access": "public"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.3"
     }
 }

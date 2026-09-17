@@ -5,6 +5,7 @@ import { NSNotificationCenter } from "../foundation/nsnotificationcenter.js"
 
 export class UIResponder extends NSObject {
 
+    /** @param {string} [selector] */
     constructor(selector) {
         super()
         this.selector = selector || "#"+uuid()
