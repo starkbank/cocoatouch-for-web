@@ -7,10 +7,6 @@ const ACTIVITY_INDICATOR = "<i class=\"fas fa-circle-notch fa-spin uibutton-acti
 
 export class UIButton extends UIControl {
 
-    sendActions(params) {
-        this.$el.click()
-    }
-
     set text(text) {
         this.$el.html(NSString.cleanScript(text))
     }
