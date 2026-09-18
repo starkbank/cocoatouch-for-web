@@ -100,6 +100,21 @@ class OnboardViewController extends UIViewController {
 
 `children`, `parent`, `willMove({toParent})` and `didMove({toParent})` follow UIKit. A plain view's `removeFromSuperview()` takes its element out of the page.
 
+## Animations
+
+`UIView.animate` runs property changes over a duration: `alpha` and `isHidden` fade instead of switching. `UIView.transition` swaps two views, sliding the new one in from the side named by a flip option or dissolving it.
+
+```js
+const card = UIView.loadFromNib(html)
+this.listView.insertSubview(card)
+card.alpha = 0
+UIView.animate({withDuration: 0.5, animations: () => { card.alpha = 1 }})
+
+UIView.transition({from: this.searchView, to: this.passwordView, duration: 0.28, options: [UIView.AnimationOptions.transitionFlipFromRight]})
+```
+
+`insertSubview(view, {at})` places a view's nib inside another view without restyling it; `tag` keeps an integer on a view; `UIControl.sendActions({for})` fires a control event; and a view class with a `.xib` fills the empty element it is created on, so `new SecureTextField("#password")` renders like the outlet would.
+
 ## Table views
 
 A table view works the way it does on iOS: register a cell class for a reuse identifier, dequeue it in the data source, configure its outlets. The cell's row html lives in the `.xib` of the same name as the cell class.
