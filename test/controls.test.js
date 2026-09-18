@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIView, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent } from "../src/index.js"
+import { UIButton, UIView, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent } from "../src/index.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
 
@@ -158,4 +158,13 @@ test("editing state is a property with an iOS-style setter", function() {
     assert.equal(table.isEditing, false)
     table.setEditing(true, {animated: false})
     assert.equal(table.isEditing, true)
+})
+
+test("an image view asks a lottie player on the page to load the animation", function() {
+    var view = new UIImageView("#animation")
+    var loaded = []
+    view._$el = $("<lottie-player></lottie-player>")
+    view._$el[0] = {load: function(src) { loaded.push(src) }}
+    view.image = new UIImage({named: "/static/intro.json"})
+    assert.deepEqual(loaded, ["/static/intro.json"])
 })
