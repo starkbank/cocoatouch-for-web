@@ -1,7 +1,8 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIView, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent } from "../src/index.js"
+import { UIButton, UIView, UIControl, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent } from "../src/index.js"
+import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
 
@@ -167,4 +168,63 @@ test("an image view asks a lottie player on the page to load the animation", fun
     view._$el[0] = {load: function(src) { loaded.push(src) }}
     view.image = new UIImage({named: "/static/intro.json"})
     assert.deepEqual(loaded, ["/static/intro.json"])
+})
+
+test("a view class with a nib fills the empty element it is created on", function() {
+    class Field extends UIView {}
+    Field.nib = "<input class=\"inner\">"
+    var originalJQuery = globalThis.$
+    var el = originalJQuery("#password")
+    el.children = function() { return {length: 0} }
+    globalThis.$ = function(selector) { return selector === "#password" ? el : originalJQuery(selector) }
+    var field = new Field("#password")
+    globalThis.$ = originalJQuery
+    assert.equal(el.html(), "<input class=\"inner\">")
+    assert.equal(field.selector, "#password")
+})
+
+test("alpha and isHidden set inside UIView.animate fade instead of switching", function() {
+    var view = new UIView("#fading")
+    var el = view.$el
+    var calls = []
+    el.stop = function() { return el }
+    el.delay = function() { return el }
+    el.fadeTo = function(duration, value) { calls.push(["fadeTo", duration, value]); return el }
+    el.fadeOut = function(duration) { calls.push(["fadeOut", duration]); return el }
+    UIView.animate({withDuration: 0.5, animations: function() {
+        view.alpha = 1
+        view.isHidden = true
+    }})
+    view.alpha = 0.5
+    assert.deepEqual(calls, [["fadeTo", 500, 1], ["fadeOut", 500]])
+})
+
+test("tag lives on the element and sendActions fires the mapped event", function() {
+    var control = new UIControl("#control")
+    var el = control.$el
+    var attrs = {}, fired = []
+    el.attr = function(name, value) { if (value === undefined) { return attrs[name] } attrs[name] = String(value); return el }
+    el.trigger = function(event) { fired.push(event); return el }
+    assert.equal(control.tag, 0)
+    control.tag = 3
+    assert.equal(control.tag, 3)
+    control.sendActions({for: UIControlEvent.editingChanged})
+    control.sendActions({for: UIControlEvent.touchUpInside})
+    assert.deepEqual(fired, ["input", "click"])
+})
+
+test("insertSubview places a view's nib without restyling it and links it", function() {
+    var parent = new UIView("#parent")
+    var child = UIView.loadFromNib("<span>hi</span>")
+    var appended = []
+    var el = parent.$el
+    el.children = function() { return {length: 0} }
+    el.append = function(inserted) { appended.push(inserted.html()); return el }
+    parent.insertSubview(child)
+    assert.equal(appended.length, 1)
+    assert.ok(appended[0].indexOf("<span>hi</span>") !== -1)
+    assert.deepEqual(parent.subviews, [child])
+    assert.equal(child.superview, parent)
+    child.removeFromSuperview()
+    assert.deepEqual(parent.subviews, [])
 })
