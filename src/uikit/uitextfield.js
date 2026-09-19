@@ -52,10 +52,6 @@ export class UITextField extends UIControl {
         return this._delegate || null
     }
 
-    get isFirstResponder() {
-        return this.$el.is(":focus")
-    }
-
     set isSecureTextEntry(bool) {
         bool ? this.$el.attr("type", "password") : this.$el.attr("type", "text")
     }
@@ -64,11 +60,25 @@ export class UITextField extends UIControl {
         return this.$el.prop("type") === "password" ? true : false
     }
 
-    becomeFirstResponder() {
-        this.$el.focus()
+    // The selection as offsets into the text, like UITextInput's selectedTextRange.
+    get selectedTextRange() {
+        var element = this.$el[0]
+        if (!element || element.selectionStart === undefined || element.selectionStart === null) { return null }
+        return {start: element.selectionStart, end: element.selectionEnd}
     }
 
-    resignFirstResponder() {
-        this.$el.blur()
+    set selectedTextRange(range) {
+        var element = this.$el[0]
+        if (!element || !range || typeof element.setSelectionRange !== "function") { return }
+        element.setSelectionRange(range.start, range.end)
+    }
+
+    // The browser's autocomplete hint stands in for the content type.
+    set textContentType(type) {
+        this.$el.attr("autocomplete", type)
+    }
+
+    get textContentType() {
+        return this.$el.attr("autocomplete") || ""
     }
 }

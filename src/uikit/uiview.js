@@ -38,6 +38,17 @@ export class UIView extends UIResponder {
         return new CALayer(this.selector)
     }
 
+    // The element id, so tests and stylesheets can address a nib's inner views.
+    get accessibilityIdentifier() {
+        return this.$el.attr("id") || null
+    }
+
+    set accessibilityIdentifier(identifier) {
+        this.$el.attr("id", identifier)
+        this.selector = "#" + identifier
+        this._identifier = identifier
+    }
+
     get superview() {
         return this._superview || null
     }
@@ -85,6 +96,18 @@ export class UIView extends UIResponder {
     get tag() {
         var tag = this.$el.attr("data-tag")
         return tag === undefined ? 0 : Number(tag)
+    }
+
+    becomeFirstResponder() {
+        this.$el.trigger("focus")
+    }
+
+    resignFirstResponder() {
+        this.$el.trigger("blur")
+    }
+
+    get isFirstResponder() {
+        return this.$el.is(":focus")
     }
 
     set isUserInteractionEnabled(bool) {
