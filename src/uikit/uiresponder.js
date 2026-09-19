@@ -27,6 +27,7 @@ export class UIResponder extends NSObject {
     // Observers on window and document outlive the DOM the responder was bound
     // to, so they are released here when the owning controller is dismissed.
     _dispose() {
+        this._disposed = true
         NotificationCenter.default.removeObserver(this)
     }
 }
