@@ -49,11 +49,12 @@ export class UICollectionView extends UIView {
         this._bindItems()
     }
 
-    dequeueReusableCell(identifier, indexPath) {
-        if (typeof identifier === "object") {
-            return new UICollectionViewCell(identifier.identifier, identifier.indexPath)
-        }
-        return new UICollectionViewCell(identifier, indexPath)
+    dequeueReusableCell({withReuseIdentifier, for: indexPath}) {
+        return new UICollectionViewCell(withReuseIdentifier, indexPath)
+    }
+
+    indexPath({for: cell}) {
+        return cell._indexPath || null
     }
 
     _loadItems(section, numberOfItems) {
@@ -89,7 +90,7 @@ export class UICollectionViewCell extends UIView {
         }
         super(identifier)
         this.reuseIdentifier = identifier
-        this.indexPath = indexPath
+        this._indexPath = indexPath
         this.awakeFromNib()
     }
 }

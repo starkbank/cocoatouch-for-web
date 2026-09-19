@@ -28,7 +28,7 @@
     </section>
 
     <section class="demo">
-        <h2>secureTextEntry and userInteractionEnabled</h2>
+        <h2>isSecureTextEntry and isUserInteractionEnabled</h2>
         <p>The switches flip the password's visibility and lock the name field above.</p>
         <label class="field">
             <span>Password</span>

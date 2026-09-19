@@ -94,6 +94,12 @@ export class UITableView extends UIScrollView {
         return this._cells[_row(at)] || null
     }
 
+    indexPath({for: cell}) {
+        var row = this._cells.indexOf(cell)
+        if (row === -1) { return null }
+        return new IndexPath({row: row})
+    }
+
     reloadData() {
         if (this._dataSource === null) { return }
         var numberOfRows = this.numberOfRows()
@@ -143,16 +149,6 @@ export class UITableView extends UIScrollView {
 
     deselectRow({at, animated}) {
         this._deselect(_row(at))
-    }
-
-    selectAllRows() {
-        for (var row = 0; row < this.numberOfRows(); row++) {
-            this.selectRow({at: row})
-        }
-    }
-
-    deselectAllRows() {
-        this._selectedRows.slice().forEach((row) => this._deselect(row))
     }
 
     _deselect(row) {

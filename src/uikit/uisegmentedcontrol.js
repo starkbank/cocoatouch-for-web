@@ -2,62 +2,33 @@ import { UIControl } from "./uicontrol.js"
 import { NSString } from "../utils/nsstring.js"
 
 
+// The element's children are the segments; the selected one carries "active".
 export class UISegmentedControl extends UIControl {
 
-    segments = []
-    selectedSegmentIndex = ""
-    numberOfSegments = this.segments.length
-
-    constructor(selector) {
-        super(selector)
-        this.init()
+    get numberOfSegments() {
+        return this.$el.children().length
     }
 
-    init() {
-        this.loadSegments()
-        this.numberOfSegments = this.segments.length
+    get selectedSegmentIndex() {
+        var index = -1
+        this.$el.children().each(function(i) { if ($(this).hasClass("active")) { index = i } })
+        return index
     }
 
-    loadSegments() {
-        let elementList = $(this.selector).children()
-        for (let index = 0; index < elementList.length; index++) {
-            const element = elementList[index]
-            this.segments.push(element)
-        }
-        this.setEnabled(elementList[0].id)
+    set selectedSegmentIndex(index) {
+        this.$el.children().removeClass("active").eq(index).addClass("active")
     }
 
-    setEnabled(identifier) {
-        this.segments.forEach(element => {
-            element.className = element.className.replace(" active", "")
-            if (element.id === identifier) {
-                element.className += " active"
-                this.selectedSegmentIndex = identifier
-            }
-        })
+    setTitle(title, {forSegmentAt}) {
+        var segment = this.$el.children().eq(forSegmentAt)
+        var label = segment.children().first()
+        var target = label.length ? label : segment
+        target.html(NSString.cleanScript(title))
     }
 
-    setBadgeValue(identifier, value) {
-        const i = this.segments.findIndex(_item => _item.id === identifier)
-        if (i > -1) {
-            this.segments[i].lastElementChild.innerHTML = value || 0
-        }
-    }
-
-    setTitle(identifier, title) {
-        var cleanedScriptText = NSString.cleanScript(title)
-        const i = this.segments.findIndex(_item => _item.id === identifier)
-        if (i > -1) {
-            this.segments[i].firstElementChild.innerHTML = cleanedScriptText
-        }
-    }
-
-    set isBadgeHidden(bool = false) {
-        this.segments.forEach(element => {
-            if (bool) {
-                return $(element.lastElementChild).hide()
-            }
-            $(element.lastElementChild).show()
-        })
+    titleForSegment({at}) {
+        var segment = this.$el.children().eq(at)
+        var label = segment.children().first()
+        return (label.length ? label : segment).text().trim()
     }
 }

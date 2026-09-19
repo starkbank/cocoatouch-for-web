@@ -1,4 +1,5 @@
 import { Locale } from "../foundation/locale.js"
+import { datePickerDateFormat, datePickerRegional } from "./datepickerlocale.js"
 import { UIControl } from "./uicontrol.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 
@@ -37,7 +38,7 @@ export class UIDatePicker extends UIControl {
 
     set locale(locale) {
         this._locale = locale
-        this.$input.datepicker("option", "dateFormat", locale.dateFormat)
+        this.$input.datepicker("option", "dateFormat", datePickerDateFormat(locale))
         this._configure()
     }
 
@@ -61,10 +62,6 @@ export class UIDatePicker extends UIControl {
         return this.$input.datepicker("option", "maxDate")
     }
 
-    set placeholder(placeholder) {
-        this.$input.attr("placeholder", placeholder)
-    }
-
     // "date" picks a day, "yearAndMonth" hides the calendar and picks a month.
     set datePickerMode(mode) {
         this._monthOnly = mode === "yearAndMonth"
@@ -73,10 +70,6 @@ export class UIDatePicker extends UIControl {
 
     get datePickerMode() {
         return this._monthOnly ? "yearAndMonth" : "date"
-    }
-
-    showOnlyMonth() {
-        this.datePickerMode = "yearAndMonth"
     }
 
     addTarget(target, {action, for: controlEvent}) {
@@ -94,10 +87,10 @@ export class UIDatePicker extends UIControl {
     }
 
     _configure() {
-        var regional = this._locale.regional || {}
+        var regional = datePickerRegional(this._locale)
         this.$input.datepicker("destroy")
         if (!this._monthOnly) {
-            this.$input.datepicker({...regional, dateFormat: this._locale.dateFormat, changeMonth: true, changeYear: true})
+            this.$input.datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true})
             return
         }
         this.$input.datepicker({

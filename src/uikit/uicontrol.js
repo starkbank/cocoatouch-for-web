@@ -1,5 +1,6 @@
 import { UIView } from "./uiview.js"
 import { UIControlEvent } from "./uicontrolevent.js"
+import { UIControlState } from "./uicontrolstate.js"
 
 
 const EVENTS = {
@@ -10,6 +11,23 @@ const EVENTS = {
 
 
 export class UIControl extends UIView {
+
+    static get Event() {
+        return UIControlEvent
+    }
+
+    static get State() {
+        return UIControlState
+    }
+
+    set isEnabled(bool) {
+        this._isEnabled = bool
+        this.$el.css("pointer-events", bool ? "" : "none")
+    }
+
+    get isEnabled() {
+        return this._isEnabled !== false
+    }
 
     addTarget(target, {action, for: controlEvent}) {
         var control = this

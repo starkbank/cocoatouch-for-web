@@ -27,7 +27,7 @@ export class HomeViewController extends UIViewController {
         window.location.href = "/api"
     }
 
-    @IBAction(Keyboard.command + Keyboard.k) commandKPressed() {
+    @IBAction(UIKeyModifierFlags.command + UIKeyCommand.input("k")) commandKPressed() {
         window.location.href = "/search"
     }
 }
@@ -78,7 +78,7 @@ present(controller)   viewDidLoad -> viewWillAppear -> viewDidAppear
 restore(controller)   rebinds outlets and actions on pre-rendered html: viewWillAppear -> viewDidAppear
 ```
 
-Views get `awakeFromNib` after their outlets are bound and `layoutSubviews` before their nib is inserted. `addSubview` and `addSubviews` link the child into the responder chain, so `view.next`, `view.superview`, `view.subviews` and `view.parentViewController()` work.
+Views get `awakeFromNib` after their outlets are bound, `layoutSubviews` before their nib is inserted and `didMoveToWindow` when a pre-rendered page is restored. `addSubview` links the child into the responder chain, so `view.next`, `view.superview`, `view.subviews` and `view.parentViewController()` work.
 
 ## Child view controllers
 
@@ -158,13 +158,13 @@ Views get an `init()` hook that runs when the object is constructed, before any 
 
 ## Notifications
 
-`NSNotificationCenter` is observer keyed. Pass a DOM event target as `object` to observe that event; leave it out to post and observe in-app notifications.
+`NotificationCenter.default` is observer keyed. Pass a DOM event target as `object` to observe that event; leave it out to post and observe in-app notifications.
 
 ```js
-NSNotificationCenter.addObserver(this, {name: "scroll", object: window, selector: () => this.updateMenu()})
-NSNotificationCenter.addObserver(this, {name: "cartDidChange", selector: "cartDidChange"})
-NSNotificationCenter.postNotification({name: "cartDidChange", userInfo: {count: 3}})
-NSNotificationCenter.removeObserver(this)
+NotificationCenter.default.addObserver(this, {name: "scroll", object: window, selector: () => this.updateMenu()})
+NotificationCenter.default.addObserver(this, {name: "cartDidChange", selector: "cartDidChange"})
+NotificationCenter.default.post({name: "cartDidChange", userInfo: {count: 3}})
+NotificationCenter.default.removeObserver(this)
 ```
 
 Everything a view or controller observes is released when its root controller is dismissed, so window and document listeners never pile up across navigations. Keyboard `@IBAction`s register the same way.
@@ -199,12 +199,13 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 | Foundation | UIKit | Other |
 |---|---|---|
 | NSObject | UIResponder, UIView, UIViewController | CALayer |
-| NSNotificationCenter | UIControl, UIButton, UILabel, UIScriptLabel, UITextField | AVPlayer |
+| NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
 | | UIScrollView, UITableView, UITableViewCell | |
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
-| | IBOutlet, IBAction, Keyboard | |
+| DispatchGroup, IndexPath, Locale | UIDevice, UIDatePicker, UICollectionView | |
+| | IBOutlet, IBAction, UIKeyCommand, UIKeyModifierFlags | |
 
 ## Sample
 

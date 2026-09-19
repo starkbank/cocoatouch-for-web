@@ -1,7 +1,8 @@
 import { NSObject } from "../foundation/nsobject.js"
 
 
-const MOBILE_BROWSERS = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i
+const PHONE_BROWSERS = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i
+const PAD_BROWSERS = /iPad/i
 
 
 export class UIDevice extends NSObject {
@@ -11,22 +12,18 @@ export class UIDevice extends NSObject {
         return UIDevice._current
     }
 
+    // The browser's user agent stands in for the hardware model.
     get model() {
         return typeof navigator === "undefined" ? "" : navigator.userAgent
     }
 
-    get mobileBrowsers() {
-        return MOBILE_BROWSERS
-    }
-
-    // The mobile browser family, or undefined on a desktop browser.
-    get platform() {
-        var match = this.model.match(MOBILE_BROWSERS)
-        if (!match) { return undefined }
-        return match[0]
+    get systemName() {
+        return typeof navigator === "undefined" ? "" : navigator.platform
     }
 
     get userInterfaceIdiom() {
-        return this.platform ? "phone" : "desktop"
+        if (PAD_BROWSERS.test(this.model)) { return "pad" }
+        if (PHONE_BROWSERS.test(this.model)) { return "phone" }
+        return "unspecified"
     }
 }

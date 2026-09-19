@@ -12,7 +12,7 @@ export class UITableViewCell extends UIView {
         }
         super(selector)
         this.reuseIdentifier = null
-        this.indexPath = indexPath
+        this._indexPath = indexPath
     }
 
     get isSelected() {

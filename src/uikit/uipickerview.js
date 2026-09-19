@@ -2,52 +2,64 @@ import { UIView } from "./uiview.js"
 import { NSString } from "../utils/nsstring.js"
 
 
+// A <select> driven like UIPickerView: the data source counts the rows, the
+// delegate titles them and hears the selection.
 export class UIPickerView extends UIView {
 
-    segments = []
-    
-    set text(text) {
-        var cleanedScriptText = NSString.cleanScript(text)
-        $(this.selector).html(cleanedScriptText)
+    set dataSource(dataSource) {
+        this._dataSource = dataSource
+        this.reloadAllComponents()
+    }
+
+    get dataSource() {
+        return this._dataSource || null
     }
 
     set delegate(delegate) {
-        var pickerView = this
-        $(this.selector).on("change", function(e) {
-            delegate.pickerViewDidSelectRow({
-                pickerView: pickerView,
-                row: $(this).prop("selectedIndex"),
-                component: 0
-            })
+        this._delegate = delegate
+        this.$el.off("change.picker").on("change.picker", () => {
+            if (delegate && delegate.pickerViewDidSelectRow) {
+                delegate.pickerViewDidSelectRow(this, this.selectedRow({inComponent: 0}), 0)
+            }
         })
+        this.reloadAllComponents()
     }
 
-    titleForRow(rows) {
-        if (rows.length === 0) { return }
+    get delegate() {
+        return this._delegate || null
+    }
+
+    get numberOfComponents() {
+        var dataSource = this.dataSource
+        if (dataSource && dataSource.numberOfComponentsInPickerView) { return dataSource.numberOfComponentsInPickerView(this) }
+        return 1
+    }
+
+    numberOfRows({inComponent} = {inComponent: 0}) {
+        var dataSource = this.dataSource
+        if (!dataSource) { return 0 }
+        return dataSource.pickerViewNumberOfRowsInComponent(this, inComponent)
+    }
+
+    reloadAllComponents() {
+        var delegate = this.delegate
+        if (!this.dataSource || !delegate) { return }
+        var selected = this.$el.prop("selectedIndex")
         this.$el.empty()
-        rows.forEach((row) => {
-            this.$el.append("<option value=\"" + row.value + "\">" + row.description + "</option>")
-        })
+        var rows = this.numberOfRows({inComponent: 0})
+        for (var row = 0; row < rows; row++) {
+            var title = NSString.cleanScript(delegate.pickerViewTitleForRow(this, row, 0))
+            this.$el.append("<option value=\"" + row + "\">" + title + "</option>")
+        }
+        if (selected >= 0 && selected < rows) { this.$el.prop("selectedIndex", selected) }
     }
 
-    selectedValue() {
-        return this.$el.children("option:selected").val() || ""
+    selectRow(row, {inComponent, animated} = {}) {
+        this.$el.prop("selectedIndex", row)
     }
 
-    selectedDescription() {
-        return this.$el.children("option:selected").text() || ""
-    }
-
-    set defaultValue(value) {
-        this.$el.val(value)
-    }
-
-    set userInteractionEnabled(bool) {
-        this.$el.prop("disabled", !bool)
-        this.$el.css("pointer-events", bool ? "" : "none")
-    }
-
-    get userInteractionEnabled() {
-        return !this.$el.prop("disabled")
+    selectedRow({inComponent} = {inComponent: 0}) {
+        var index = this.$el.prop("selectedIndex")
+        return index === undefined || index === null ? -1 : index
     }
 }

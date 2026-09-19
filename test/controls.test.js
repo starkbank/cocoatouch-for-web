@@ -1,7 +1,8 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIView, UIControl, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent } from "../src/index.js"
+import { UIButton, UIView, UIControl, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent, UIControlState } from "../src/index.js"
+import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
@@ -33,26 +34,25 @@ test("IndexPath carries row and section, item aliases row", function() {
     assert.ok(!indexPath.isEqual(new IndexPath({row: 3})))
 })
 
-test("Locale knows the date formats and regional strings of its identifier", function() {
+test("Locale exposes its language and region; the date picker keeps the formats", function() {
     var brazil = new Locale("pt-BR")
-    assert.equal(brazil.dateFormat, "dd/mm/yy")
-    assert.equal(brazil.momentDateFormat, "DD/MM/YYYY")
-    assert.equal(brazil.regional.monthNames[0], "Janeiro")
     assert.equal(brazil.languageCode, "pt")
     assert.equal(brazil.regionCode, "BR")
-    assert.equal(new Locale("en").dateFormat, "mm/dd/yy")
-    assert.equal(new Locale("fr").dateFormat, "mm/dd/yy")
+    assert.equal(datePickerDateFormat(brazil), "dd/mm/yy")
+    assert.equal(datePickerRegional(brazil).monthNames[0], "Janeiro")
+    assert.equal(datePickerDateFormat(new Locale("fr")), "mm/dd/yy")
 })
 
-test("UIDevice.current reports the mobile browser family from the user agent", function() {
+test("UIDevice.current tells the interface idiom from the user agent", function() {
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.platform, "iPhone")
     assert.equal(UIDevice.current.userInterfaceIdiom, "phone")
+    Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"}, configurable: true})
+    UIDevice._current = undefined
+    assert.equal(UIDevice.current.userInterfaceIdiom, "pad")
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.platform, undefined)
-    assert.equal(UIDevice.current.userInterfaceIdiom, "desktop")
+    assert.equal(UIDevice.current.userInterfaceIdiom, "unspecified")
     assert.equal(UIDevice.current, UIDevice.current)
 })
 
@@ -65,7 +65,7 @@ test("NSString.cleanScript defers to DOMPurify when the page loads it", function
 
 test("UIButton.showsActivityIndicator swaps the title for a spinner and restores it", function() {
     var button = new UIButton("#send")
-    button.text = "Send"
+    button.setTitle("Send", {for: UIControlState.normal})
     button.showsActivityIndicator = true
     assert.ok(button.showsActivityIndicator)
     assert.match(button.$el.html(), /fa-spin/)
@@ -75,11 +75,6 @@ test("UIButton.showsActivityIndicator swaps the title for a spinner and restores
     assert.ok(!button.showsActivityIndicator)
 })
 
-test("UIButton.icon places the icon left, center or right of the title", function() {
-    var button = new UIButton("#b")
-    button.icon = {position: "right", icon: "<i></i>", text: "Pay"}
-    assert.match(button.$el.html(), /<div>Pay<\/div><div class="btn-content-icon-container"><i><\/i><\/div>/)
-})
 
 test("addTarget calls the action with the target and the control", function() {
     var button = new UIButton("#b")
@@ -131,7 +126,7 @@ test("reloadData dequeues one registered cell per row, bound to its row", functi
     assert.equal(setup.dequeued.length, 3)
     assert.ok(setup.dequeued[0] instanceof RowCell)
     assert.equal(setup.dequeued[1].reuseIdentifier, "row")
-    assert.equal(setup.dequeued[2].indexPath.row, 2)
+    assert.equal(setup.table.indexPath({for: setup.dequeued[2]}).row, 2)
     assert.equal(setup.table.cellForRow({at: new IndexPath({row: 1})}), setup.dequeued[1])
     assert.equal(setup.table.numberOfRows(), 3)
     assert.equal(setup.dequeued[0].next, setup.table)
@@ -148,9 +143,7 @@ test("selection follows allowsMultipleSelection and reports through indexPathsFo
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [2, 0])
     table.deselectRow({at: 2})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [0])
-    table.selectAllRows()
-    assert.equal(table.indexPathsForSelectedRows.length, 3)
-    table.deselectAllRows()
+    table.deselectRow({at: 0})
     assert.equal(table.indexPathForSelectedRow, null)
 })
 

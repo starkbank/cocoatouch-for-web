@@ -22,7 +22,8 @@ export class UIView extends UIResponder {
 
     }
 
-    viewWillAppear() {
+    // Runs when a pre-rendered page is restored and the view is bound to its element.
+    didMoveToWindow() {
 
     }
 
@@ -86,36 +87,33 @@ export class UIView extends UIResponder {
         return tag === undefined ? 0 : Number(tag)
     }
 
+    set isUserInteractionEnabled(bool) {
+        this.$el.css("pointer-events", bool ? "" : "none")
+    }
+
+    get isUserInteractionEnabled() {
+        return this.$el.css("pointer-events") !== "none"
+    }
+
+    // The element's rectangle in page coordinates.
+    get frame() {
+        var element = this.$el[0]
+        if (!element) { return {x: 0, y: 0, width: 0, height: 0} }
+        var rect = element.getBoundingClientRect()
+        return {x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height}
+    }
+
+    get bounds() {
+        var frame = this.frame
+        return {x: 0, y: 0, width: frame.width, height: frame.height}
+    }
+
     get isHidden() {
         return this.$el.css("display") === "none"
     }
 
-    get height() {
-        return this.$el.innerHeight()
-    }
-
-    get width() {
-        return this.$el.innerWidth()
-    }
-
-    set style(style) {
-        this.$el.attr("class", style)
-    }
-
-    set isEnabled(bool) {
-        this.$el.css("pointer-events", bool ? "" : "none")
-    }
-
     set backgroundColor(color) {
         this.$el.css("background-color", color.hex)
-    }
-
-    set textColor(color) {
-        this.$el.css("color", color.hex)
-    }
-
-    set borderColor(color) {
-        this.$el.css("border-color", color.hex)
     }
 
     // The accent for selection and emphasis; defaults to the page's design token.
@@ -137,65 +135,27 @@ export class UIView extends UIResponder {
         })
     }
 
-    mask(mask, bool) {
-        this.$el.mask(mask, { reverse: bool })
-    }
-
-    toggle(cls) {
-        this.$el.toggleClass(cls)
-    }
-
     layoutSubviews() {
 
     }
 
+    // Puts a child controller's view or a view in this view. A view's nib
+    // becomes its element when it has one root, and is wrapped otherwise.
     addSubview(view) {
         if (_isControllerRootView(view)) {
             view.next._embed(this)
             return
         }
-        view.layoutSubviews()
-        var id = view.identifier
-        var nib = `<div id="${id}">${view.nib}</div>`
-        this.$el.append(nib)
-        var $viewEl = $(view.selector)
-        $viewEl.prop("style", this.$el.attr("style")).addClass(this.$el.attr("class"))
-        view._$el = $viewEl
-        this._link(view)
-        Bind.ibOutlet(view)
-        view.awakeFromNib()
-        Bind.ibAction(view)
+        this._attach(view, {})
     }
 
-    addSubviews(views) {
-        var html = ""
-        for (var view of views) {
-            view.layoutSubviews()
-            html += `<div id="${view.identifier}">${view.nib}</div>`
-        }
-        this.$el.append(html)
-        var style = this.$el.attr("style")
-        var cls = this.$el.attr("class")
-        for (var view of views) {
-            view._$el = $(view.selector)
-            view._$el.prop("style", style).addClass(cls)
-            this._link(view)
-            Bind.ibOutlet(view)
-            view.awakeFromNib()
-            Bind.ibAction(view)
-        }
-    }
-
-    // Places a view's nib at an index of this view (appended by default)
-    // without restyling it, and links it into the responder chain. A markup
-    // string is appended as it is.
     insertSubview(view, {at} = {}) {
-        if (!(view instanceof UIView)) {
-            this.$el.append(view)
-            return
-        }
+        this._attach(view, {at})
+    }
+
+    _attach(view, {at}) {
         view.layoutSubviews()
-        var $viewEl = $(`<div id="${view.identifier}">${view.nib}</div>`)
+        var $viewEl = _elementFor(view)
         var siblings = this.$el.children()
         if (at !== undefined && at < siblings.length) {
             siblings.eq(at).before($viewEl)
@@ -315,4 +275,22 @@ function _slideDirection(options) {
     if (options.indexOf(AnimationOptions.transitionFlipFromRight) !== -1) { return "right" }
     if (options.indexOf(AnimationOptions.transitionFlipFromLeft) !== -1) { return "left" }
     return null
+}
+
+
+function _elementFor(view) {
+    var $nib = $("<div></div>").html(view.nib)
+    var roots = $nib.children()
+    if (roots.length === 1 && $nib.text().trim() === roots.text().trim()) {
+        var $root = roots.first()
+        if ($root.attr("id")) {
+            view.selector = "#" + $root.attr("id")
+            view._identifier = $root.attr("id")
+        }
+        if (!$root.attr("id")) {
+            $root.attr("id", view.identifier)
+        }
+        return $root
+    }
+    return $(`<div id="${view.identifier}">${view.nib}</div>`)
 }

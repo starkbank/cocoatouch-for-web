@@ -7,24 +7,12 @@ const ACTIVITY_INDICATOR = "<i class=\"fas fa-circle-notch fa-spin uibutton-acti
 
 export class UIButton extends UIControl {
 
-    set text(text) {
-        this.$el.html(NSString.cleanScript(text))
+    setTitle(title, {for: state} = {}) {
+        this.$el.html(NSString.cleanScript(title))
     }
 
-    get text() {
+    get currentTitle() {
         return this.$el.text()
-    }
-
-    // An icon beside or instead of the title, like a configuration's image placement.
-    set icon({position, icon, text = ""}) {
-        var iconHtml = "<div class=\"btn-content-icon-container\">" + icon + "</div>"
-        var textHtml = "<div>" + text + "</div>"
-        var content = {
-            left: iconHtml + textHtml,
-            center: iconHtml,
-            right: textHtml + iconHtml
-        }[position]
-        this.text = "<div class=\"btn-content\">" + content + "</div>"
     }
 
     // Replaces the title with a spinner and disables the button until turned off.

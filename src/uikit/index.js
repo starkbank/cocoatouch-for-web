@@ -15,17 +15,17 @@ import { UIPickerView } from "./uipickerview.js"
 import { UIProgressView } from "./uiprogressview.js"
 import { UICollectionView, UICollectionViewCell } from "./uicollectionview.js"
 import { UIDatePicker } from "./uidatepicker.js"
-import { UISearchTextField } from "./uisearchtextfield.js"
+import { UISearchTextField, UISearchToken } from "./uisearchtextfield.js"
 import { UIDevice } from "./uidevice.js"
 import { UIGestureRecognizer, UITapGestureRecognizer } from "./uigesturerecognizer.js"
 import { UISegmentedControl } from "./uisegmentedcontrol.js"
 import { UIViewController } from "./uiviewcontroller.js"
 import { UIResponder } from "./uiresponder.js"
 import { UIScrollView } from "./uiscrollview.js"
-import { UIScriptLabel } from "./uiscriptlabel.js"
 import { IBOutlet } from "./iboutlet.js"
 import { IBAction } from "./ibaction.js"
-import { Keyboard } from "../utils/keyboard.js"
+import { UIKeyCommand, UIKeyModifierFlags } from "./uikeycommand.js"
+import { UIControlState } from "./uicontrolstate.js"
 
 
 export {
@@ -48,6 +48,7 @@ export {
      UICollectionViewCell,
      UIDatePicker,
      UISearchTextField,
+     UISearchToken,
      UIDevice,
      UIGestureRecognizer,
      UITapGestureRecognizer,
@@ -55,10 +56,11 @@ export {
      UIViewController,
      UIResponder,
      UIScrollView,
-     UIScriptLabel,
      IBOutlet,
      IBAction,
-     Keyboard,
+     UIKeyCommand,
+     UIKeyModifierFlags,
+     UIControlState,
 }
 
 // Default Extensions

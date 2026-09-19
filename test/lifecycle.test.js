@@ -2,7 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { keydown } from "./setup.js"
-import { UIResponder, UIView, UIViewController, IBAction, Keyboard, NSNotificationCenter } from "../src/index.js"
+import { UIResponder, UIView, UIViewController, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -30,14 +30,6 @@ test("addSubview links the child into the responder chain", function() {
     assert.deepEqual(parent.subviews, [child])
 })
 
-test("addSubviews links every child", function() {
-    var parent = new UIView("#parent")
-    var a = new UIView("#a")
-    var b = new UIView("#b")
-    parent.addSubviews([a, b])
-    assert.deepEqual(parent.subviews, [a, b])
-    assert.equal(b.next, parent)
-})
 
 test("parentViewController walks the chain up to the controller", function() {
     var controller = new UIViewController()
@@ -91,9 +83,9 @@ test("teardown removes observers owned by the controller and its whole view tree
     var nested = new UIView("#nested")
     first.view.addSubview(view)
     view.addSubview(nested)
-    NSNotificationCenter.addObserver(first, {selector: function() { hits.controller += 1 }, name: "tick", object: target})
-    NSNotificationCenter.addObserver(view, {selector: function() { hits.view += 1 }, name: "tick", object: target})
-    NSNotificationCenter.addObserver(nested, {selector: function() { hits.nested += 1 }, name: "tick", object: target})
+    NotificationCenter.default.addObserver(first, {selector: function() { hits.controller += 1 }, name: "tick", object: target})
+    NotificationCenter.default.addObserver(view, {selector: function() { hits.view += 1 }, name: "tick", object: target})
+    NotificationCenter.default.addObserver(nested, {selector: function() { hits.nested += 1 }, name: "tick", object: target})
     target.dispatchEvent(new Event("tick"))
     var Second = recordingController("second", [])
     var second = new Second()
@@ -105,7 +97,7 @@ test("teardown removes observers owned by the controller and its whole view tree
 test("keyboard actions stop firing once their controller is dismissed", function() {
     var pressed = 0
     var First = recordingController("first", [])
-    IBAction(Keyboard.escape)(First.prototype, "escapePressed", {})
+    IBAction(UIKeyCommand.inputEscape)(First.prototype, "escapePressed", {})
     First.prototype.escapePressed = function() { pressed += 1 }
     var first = new First()
     first.present(first, {})
@@ -138,7 +130,7 @@ function scopeMatching(selectors) {
 function registeredView(selector, log, name) {
     class View extends UIView {}
     IBAction(selector, UIView)(View.prototype, "tapped", {})
-    View.prototype.viewWillAppear = function() { log.push(name) }
+    View.prototype.didMoveToWindow = function() { log.push(name) }
     return View
 }
 
@@ -173,8 +165,8 @@ test("a keyboard-only view is not revived by selector scan", function() {
     Bind._restorePrototypes.clear()
     var log = []
     class View extends UIView {}
-    IBAction(Keyboard.enter)(View.prototype, "enterPressed", {})
-    View.prototype.viewWillAppear = function() { log.push("keyboard") }
+    IBAction(UIKeyCommand.inputReturn)(View.prototype, "enterPressed", {})
+    View.prototype.didMoveToWindow = function() { log.push("keyboard") }
     Bind.restoreRegisteredViews(scopeMatching([]), new UIViewController())
     assert.deepEqual(log, [])
 })
@@ -230,7 +222,7 @@ test("removing a child empties its container, tears it down and releases its obs
     container._$el = containerStub()
     parent.addChild(child)
     container.addSubview(child.view)
-    NSNotificationCenter.addObserver(child, {selector: function() { hits += 1 }, name: "tick", object: target})
+    NotificationCenter.default.addObserver(child, {selector: function() { hits += 1 }, name: "tick", object: target})
     log.length = 0
     child.removeFromParent()
     target.dispatchEvent(new Event("tick"))
@@ -247,7 +239,7 @@ test("disposing a parent disposes its children", function() {
     var parent = new UIViewController()
     var child = new UIViewController()
     parent.addChild(child)
-    NSNotificationCenter.addObserver(child, {selector: function() { hits += 1 }, name: "tick", object: target})
+    NotificationCenter.default.addObserver(child, {selector: function() { hits += 1 }, name: "tick", object: target})
     parent._dispose()
     target.dispatchEvent(new Event("tick"))
     assert.equal(hits, 0)
