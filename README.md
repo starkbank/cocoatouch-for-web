@@ -148,7 +148,7 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 - `UITextField`: the delegate gets `textFieldDidBeginEditing`, `textFieldDidEndEditing` and `textFieldShouldReturn`; `isFirstResponder`, `becomeFirstResponder()`, `resignFirstResponder()`.
 - `UISearchTextField`: tokens with `insertToken`, `removeToken`, `removeAllTokens`, validation, paste handling, keyboard selection; the delegate gets `tokensUpdated`, `textFieldWillInsertText` and `textFieldDidPaste`. Selected tokens use the view's `tintColor`, which defaults to the page's `--action-or-selection-color` token.
 - `UIDatePicker`: `date`, `minimumDate`, `maximumDate`, `locale`, `datePickerMode = "yearAndMonth"`; wraps the jQuery UI datepicker, so `jquery-ui` must be on the page where it is used.
-- `UIDevice.current`: `model`, `platform`, `userInterfaceIdiom`.
+- `UIDevice.current` (its `userInterfaceIdiom` is a `UIUserInterfaceIdiom`: `phone`, `pad` or `web` for a desktop browser): `model`, `platform`, `userInterfaceIdiom`.
 - `UITapGestureRecognizer({target, action})` with `view.addGestureRecognizer(recognizer)`.
 - Foundation: `DispatchGroup` (`enter`, `leave`, `notify`), `IndexPath({row, section})`, `Locale(identifier)` with date formats and datepicker regional strings.
 

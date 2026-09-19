@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIView, UIControl, UITextField, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent, UIControlState } from "../src/index.js"
+import { UIButton, UIView, UIControl, UITextField, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
@@ -46,13 +46,13 @@ test("Locale exposes its language and region; the date picker keeps the formats"
 test("UIDevice.current tells the interface idiom from the user agent", function() {
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.userInterfaceIdiom, "phone")
+    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.phone)
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.userInterfaceIdiom, "pad")
+    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.pad)
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.userInterfaceIdiom, "unspecified")
+    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.web)
     assert.equal(UIDevice.current, UIDevice.current)
 })
 

@@ -17,6 +17,7 @@ import { UICollectionView, UICollectionViewCell } from "./uicollectionview.js"
 import { UIDatePicker } from "./uidatepicker.js"
 import { UISearchTextField, UISearchToken } from "./uisearchtextfield.js"
 import { UIDevice } from "./uidevice.js"
+import { UIUserInterfaceIdiom } from "./uiuserinterfaceidiom.js"
 import { UIGestureRecognizer, UITapGestureRecognizer } from "./uigesturerecognizer.js"
 import { UISegmentedControl } from "./uisegmentedcontrol.js"
 import { UIViewController } from "./uiviewcontroller.js"
@@ -50,6 +51,7 @@ export {
      UISearchTextField,
      UISearchToken,
      UIDevice,
+     UIUserInterfaceIdiom,
      UIGestureRecognizer,
      UITapGestureRecognizer,
      UISegmentedControl,
