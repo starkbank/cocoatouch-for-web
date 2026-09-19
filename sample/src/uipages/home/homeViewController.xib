@@ -15,7 +15,7 @@
         </a>
         <a id="home-text-fields" class="home-option" href="/text-fields">
             <h3>Text fields</h3>
-            <p>placeholder, delegate, secureTextEntry, first responder</p>
+            <p>placeholder, delegate, isSecureTextEntry, first responder</p>
         </a>
         <a id="home-custom-views" class="home-option" href="/custom-views">
             <h3>Custom views</h3>

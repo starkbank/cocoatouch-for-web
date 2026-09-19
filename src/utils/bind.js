@@ -1,5 +1,5 @@
 import { UIViewController } from "../uikit/uiviewcontroller.js"
-import { NSNotificationCenter } from "../foundation/nsnotificationcenter.js"
+import { NotificationCenter } from "../foundation/notificationcenter.js"
 
 
 export class Bind {
@@ -23,8 +23,8 @@ export class Bind {
             owner._link(instance)
             Bind.ibOutletRestore(instance)
             Bind.ibAction(instance)
-            if (proto.hasOwnProperty("viewWillAppear")) {
-                instance.viewWillAppear()
+            if (proto.hasOwnProperty("didMoveToWindow")) {
+                instance.didMoveToWindow()
             }
         }
     }
@@ -108,8 +108,8 @@ export class Bind {
                 Bind.ibOutletRestore(responder)
             }
 
-            if (responder.constructor.prototype.hasOwnProperty("viewWillAppear")) {
-                responder.viewWillAppear()
+            if (responder.constructor.prototype.hasOwnProperty("didMoveToWindow")) {
+                responder.didMoveToWindow()
             }
 
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
@@ -158,5 +158,5 @@ function _bindKeyboardAction(control, action) {
             control[method](e)
         }
     }
-    NSNotificationCenter.addObserver(control, {selector: selector, name: "keydown", object: document})
+    NotificationCenter.default.addObserver(control, {selector: selector, name: "keydown", object: document})
 }

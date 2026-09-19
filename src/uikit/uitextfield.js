@@ -56,24 +56,12 @@ export class UITextField extends UIControl {
         return this.$el.is(":focus")
     }
 
-    get borderColor() {
-        return {hex: this.$el.css("border-color")}
-    }
-
-    set secureTextEntry(bool) {
+    set isSecureTextEntry(bool) {
         bool ? this.$el.attr("type", "password") : this.$el.attr("type", "text")
     }
 
-    get secureTextEntry() {
+    get isSecureTextEntry() {
         return this.$el.prop("type") === "password" ? true : false
-    }
-
-    set userInteractionEnabled(bool) {
-        this.$el.prop("disabled", !bool)
-    }
-
-    get userInteractionEnabled() {
-        return this.$el.prop("disabled")
     }
 
     becomeFirstResponder() {

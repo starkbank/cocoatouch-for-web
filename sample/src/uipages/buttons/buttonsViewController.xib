@@ -6,7 +6,7 @@
 
     <section class="demo">
         <h2>@IBAction</h2>
-        <p>One method per button, bound by selector. <kbd>↑</kbd> and <kbd>↓</kbd> are bound the same way with <code>Keyboard.arrowUp</code> and <code>Keyboard.arrowDown</code>.</p>
+        <p>One method per button, bound by selector. <kbd>↑</kbd> and <kbd>↓</kbd> are bound the same way with <code>UIKeyCommand.inputUpArrow</code> and <code>UIKeyCommand.inputDownArrow</code>.</p>
         <div class="row">
             <button id="buttons-decrement" class="button button-secondary">−</button>
             <span id="buttons-count" class="buttons-count">0</span>

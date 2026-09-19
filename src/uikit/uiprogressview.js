@@ -1,31 +1,31 @@
 import { UIView } from "./uiview.js"
 
 
+// The element is the track and its first child the bar, moved along the track.
 export class UIProgressView extends UIView {
 
-    animationLength = 1000
+    animationDuration = 1
 
-    get progressWrapWidth() {
-        return this.$el.width()
+    get progress() {
+        return this._progress || 0
+    }
+
+    set progress(progress) {
+        this.setProgress(progress, {animated: false})
     }
 
     set progressTintColor(color) {
-        $(this.selector).css("background", color)
+        this.$el.css("background", color.hex)
     }
 
-    setProgress(progress, animated) {
-        animated ? this.animateProgressBar(progress) : this.updateProgressBar(progress)
-    }
-
-    animateProgressBar(progress) {
-        var progressTotal = (progress / 100) * this.progressWrapWidth
-        $(this.selector).children().stop().animate({
-            left: progressTotal
-        }, this.animationLength)
-    }
-
-    updateProgressBar(progress) {
-        var progressTotal = (progress / 100) * this.progressWrapWidth
-        $(this.selector).children().css("left", progressTotal)
+    setProgress(progress, {animated} = {}) {
+        this._progress = progress
+        var offset = progress * this.$el.width()
+        var bar = this.$el.children().stop()
+        if (animated) {
+            bar.animate({left: offset}, this.animationDuration * 1000)
+            return
+        }
+        bar.css("left", offset)
     }
 }

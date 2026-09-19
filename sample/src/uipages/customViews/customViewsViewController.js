@@ -16,7 +16,7 @@ export class CustomViewsViewController extends UIViewController {
 
     viewDidLoad() {
         this.featuredCard.configure({title: "Featured", subtitle: "Declared in the xib, nib injected at build time"})
-        NSNotificationCenter.addObserver(this, {name: "cardDidTap", selector: "cardDidTap"})
+        NotificationCenter.default.addObserver(this, {name: "cardDidTap", selector: "cardDidTap"})
         this.updateCount()
     }
 

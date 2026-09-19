@@ -13,7 +13,4 @@ export class UIImageView extends UIView {
         }
     }
 
-    set backgroundImage(image) {
-        $(this.selector).css("background-image", `url(${image.named})`);
-    }
 }

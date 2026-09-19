@@ -40,6 +40,6 @@ export class CardView extends UIView {
     @IBAction("#card-action", UIButton) actionTapped() {
         this.taps += 1
         this.render()
-        NSNotificationCenter.postNotification({name: "cardDidTap", object: this, userInfo: {title: this.title, taps: this.taps}})
+        NotificationCenter.default.post({name: "cardDidTap", object: this, userInfo: {title: this.title, taps: this.taps}})
     }
 }

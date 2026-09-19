@@ -59,17 +59,18 @@ export class TextFieldsViewController extends UIViewController {
 
     // addTarget actions receive (target, sender); see the Buttons page.
     showPasswordChanged(target, sender) {
-        target.passwordField.secureTextEntry = !sender.isOn()
+        target.passwordField.isSecureTextEntry = !sender.isOn
     }
 
     lockNameChanged(target, sender) {
-        target.nameField.userInteractionEnabled = !sender.isOn()
+        target.nameField.isUserInteractionEnabled = !sender.isOn
     }
 
     updateForm() {
         var isFilled = this.isFormFilled()
         this.submitButton.isEnabled = isFilled
-        this.submitButton.style = isFilled ? "button" : "button button-disabled"
+        this.submitButton.isEnabled = isFilled
+        this.submitButton.alpha = isFilled ? 1 : 0.5
         this.notesCountLabel.text = `${this.notesField.text.length} characters`
     }
 

@@ -27,8 +27,8 @@ export class LabelsViewController extends UIViewController {
     viewDidLoad() {
         this.greetingLabel.text = "Hello from viewDidLoad"
         this.updateWidth()
-        NSNotificationCenter.addObserver(this, {name: "resize", object: window, selector: "updateWidth"})
-        NSNotificationCenter.addObserver(this, {name: "labelsDidPing", selector: "labelsDidPing"})
+        NotificationCenter.default.addObserver(this, {name: "resize", object: window, selector: "updateWidth"})
+        NotificationCenter.default.addObserver(this, {name: "labelsDidPing", selector: "labelsDidPing"})
     }
 
     viewDidAppear() {
@@ -60,16 +60,16 @@ export class LabelsViewController extends UIViewController {
     @IBAction("#labels-toggle-hidden", UIButton) toggleHiddenTapped() {
         var isHidden = !this.styledLabel.isHidden
         this.styledLabel.isHidden = isHidden
-        this.hiddenButton.text = isHidden ? "Show" : "Hide"
+        this.hiddenButton.setTitle(isHidden ? "Show" : "Hide", {for: UIControl.State.normal})
     }
 
     @IBAction("#labels-toggle-style", UIButton) toggleStyleTapped() {
         this.isEmphasized = !this.isEmphasized
-        this.styledLabel.style = this.isEmphasized ? "labels-emphasized output" : "labels-plain output"
+        this.styledLabel.backgroundColor = new UIColor({hex: this.isEmphasized ? "#FFF3CD" : "#F5F5F7"})
     }
 
     @IBAction("#labels-ping", UIButton) pingTapped() {
-        NSNotificationCenter.postNotification({name: "labelsDidPing", userInfo: {at: new Date()}})
+        NotificationCenter.default.post({name: "labelsDidPing", userInfo: {at: new Date()}})
     }
 
     labelsDidPing(notification) {

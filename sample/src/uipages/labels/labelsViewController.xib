@@ -33,7 +33,7 @@
     </section>
 
     <section class="demo">
-        <h2>NSNotificationCenter</h2>
+        <h2>NotificationCenter</h2>
         <p>Observing <code>window</code> resize as a DOM event, and an in-app notification posted by the button. Both observers are released with the controller.</p>
         <p id="labels-width" class="output"></p>
         <div class="row">
