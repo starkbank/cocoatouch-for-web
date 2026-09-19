@@ -1,4 +1,5 @@
 import { NSObject } from "../foundation/nsobject.js"
+import { UIUserInterfaceIdiom } from "./uiuserinterfaceidiom.js"
 
 
 const PHONE_BROWSERS = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i
@@ -22,8 +23,9 @@ export class UIDevice extends NSObject {
     }
 
     get userInterfaceIdiom() {
-        if (PAD_BROWSERS.test(this.model)) { return "pad" }
-        if (PHONE_BROWSERS.test(this.model)) { return "phone" }
-        return "unspecified"
+        if (PAD_BROWSERS.test(this.model)) { return UIUserInterfaceIdiom.pad }
+        if (PHONE_BROWSERS.test(this.model)) { return UIUserInterfaceIdiom.phone }
+        if (this.model) { return UIUserInterfaceIdiom.web }
+        return UIUserInterfaceIdiom.unspecified
     }
 }
