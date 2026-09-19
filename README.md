@@ -113,7 +113,7 @@ UIView.animate({withDuration: 0.5, animations: () => { card.alpha = 1 }})
 UIView.transition({from: this.searchView, to: this.passwordView, duration: 0.28, options: [UIView.AnimationOptions.transitionFlipFromRight]})
 ```
 
-`insertSubview(view, {at})` places a view's nib inside another view without restyling it; `tag` keeps an integer on a view; `UIControl.sendActions({for})` fires a control event; and a view class with a `.xib` fills the empty element it is created on, so `new SecureTextField("#password")` renders like the outlet would.
+`insertSubview(view, {at})` places a view's nib inside another view without restyling it; `tag` keeps an integer on a view; `accessibilityIdentifier` reads or sets a view's element id; `UIControl.sendActions({for})` fires a control event; and a view class with a `.xib` fills the empty element it is created on, so `new SecureTextField("#password")` renders like the outlet would.
 
 ## Table views
 

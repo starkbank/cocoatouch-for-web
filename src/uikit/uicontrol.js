@@ -7,6 +7,9 @@ const EVENTS = {
     [UIControlEvent.valueChanged]: "change",
     [UIControlEvent.touchUpInside]: "click",
     [UIControlEvent.editingChanged]: "input",
+    [UIControlEvent.editingDidBegin]: "focus",
+    [UIControlEvent.editingDidEnd]: "blur",
+    [UIControlEvent.touchDown]: "mousedown",
 }
 
 

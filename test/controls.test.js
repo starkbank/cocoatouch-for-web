@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIView, UIControl, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent, UIControlState } from "../src/index.js"
+import { UIButton, UIView, UIControl, UITextField, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIControlEvent, UIControlState } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
@@ -220,4 +220,32 @@ test("insertSubview places a view's nib without restyling it and links it", func
     assert.equal(child.superview, parent)
     child.removeFromSuperview()
     assert.deepEqual(parent.subviews, [])
+})
+
+test("views answer first responder and text fields expose their selection", function() {
+    var field = new UITextField("#field")
+    var el = field.$el
+    var focused = []
+    el.trigger = function(event) { focused.push(event); return el }
+    el.is = function(selector) { return selector === ":focus" && focused[focused.length - 1] === "focus" }
+    el[0] = {selectionStart: 2, selectionEnd: 4, setSelectionRange: function(s, e) { this.selectionStart = s; this.selectionEnd = e }}
+    field.becomeFirstResponder()
+    assert.ok(field.isFirstResponder)
+    assert.deepEqual(field.selectedTextRange, {start: 2, end: 4})
+    field.selectedTextRange = {start: 1, end: 1}
+    assert.deepEqual(field.selectedTextRange, {start: 1, end: 1})
+    field.resignFirstResponder()
+    assert.ok(!field.isFirstResponder)
+})
+
+test("accessibilityIdentifier renames a view's element and re-targets the view", function() {
+    var view = new UIView("#outer .inner")
+    var el = view.$el
+    var attrs = {}
+    el.attr = function(name, value) { if (arguments.length > 1) { attrs[name] = value; return el } return attrs[name] }
+    view.accessibilityIdentifier = "outer-inner"
+    assert.equal(view.accessibilityIdentifier, "outer-inner")
+    assert.equal(view.identifier, "outer-inner")
+    assert.equal(view.selector, "#outer-inner")
+    assert.equal(view.$el.attr("id"), "outer-inner")
 })
