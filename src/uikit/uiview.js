@@ -178,7 +178,7 @@ export class UIView extends UIResponder {
 
     _attach(view, {at}) {
         view.layoutSubviews()
-        var $viewEl = _elementFor(view)
+        var $viewEl = _elementFor(view, this)
         var siblings = this.$el.children()
         if (at !== undefined && at < siblings.length) {
             siblings.eq(at).before($viewEl)
@@ -301,7 +301,9 @@ function _slideDirection(options) {
 }
 
 
-function _elementFor(view) {
+// A subview whose nib has no id is numbered after its superview, so views
+// added in code are addressable without the app naming them.
+function _elementFor(view, superview) {
     var $nib = $("<div></div>").html(view.nib)
     var roots = $nib.children()
     if (roots.length === 1 && $nib.text().trim() === roots.text().trim()) {
@@ -311,9 +313,18 @@ function _elementFor(view) {
             view._identifier = $root.attr("id")
         }
         if (!$root.attr("id")) {
-            $root.attr("id", view.identifier)
+            $root.attr("id", _identify(view, superview))
         }
         return $root
     }
-    return $(`<div id="${view.identifier}">${view.nib}</div>`)
+    return $(`<div id="${_identify(view, superview)}">${view.nib}</div>`)
+}
+
+function _identify(view, superview) {
+    if (!superview) { return view.identifier }
+    superview._attachedCount = (superview._attachedCount || 0) + 1
+    var id = superview.identifier + "-" + superview._attachedCount
+    view.selector = "#" + id
+    view._identifier = id
+    return id
 }

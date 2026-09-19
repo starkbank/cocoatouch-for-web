@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIView, UIControl, UITextField, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
+import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
@@ -248,4 +248,23 @@ test("accessibilityIdentifier renames a view's element and re-targets the view",
     assert.equal(view.identifier, "outer-inner")
     assert.equal(view.selector, "#outer-inner")
     assert.equal(view.$el.attr("id"), "outer-inner")
+})
+
+test("outlets and added subviews receive ids from their owner without the app naming them", function() {
+    class Field extends UIView {}
+    IBOutlet(".inner", UITextField)(Field.prototype, "textField", {})
+    var field = new Field("#password")
+    var inner = field.$el.find(".inner")
+    var attrs = {}
+    inner.attr = function(name, value) { if (arguments.length > 1) { attrs[name] = value; return inner } return attrs[name] }
+    field.$el.find = function() { return inner }
+    Bind.ibOutlet(field)
+    assert.equal(field.textField.identifier, "password-text-field")
+    assert.equal(field.textField.selector, "#password-text-field")
+    var box = new UIView("#boxes")
+    var first = new UIView(), second = new UIView()
+    box.addSubview(first)
+    box.addSubview(second)
+    assert.equal(first.identifier, "boxes-1")
+    assert.equal(second.identifier, "boxes-2")
 })

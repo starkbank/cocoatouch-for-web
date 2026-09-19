@@ -253,3 +253,35 @@ test("removeFromSuperview takes a plain view out of its superview", function() {
     assert.deepEqual(parent.subviews, [])
     assert.equal(child.superview, null)
 })
+
+test("key commands go to the deepest responder holding focus and climb only when it returns false", function() {
+    var log = []
+    class Field extends UIView {}
+    IBAction(UIKeyCommand.inputReturn)(Field.prototype, "enterPressed", {})
+    class Page extends UIViewController {}
+    IBAction(UIKeyCommand.inputReturn)(Page.prototype, "enterPressed", {})
+    Page.prototype.enterPressed = function() { log.push("page") }
+    var input = {parentNode: null}
+    var fieldNode = {parentNode: null, contains: function(node) { return node === input }}
+    var pageNode = {parentNode: null, contains: function(node) { return node === input }}
+    fieldNode.parentNode = pageNode
+    input.parentNode = fieldNode
+    var page = new Page()
+    page.view._$el = {0: pageNode, length: 1}
+    Bind.ibAction(page)
+    var field = new Field()
+    field._$el = {0: fieldNode, length: 1}
+    Field.prototype.enterPressed = function() { log.push("field") }
+    Bind.ibAction(field)
+    document.activeElement = input
+    keydown("Enter")
+    assert.deepEqual(log, ["field"])
+    Field.prototype.enterPressed = function() { log.push("field"); return false }
+    keydown("Enter")
+    assert.deepEqual(log, ["field", "field", "page"])
+    document.activeElement = null
+    keydown("Enter")
+    assert.deepEqual(log, ["field", "field", "page", "page", "field"])
+    page._dispose()
+    field._dispose()
+})
