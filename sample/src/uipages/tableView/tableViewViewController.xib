@@ -2,11 +2,11 @@
 
 <main class="page">
     <h1>Table view</h1>
-    <p class="lead">ContactsTableView is a UITableView subclass that dequeues ContactTableViewCell. The controller is data source and delegate.</p>
+    <p class="lead">A UITableView with ContactTableViewCell registered for the "contact" reuse identifier. The cell's row html is its own <code>.xib</code>; the controller is data source and delegate.</p>
 
     <section class="demo">
         <h2>dataSource and delegate</h2>
-        <p>Rows come from <code>tableViewNumberOfRowsInSection</code> and <code>tableViewCellForRowAtIndexPath</code>. Tapping a row calls <code>tableViewDidSelectRowAtIndexPath</code>; the delete button calls <code>deleteRowAt</code> because the table is editable.</p>
+        <p>Rows come from <code>tableViewNumberOfRowsInSection</code> and <code>tableViewCellForRowAtIndexPath</code>, which dequeues with <code>dequeueReusableCell({withIdentifier, for})</code>. Tapping a row calls <code>tableViewDidSelectRowAtIndexPath</code>; with <code>setEditing(true)</code> the delete button calls <code>tableViewCommitEditingStyleForRowAt</code>.</p>
         <div class="row">
             <button id="table-view-add" class="button">Add contact</button>
             <button id="table-view-clear" class="button button-secondary">Remove all</button>

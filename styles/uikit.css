@@ -1,0 +1,11 @@
+/* UIDatePicker in yearAndMonth mode hides the day grid of the jQuery UI widget. */
+.hide-calendar .ui-datepicker-calendar,
+.hide-calendar .ui-datepicker-current {
+    display: none;
+}
+
+/* UIButton.showsActivityIndicator keeps the button's height while it spins. */
+.uibutton-activity-indicator {
+    min-height: 24px;
+    height: 100%;
+}

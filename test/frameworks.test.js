@@ -13,12 +13,12 @@ test("importing UIKit makes its classes ambient, like Swift's import UIKit", asy
     const UIKit = await import("../src/UIKit.js")
     assert.equal(globalThis.UIViewController, UIKit.UIViewController)
     assert.equal(typeof globalThis.IBOutlet, "function")
-    assert.equal(globalThis.Keyboard.escape, "keyboard:Escape")
+    assert.equal(globalThis.UIKeyCommand.inputEscape, "keyboard:Escape")
 })
 
-test("importing Foundation makes NSNotificationCenter ambient and still exports it", async function() {
+test("importing Foundation makes NotificationCenter ambient and still exports it", async function() {
     const Foundation = await import("../src/Foundation.js")
-    assert.equal(globalThis.NSNotificationCenter, Foundation.NSNotificationCenter)
+    assert.equal(globalThis.NotificationCenter, Foundation.NotificationCenter)
     assert.equal(globalThis.NSObject, Foundation.NSObject)
 })
 

@@ -16,7 +16,7 @@ export class CustomViewsViewController extends UIViewController {
 
     viewDidLoad() {
         this.featuredCard.configure({title: "Featured", subtitle: "Declared in the xib, nib injected at build time"})
-        NSNotificationCenter.addObserver(this, {name: "cardDidTap", selector: "cardDidTap"})
+        NotificationCenter.default.addObserver(this, {name: "cardDidTap", selector: "cardDidTap"})
         this.updateCount()
     }
 
@@ -29,6 +29,13 @@ export class CustomViewsViewController extends UIViewController {
     @IBAction("#custom-views-add-three", UIButton) addThreeTapped() {
         var index = this.gridView.subviews.length
         this.gridView.addSubviews([this.makeCard(index), this.makeCard(index + 1), this.makeCard(index + 2)])
+        this.updateCount()
+    }
+
+    @IBAction("#custom-views-remove", UIButton) removeTapped() {
+        var subviews = this.gridView.subviews
+        if (subviews.length === 0) { return }
+        subviews[subviews.length - 1].removeFromSuperview()
         this.updateCount()
     }
 

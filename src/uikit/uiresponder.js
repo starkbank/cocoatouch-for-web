@@ -1,6 +1,6 @@
 import { uuid } from "../utils/uuid.js"
 import { NSObject } from "../foundation/nsobject.js"
-import { NSNotificationCenter } from "../foundation/nsnotificationcenter.js"
+import { NotificationCenter } from "../foundation/notificationcenter.js"
 
 
 export class UIResponder extends NSObject {
@@ -27,6 +27,7 @@ export class UIResponder extends NSObject {
     // Observers on window and document outlive the DOM the responder was bound
     // to, so they are released here when the owning controller is dismissed.
     _dispose() {
-        NSNotificationCenter.removeObserver(this)
+        this._disposed = true
+        NotificationCenter.default.removeObserver(this)
     }
 }

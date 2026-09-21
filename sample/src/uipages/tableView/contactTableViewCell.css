@@ -6,6 +6,10 @@
     background: var(--color-bg);
 }
 
+.contact-cell.selected td {
+    background: rgba(0, 112, 224, .08);
+}
+
 .contact-name {
     font-weight: 600;
 }

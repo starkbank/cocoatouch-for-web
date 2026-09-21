@@ -1,4 +1,6 @@
 import "./contactTableViewCell.css"
+import "./contactTableViewCell.js"
+import "./contactTableViewCell.xib"
 import "./tableViewViewController.css"
 import "./tableViewViewController.js"
 import "./tableViewViewController.xib"

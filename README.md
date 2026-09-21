@@ -27,7 +27,7 @@ export class HomeViewController extends UIViewController {
         window.location.href = "/api"
     }
 
-    @IBAction(Keyboard.command + Keyboard.k) commandKPressed() {
+    @IBAction(UIKeyModifierFlags.command + UIKeyCommand.input("k")) commandKPressed() {
         window.location.href = "/search"
     }
 }
@@ -78,17 +78,93 @@ present(controller)   viewDidLoad -> viewWillAppear -> viewDidAppear
 restore(controller)   rebinds outlets and actions on pre-rendered html: viewWillAppear -> viewDidAppear
 ```
 
-Views get `awakeFromNib` after their outlets are bound and `layoutSubviews` before their nib is inserted. `addSubview` and `addSubviews` link the child into the responder chain, so `view.next`, `view.superview`, `view.subviews` and `view.parentViewController()` work.
+Views get `awakeFromNib` after their outlets are bound, `layoutSubviews` before their nib is inserted and `didMoveToWindow` when a pre-rendered page is restored. `addSubview` links the child into the responder chain, so `view.next`, `view.superview`, `view.subviews` and `view.parentViewController()` work.
+
+## Child view controllers
+
+A controller composes others the way UIKit's containment API does: add the child, then put its view in one of your container views. The container element becomes the child's root, its nib fills it, its outlets and actions bind inside it and `viewDidLoad -> viewWillAppear -> viewDidAppear` run. Removing the child empties the container, runs `viewWillDisappear -> viewDidDisappear` and releases the observers it registered.
+
+```js
+class OnboardViewController extends UIViewController {
+
+    @IBOutlet("#content", UIView) contentView
+
+    show(step) {
+        if (this.current) { this.current.removeFromParent() }
+        this.current = new step()
+        this.addChild(this.current)
+        this.contentView.addSubview(this.current.view)
+    }
+}
+```
+
+`children`, `parent`, `willMove({toParent})` and `didMove({toParent})` follow UIKit. A plain view's `removeFromSuperview()` takes its element out of the page.
+
+## Animations
+
+`UIView.animate` runs property changes over a duration: `alpha` and `isHidden` fade instead of switching. `UIView.transition` swaps two views, sliding the new one in from the side named by a flip option or dissolving it.
+
+```js
+const card = UIView.loadFromNib(html)
+this.listView.insertSubview(card)
+card.alpha = 0
+UIView.animate({withDuration: 0.5, animations: () => { card.alpha = 1 }})
+
+UIView.transition({from: this.searchView, to: this.passwordView, duration: 0.28, options: [UIView.AnimationOptions.transitionFlipFromRight]})
+```
+
+`insertSubview(view, {at})` places a view's nib inside another view without restyling it; `tag` keeps an integer on a view; `accessibilityIdentifier` reads or sets a view's element id; an outlet matched by class is given `<owner id>-<outlet name>` and a subview added in code `<superview id>-<n>`, so nib-drawn views stay addressable without the app naming them; `UIControl.sendActions({for})` fires a control event; key commands reach the deepest bound responder that contains the focused element first and climb to the enclosing ones only when the handler returns `false`; and a view class with a `.xib` fills the empty element it is created on, so `new SecureTextField("#password")` renders like the outlet would.
+
+## Table views
+
+A table view works the way it does on iOS: register a cell class for a reuse identifier, dequeue it in the data source, configure its outlets. The cell's row html lives in the `.xib` of the same name as the cell class.
+
+```
+src/uicomponents/transfers/
+    transferCell.js      export class TransferCell extends UITableViewCell { @IBOutlet("#title", UILabel) titleLabel }
+    transferCell.xib     <tr><td id="title"></td></tr>
+```
+
+```js
+this.tableView.register(TransferCell, {forCellReuseIdentifier: "transfer"})
+this.tableView.dataSource = this
+
+tableViewNumberOfRowsInSection(tableView, section) {
+    return this.transfers.length
+}
+
+tableViewCellForRowAtIndexPath(tableView, indexPath) {
+    var cell = tableView.dequeueReusableCell({withIdentifier: "transfer", for: indexPath})
+    cell.titleLabel.text = this.transfers[indexPath.row].name
+    return cell
+}
+```
+
+`selectRow({at})`, `deselectRow({at})`, `indexPathForSelectedRow`, `indexPathsForSelectedRows`, `allowsMultipleSelection`, `setEditing(true)` and `cellForRow({at})` behave as on iOS. The delegate receives `tableViewDidSelectRowAtIndexPath`, `tableViewDidDeselectRowAtIndexPath` and, in editing mode, `tableViewCommitEditingStyleForRowAt(tableView, "delete", indexPath)`. `UICollectionView` follows the same shape with `IndexPath` sections and items.
+
+## Controls
+
+- `UIButton`: `showsActivityIndicator = true` swaps the title for a spinner and disables the button until set back; `icon = {position, icon, text}` places an icon beside the title.
+- `UITextField`: the delegate gets `textFieldDidBeginEditing`, `textFieldDidEndEditing` and `textFieldShouldReturn`; `isFirstResponder`, `becomeFirstResponder()`, `resignFirstResponder()`.
+- `UISearchTextField`: tokens with `insertToken`, `removeToken`, `removeAllTokens`, validation, paste handling, keyboard selection; the delegate gets `tokensUpdated`, `textFieldWillInsertText` and `textFieldDidPaste`. Selected tokens use the view's `tintColor`, which defaults to the page's `--action-or-selection-color` token.
+- `UIDatePicker`: `date`, `minimumDate`, `maximumDate`, `locale`, `datePickerMode = "yearAndMonth"`; wraps the jQuery UI datepicker, so `jquery-ui` must be on the page where it is used.
+- `UIDevice.current` (its `userInterfaceIdiom` is a `UIUserInterfaceIdiom`: `phone`, `pad` or `web` for a desktop browser): `model`, `platform`, `userInterfaceIdiom`.
+- `UITapGestureRecognizer({target, action})` with `view.addGestureRecognizer(recognizer)`.
+- Foundation: `DispatchGroup` (`enter`, `leave`, `notify`), `IndexPath({row, section})`, `Locale(identifier)` with date formats and datepicker regional strings.
+
+Views get an `init()` hook that runs when the object is constructed, before any nib is attached. `UILabel.text` and friends sanitize through DOMPurify when the page loads it, and strip scripts otherwise.
+
+`cocoatouch/uikit.css` carries the few styles the controls need; import it once.
 
 ## Notifications
 
-`NSNotificationCenter` is observer keyed. Pass a DOM event target as `object` to observe that event; leave it out to post and observe in-app notifications.
+`NotificationCenter.default` is observer keyed. Pass a DOM event target as `object` to observe that event; leave it out to post and observe in-app notifications.
 
 ```js
-NSNotificationCenter.addObserver(this, {name: "scroll", object: window, selector: () => this.updateMenu()})
-NSNotificationCenter.addObserver(this, {name: "cartDidChange", selector: "cartDidChange"})
-NSNotificationCenter.postNotification({name: "cartDidChange", userInfo: {count: 3}})
-NSNotificationCenter.removeObserver(this)
+NotificationCenter.default.addObserver(this, {name: "scroll", object: window, selector: () => this.updateMenu()})
+NotificationCenter.default.addObserver(this, {name: "cartDidChange", selector: "cartDidChange"})
+NotificationCenter.default.post({name: "cartDidChange", userInfo: {count: 3}})
+NotificationCenter.default.removeObserver(this)
 ```
 
 Everything a view or controller observes is released when its root controller is dismissed, so window and document listeners never pile up across navigations. Keyboard `@IBAction`s register the same way.
@@ -123,12 +199,13 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 | Foundation | UIKit | Other |
 |---|---|---|
 | NSObject | UIResponder, UIView, UIViewController | CALayer |
-| NSNotificationCenter | UIControl, UIButton, UILabel, UIScriptLabel, UITextField | AVPlayer |
+| NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
 | | UIScrollView, UITableView, UITableViewCell | |
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
-| | IBOutlet, IBAction, Keyboard | |
+| DispatchGroup, IndexPath, Locale | UIDevice, UIDatePicker, UICollectionView | |
+| | IBOutlet, IBAction, UIKeyCommand, UIKeyModifierFlags | |
 
 ## Sample
 

@@ -1,12 +1,17 @@
 import { UIControl } from "./uicontrol.js"
 
+
 export class UISwitch extends UIControl {
 
-    isOn() {
-        return $(this.selector).prop("checked")
+    get isOn() {
+        return this.$el.prop("checked")
     }
 
-    setOn(checked) {
-        return $(this.selector).prop("checked", checked)
+    set isOn(on) {
+        this.$el.prop("checked", on)
+    }
+
+    setOn(on, {animated} = {}) {
+        this.isOn = on
     }
 }

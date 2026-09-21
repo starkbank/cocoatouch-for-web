@@ -32,9 +32,10 @@ export class UIViewController extends UIResponder {
         var body = $("cocoatouch")
         var display = body.css("display")
 
-        body.prop("id", viewController.identifier)
+        _adoptHost(viewController, body)
         body.css("display", "none")
         body.html(nib).ready(() => {
+            viewController._$el = body
             Bind.ibOutlet(viewController)
             Bind.ibAction(viewController)
             body.css("display", display)
@@ -49,7 +50,7 @@ export class UIViewController extends UIResponder {
     restore(viewController) {
         _dismissRootViewController()
         var body = $("cocoatouch")
-        body.prop("id", viewController.identifier)
+        _adoptHost(viewController, body)
         viewController._$el = body
         Bind.ibOutletRestore(viewController)
         Bind.ibAction(viewController)
@@ -67,11 +68,88 @@ export class UIViewController extends UIResponder {
         return this._view
     }
 
+    // Child view controllers, as in UIKit's containment API: a parent adds a
+    // child, then puts the child's view in one of its container views.
+    get children() {
+        if (!this._children) { this._children = [] }
+        return this._children
+    }
+
+    get parent() {
+        return this._parent || null
+    }
+
+    addChild(child) {
+        if (child._parent === this) { return }
+        if (child._parent) { child.removeFromParent() }
+        child.willMove({toParent: this})
+        child._parent = this
+        child.next = this
+        this.children.push(child)
+    }
+
+    removeFromParent() {
+        var parent = this._parent
+        if (!parent) { return }
+        this.willMove({toParent: null})
+        if (this._isEmbedded) { this.view.removeFromSuperview() }
+        var index = parent.children.indexOf(this)
+        if (index !== -1) { parent.children.splice(index, 1) }
+        this._parent = null
+        this.next = null
+        this.didMove({toParent: null})
+    }
+
+    willMove({toParent}) {
+
+    }
+
+    didMove({toParent}) {
+
+    }
+
+    // The container view hands its element to the child, like present() hands
+    // <cocoatouch> to the root controller: the child's nib fills the container
+    // and its outlets and actions are bound inside it.
+    _embed(containerView) {
+        var body = containerView.$el
+        var id = body.attr("id")
+        if (id) {
+            this.selector = "#" + id
+            this._identifier = id
+        }
+        if (!id) { this.selector = containerView.selector }
+        this._view = null
+        this._$el = body
+        this.view._$el = body
+        this.view._container = containerView
+        body.html(Build.html(this))
+        Bind.ibOutlet(this)
+        Bind.ibAction(this)
+        this._isEmbedded = true
+        this.viewDidLoad()
+        this.viewWillAppear()
+        this.viewDidAppear()
+        if (this._parent) { this.didMove({toParent: this._parent}) }
+    }
+
+    _unembed() {
+        if (!this._isEmbedded) { return }
+        this._isEmbedded = false
+        this.viewWillDisappear()
+        this._$el.empty()
+        this._dispose()
+        this.viewDidDisappear()
+    }
+
     _link(view) {
         this.view._link(view)
     }
 
     _dispose() {
+        for (var child of this.children.slice()) {
+            child._dispose()
+        }
         this.view._dispose()
         super._dispose()
     }
@@ -89,4 +167,18 @@ function _dismissRootViewController() {
     viewController.viewWillDisappear()
     viewController._dispose()
     viewController.viewDidDisappear()
+}
+
+
+// The controller takes over the host element. A host that already has an id
+// keeps it, so stylesheets and code addressing that id keep working; a bare
+// <cocoatouch> gets the controller's own id.
+function _adoptHost(viewController, body) {
+    var id = body.attr("id")
+    if (id) {
+        viewController.selector = "#" + id
+        viewController._identifier = id
+        return
+    }
+    body.prop("id", viewController.identifier)
 }
