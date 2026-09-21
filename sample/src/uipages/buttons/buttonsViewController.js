@@ -30,11 +30,11 @@ export class ButtonsViewController extends UIViewController {
         this.setCount(0)
     }
 
-    @IBAction(Keyboard.arrowUp) arrowUpPressed() {
+    @IBAction(UIKeyCommand.inputUpArrow) arrowUpPressed() {
         this.setCount(this.count + 1)
     }
 
-    @IBAction(Keyboard.arrowDown) arrowDownPressed() {
+    @IBAction(UIKeyCommand.inputDownArrow) arrowDownPressed() {
         this.setCount(this.count - 1)
     }
 
@@ -44,14 +44,16 @@ export class ButtonsViewController extends UIViewController {
 
     @IBAction("#buttons-target", UIButton) targetTapped(sender) {
         this.targetTaps += 1
-        this.targetOutputLabel.text = `${sender.text.trim()} tapped ${this.targetTaps}×`
+        this.targetOutputLabel.text = `${sender.currentTitle.trim()} tapped ${this.targetTaps}×`
     }
 
-    enabledSwitchChanged(sender) {
-        var isOn = sender.isOn()
-        this.targetButton.isEnabled = isOn
-        this.targetButton.text = isOn ? "Tap me" : "Disabled"
-        this.targetButton.toggle("button-disabled")
+    // addTarget calls the action as a plain function with the target first,
+    // so the controller is read from that argument rather than from `this`.
+    enabledSwitchChanged(target, sender) {
+        var isOn = sender.isOn
+        target.targetButton.isEnabled = isOn
+        target.targetButton.setTitle(isOn ? "Tap me" : "Disabled", {for: UIControl.State.normal})
+        target.targetButton.alpha = isOn ? 1 : 0.5
     }
 
     setCount(count) {

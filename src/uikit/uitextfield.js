@@ -32,37 +32,53 @@ export class UITextField extends UIControl {
 
     set delegate(delegate) {
         var textField = this
-        this.$el.on("keyup", function(e){
-            if(e.which == 13) {
-                try {
-                    delegate.textFieldShouldReturn(textField)
-                } catch(e) {}
+        this._delegate = delegate
+        this.$el.off("keyup.delegate").on("keyup.delegate", function(e) {
+            if (e.which === 13 && delegate.textFieldShouldReturn) {
+                delegate.textFieldShouldReturn(textField)
             }
-            delegate.textFieldDidEndEditing(textField)
+            if (delegate.textFieldDidEndEditing) {
+                delegate.textFieldDidEndEditing(textField)
+            }
+        })
+        this.$el.off("focusin.delegate").on("focusin.delegate", function() {
+            if (delegate.textFieldDidBeginEditing) {
+                delegate.textFieldDidBeginEditing(textField)
+            }
         })
     }
 
-    set secureTextEntry(bool) {
+    get delegate() {
+        return this._delegate || null
+    }
+
+    set isSecureTextEntry(bool) {
         bool ? this.$el.attr("type", "password") : this.$el.attr("type", "text")
     }
 
-    get secureTextEntry() {
+    get isSecureTextEntry() {
         return this.$el.prop("type") === "password" ? true : false
     }
 
-    set userInteractionEnabled(bool) {
-        this.$el.prop("disabled", !bool)
+    // The selection as offsets into the text, like UITextInput's selectedTextRange.
+    get selectedTextRange() {
+        var element = this.$el[0]
+        if (!element || element.selectionStart === undefined || element.selectionStart === null) { return null }
+        return {start: element.selectionStart, end: element.selectionEnd}
     }
 
-    get userInteractionEnabled() {
-        return this.$el.prop("disabled")
+    set selectedTextRange(range) {
+        var element = this.$el[0]
+        if (!element || !range || typeof element.setSelectionRange !== "function") { return }
+        element.setSelectionRange(range.start, range.end)
     }
 
-    becomeFirstResponder() {
-        this.$el.focus()
+    // The browser's autocomplete hint stands in for the content type.
+    set textContentType(type) {
+        this.$el.attr("autocomplete", type)
     }
 
-    resignFirstResponder() {
-        this.$el.blur()
+    get textContentType() {
+        return this.$el.attr("autocomplete") || ""
     }
 }

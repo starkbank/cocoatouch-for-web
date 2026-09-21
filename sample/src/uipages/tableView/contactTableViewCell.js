@@ -1,17 +1,14 @@
 import "UIKit"
 
 
-// The table renders one row per index from the cell's html fragment and gives
-// it the id `cell-<indexPath>`, so the cell's labels are scoped to that row.
+// The row html is the .xib of the same name. The table view creates the row
+// from it and binds the cell's outlets inside that row, so several rows do
+// not collide even though they share ids.
 export class ContactTableViewCell extends UITableViewCell {
 
-    constructor({identifier, indexPath}) {
-        super({identifier, indexPath})
-        var row = `#cell-${indexPath}`
-        this.nameLabel = new UILabel(`${row} #contact-name`)
-        this.emailLabel = new UILabel(`${row} #contact-email`)
-        this.roleLabel = new UILabel(`${row} #contact-role`)
-    }
+    @IBOutlet("#contact-name", UILabel) nameLabel
+    @IBOutlet("#contact-email", UILabel) emailLabel
+    @IBOutlet("#contact-role", UILabel) roleLabel
 
     set contact(contact) {
         this.nameLabel.text = contact.name
