@@ -1,5 +1,6 @@
 import { UIView } from "./uiview.js"
 import { NSString } from "../utils/nsstring.js"
+import { UIColor } from "./uicolor.js"
 
 
 export class UILabel extends UIView {
@@ -15,6 +16,14 @@ export class UILabel extends UIView {
 
     get text() {
         return this.$el.text()
+    }
+
+    set textColor(color) {
+        this.$el.css("color", color.cgColor)
+    }
+
+    get textColor() {
+        return new UIColor({hex: this.$el.css("color")})
     }
 
     // Shrinks the font on one line until the text fits, no further than the

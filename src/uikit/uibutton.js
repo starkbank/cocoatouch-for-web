@@ -1,5 +1,7 @@
 import { NSString } from "../utils/nsstring.js"
 import { UIControl } from "./uicontrol.js"
+import { UIColor } from "./uicolor.js"
+import { UIControlState } from "./uicontrolstate.js"
 
 
 const ACTIVITY_INDICATOR = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
@@ -13,6 +15,20 @@ export class UIButton extends UIControl {
 
     get currentTitle() {
         return this.$el.text()
+    }
+
+    // setTitleColor(_:for:): the normal state's color is drawn; others are kept for titleColor(for:).
+    setTitleColor(color, {for: state = UIControlState.normal} = {}) {
+        if (!this._titleColors) { this._titleColors = {} }
+        this._titleColors[state] = color
+        if (state === UIControlState.normal) { this.$el.css("color", color.cgColor) }
+    }
+
+    titleColor({for: state = UIControlState.normal} = {}) {
+        var kept = this._titleColors && this._titleColors[state]
+        if (kept) { return kept }
+        if (state !== UIControlState.normal) { return null }
+        return new UIColor({hex: this.$el.css("color")})
     }
 
     // Replaces the title with a spinner and disables the button until turned off.
