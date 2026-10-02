@@ -34,12 +34,17 @@ export class UIViewController extends UIResponder {
 
         _adoptHost(viewController, body)
         body.css("display", "none")
+        // Root from this moment, not from the ready tick: a present() issued in
+        // between then dismisses this controller instead of letting it load
+        // afterwards and keep its observers with nothing left to release them.
+        _rootViewController = viewController
         body.html(nib).ready(() => {
+            if (_rootViewController !== viewController) { return }
             viewController._$el = body
             Bind.ibOutlet(viewController)
             Bind.ibAction(viewController)
             body.css("display", display)
-            _rootViewController = viewController
+            viewController._isViewLoaded = true
             viewController.viewDidLoad()
             viewController.viewWillAppear()
             viewController.viewDidAppear()
@@ -56,8 +61,13 @@ export class UIViewController extends UIResponder {
         Bind.ibAction(viewController)
         Bind.restoreRegisteredViews(body, viewController)
         _rootViewController = viewController
+        viewController._isViewLoaded = true
         viewController.viewWillAppear()
         viewController.viewDidAppear()
+    }
+
+    get isViewLoaded() {
+        return this._isViewLoaded === true
     }
 
     get view() {
@@ -164,6 +174,12 @@ function _dismissRootViewController() {
     var viewController = _rootViewController
     if (!viewController) { return }
     _rootViewController = null
+    // A controller superseded before its ready tick never appeared, so only
+    // what it registered so far is released; the appearance hooks stay unpaired.
+    if (!viewController.isViewLoaded) {
+        viewController._dispose()
+        return
+    }
     viewController.viewWillDisappear()
     viewController._dispose()
     viewController.viewDidDisappear()
