@@ -16,6 +16,16 @@ function recordingController(name, log) {
     return Controller
 }
 
+test("a view looks its element up again once the cached one has left the document", function() {
+    var view = new UIView("#icon")
+    var stale = {0: {isConnected: false}, length: 1}
+    view._$el = stale
+    assert.notEqual(view.$el, stale)
+    var live = {0: {isConnected: true}, length: 1}
+    view._$el = live
+    assert.equal(view.$el, live)
+})
+
 test("responders start with no next responder", function() {
     assert.equal(new UIResponder("#r").next, null)
     assert.equal(new UIView("#v").superview, null)
