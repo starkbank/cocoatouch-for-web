@@ -2,6 +2,7 @@ import { UIResponder } from "./uiresponder.js"
 import { Build } from "../utils/build.js"
 import { Bind } from "../utils/bind.js"
 import { UIView } from "./uiview.js"
+import { CGSize } from "../coregraphics/cgsize.js"
 
 
 export class UIViewController extends UIResponder {
@@ -26,6 +27,12 @@ export class UIViewController extends UIResponder {
 
     }
 
+    // Runs when the window changes size, before the page lays out for it; the
+    // coordinator runs work alongside the change and after it, as UIKit's does.
+    viewWillTransition({to: size, with: coordinator}) {
+
+    }
+
     present(viewController, {animated, completion} = {}) {
         _dismissRootViewController()
         var nib = Build.html(viewController)
@@ -34,12 +41,17 @@ export class UIViewController extends UIResponder {
 
         _adoptHost(viewController, body)
         body.css("display", "none")
+        // Root from this moment, not from the ready tick: a present() issued in
+        // between then dismisses this controller instead of letting it load
+        // afterwards and keep its observers with nothing left to release them.
+        _rootViewController = viewController
         body.html(nib).ready(() => {
+            if (_rootViewController !== viewController) { return }
             viewController._$el = body
             Bind.ibOutlet(viewController)
             Bind.ibAction(viewController)
             body.css("display", display)
-            _rootViewController = viewController
+            viewController._isViewLoaded = true
             viewController.viewDidLoad()
             viewController.viewWillAppear()
             viewController.viewDidAppear()
@@ -56,8 +68,13 @@ export class UIViewController extends UIResponder {
         Bind.ibAction(viewController)
         Bind.restoreRegisteredViews(body, viewController)
         _rootViewController = viewController
+        viewController._isViewLoaded = true
         viewController.viewWillAppear()
         viewController.viewDidAppear()
+    }
+
+    get isViewLoaded() {
+        return this._isViewLoaded === true
     }
 
     get view() {
@@ -160,10 +177,61 @@ export class UIViewController extends UIResponder {
 // it first, so nothing it observes on window or document survives the swap.
 var _rootViewController = null
 
+// A window resize is a size transition for the root controller and its
+// children, and then a layout pass over their view trees, outlets included.
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    var _resizeScheduled = false
+    window.addEventListener("resize", function() {
+        if (_resizeScheduled) { return }
+        _resizeScheduled = true
+        var schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : function(run) { run() }
+        schedule(function() {
+            _resizeScheduled = false
+            if (_rootViewController) { _transition(_rootViewController, _windowSize()) }
+        })
+    })
+}
+
+function _windowSize() {
+    return new CGSize({width: window.innerWidth || 0, height: window.innerHeight || 0})
+}
+
+function _transition(viewController, size) {
+    var coordinator = {
+        animate({alongsideTransition, completion}) {
+            if (alongsideTransition) { alongsideTransition() }
+            if (completion) { completion() }
+        }
+    }
+    viewController.viewWillTransition({to: size, with: coordinator})
+    for (var child of viewController.children) {
+        _transition(child, size)
+    }
+    _layoutTree(viewController.view, size)
+}
+
+// A controller bound as an outlet is a child in all but name, so it gets the transition too.
+function _layoutTree(view, size) {
+    if (view instanceof UIViewController) {
+        _transition(view, size)
+        return
+    }
+    if (typeof view.layoutSubviews === "function") { view.layoutSubviews() }
+    for (var subview of view.subviews || []) {
+        _layoutTree(subview, size)
+    }
+}
+
 function _dismissRootViewController() {
     var viewController = _rootViewController
     if (!viewController) { return }
     _rootViewController = null
+    // A controller superseded before its ready tick never appeared, so only
+    // what it registered so far is released; the appearance hooks stay unpaired.
+    if (!viewController.isViewLoaded) {
+        viewController._dispose()
+        return
+    }
     viewController.viewWillDisappear()
     viewController._dispose()
     viewController.viewDidDisappear()

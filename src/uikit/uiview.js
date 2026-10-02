@@ -1,5 +1,6 @@
 import { UIResponder } from "./uiresponder.js"
 import { CALayer } from "../coreanimation/calayer.js"
+import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { Bind } from "../utils/bind.js"
 
 
@@ -27,8 +28,10 @@ export class UIView extends UIResponder {
 
     }
 
+    // The element is looked up again when the cached one left the document: an
+    // icon font or a re-rendered nib can replace a node while keeping its id.
     get $el() {
-        if (!this._$el || this._$el.length === 0) {
+        if (!this._$el || this._$el.length === 0 || this._$el[0] && this._$el[0].isConnected === false) {
             this._$el = $(this.selector)
         }
         return this._$el
@@ -136,7 +139,29 @@ export class UIView extends UIResponder {
     }
 
     set backgroundColor(color) {
-        this.$el.css("background-color", color.hex)
+        this.$el.css("background-color", color.cgColor)
+    }
+
+    // The view's affine transform, as the element's CSS transform. Inside
+    // UIView.animate the element transitions to it over the animation's duration.
+    get transform() {
+        var matrix = this.$el.css("transform")
+        var parsed = /^matrix\(([^)]+)\)$/.exec(matrix || "")
+        if (!parsed) { return CGAffineTransform.identity }
+        var [a, b, c, d, tx, ty] = parsed[1].split(",").map(Number)
+        return new CGAffineTransform({a, b, c, d, tx, ty})
+    }
+
+    set transform(transform) {
+        var value = transform.isIdentity ? "none" : `matrix(${transform.a}, ${transform.b}, ${transform.c}, ${transform.d}, ${transform.tx}, ${transform.ty})`
+        if (!_animation) {
+            this.$el.css("transform", value)
+            return
+        }
+        var $el = this.$el
+        $el.css("transition", `transform ${_animation.duration}ms ${_animation.delay}ms`)
+        $el.css("transform", value)
+        setTimeout(() => $el.css("transition", ""), _animation.duration + _animation.delay)
     }
 
     // The accent for selection and emphasis; defaults to the page's design token.
@@ -153,9 +178,14 @@ export class UIView extends UIResponder {
 
     addGestureRecognizer(recognizer) {
         recognizer.view = this
-        this.$el.off(recognizer.event).on(recognizer.event, () => {
-            return recognizer.action.call(recognizer.target, recognizer)
-        })
+        var events = recognizer.events
+        for (const event of Object.keys(events)) {
+            this.$el.off(event).on(event, (domEvent) => {
+                if (!recognizer._recognizes(domEvent)) { return }
+                recognizer.state = events[event]
+                return recognizer.action.call(recognizer.target, recognizer)
+            })
+        }
     }
 
     layoutSubviews() {
