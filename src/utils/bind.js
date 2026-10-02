@@ -1,4 +1,5 @@
 import { UIViewController } from "../uikit/uiviewcontroller.js"
+import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 
 
@@ -77,7 +78,7 @@ export class Bind {
                 Bind.ibOutlet(responder)
             }
 
-            if (responder.constructor.prototype.hasOwnProperty("awakeFromNib")) {
+            if (_overrides(responder, "awakeFromNib")) {
                 responder.awakeFromNib()
             }
 
@@ -110,7 +111,7 @@ export class Bind {
                 Bind.ibOutletRestore(responder)
             }
 
-            if (responder.constructor.prototype.hasOwnProperty("didMoveToWindow")) {
+            if (_overrides(responder, "didMoveToWindow")) {
                 responder.didMoveToWindow()
             }
 
@@ -119,6 +120,13 @@ export class Bind {
             }
         }
     }
+}
+
+
+// A lifecycle hook runs when the view's class, or any class between it and
+// UIView, defines it: a subclass inherits its parent's awakeFromNib on iOS too.
+function _overrides(view, hook) {
+    return typeof view[hook] === "function" && view[hook] !== UIView.prototype[hook]
 }
 
 

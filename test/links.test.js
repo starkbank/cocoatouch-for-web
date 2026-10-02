@@ -5,6 +5,7 @@ import { UIButton, UIImageView, UIImage, UIScrollView, IBAction, UIViewControlle
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../src/index.js"
 import { CGPoint } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
+import { IBOutlet, UIView } from "../src/index.js"
 import { keydown } from "./setup.js"
 
 
@@ -76,4 +77,20 @@ test("a key command without modifiers goes to a focused text input instead of th
     keydown("/")
     assert.deepEqual(fired, ["command-k", "escape", "slash"])
     page._dispose()
+})
+
+
+test("an outlet whose class inherits awakeFromNib from a parent view is still awakened", function() {
+    var awakened = []
+    class MenuView extends UIView {
+        awakeFromNib() { awakened.push(this.constructor.name) }
+    }
+    class ApiMenuView extends MenuView {}
+    class Plain extends UIView {}
+    class Page extends UIView {}
+    IBOutlet("#menu", ApiMenuView)(Page.prototype, "menu", {})
+    IBOutlet("#plain", Plain)(Page.prototype, "plain", {})
+    var page = new Page("#page")
+    Bind.ibOutlet(page)
+    assert.deepEqual(awakened, ["ApiMenuView"])
 })
