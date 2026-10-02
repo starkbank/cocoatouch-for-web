@@ -113,7 +113,7 @@ UIView.animate({withDuration: 0.5, animations: () => { card.alpha = 1 }})
 UIView.transition({from: this.searchView, to: this.passwordView, duration: 0.28, options: [UIView.AnimationOptions.transitionFlipFromRight]})
 ```
 
-`insertSubview(view, {at})` places a view's nib inside another view without restyling it; `tag` keeps an integer on a view; `accessibilityIdentifier` reads or sets a view's element id; an outlet matched by class is given `<owner id>-<outlet name>` and a subview added in code `<superview id>-<n>`, so nib-drawn views stay addressable without the app naming them; `UIControl.sendActions({for})` fires a control event; key commands reach the deepest bound responder that contains the focused element first and climb to the enclosing ones only when the handler returns `false`; and a view class with a `.xib` fills the empty element it is created on, so `new SecureTextField("#password")` renders like the outlet would.
+`insertSubview(view, {at})` places a view's nib inside another view without restyling it; `tag` keeps an integer on a view; `accessibilityIdentifier` reads or sets a view's element id; `accessibilityLabel` is an image's alt text; an outlet matched by class is given `<owner id>-<outlet name>` and a subview added in code `<superview id>-<n>`, so nib-drawn views stay addressable without the app naming them; `UIControl.sendActions({for})` fires a control event; key commands reach the deepest bound responder that contains the focused element first and climb to the enclosing ones only when the handler returns `false`; and a view class with a `.xib` fills the empty element it is created on, so `new SecureTextField("#password")` renders like the outlet would.
 
 ## Table views
 
@@ -144,6 +144,9 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 
 ## Controls
 
+- `UIControl`: `isEnabled = false` blocks the pointer and sets the `disabled` attribute; `isSelected` is the `selected` class. Both are there for stylesheets to draw.
+- `UIImageView`: `image` is the source of an `<img>`, `<video>` or `<lottie-player>` and the CSS background of any other element.
+- `UILabel`: `adjustsFontSizeToFitWidth` shrinks the font on one line until the text fits, no further than `minimumScaleFactor`.
 - `UIButton`: `showsActivityIndicator = true` swaps the title for a spinner and disables the button until set back; `icon = {position, icon, text}` places an icon beside the title.
 - `UITextField`: the delegate gets `textFieldDidBeginEditing`, `textFieldDidEndEditing` and `textFieldShouldReturn`; `isFirstResponder`, `becomeFirstResponder()`, `resignFirstResponder()`.
 - `UISearchTextField`: tokens with `insertToken`, `removeToken`, `removeAllTokens`, validation, paste handling, keyboard selection; the delegate gets `tokensUpdated`, `textFieldWillInsertText` and `textFieldDidPaste`. Selected tokens use the view's `tintColor`, which defaults to the page's `--action-or-selection-color` token.
@@ -155,6 +158,22 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 Views get an `init()` hook that runs when the object is constructed, before any nib is attached. `UILabel.text` and friends sanitize through DOMPurify when the page loads it, and strip scripts otherwise.
 
 `cocoatouch/uikit.css` carries the few styles the controls need; import it once.
+
+## Video
+
+`import "AVKit"` brings AVFoundation's player, as it does in Swift. An `AVPlayer` plays one `AVPlayerItem`, which wraps an `AVURLAsset`; it draws through an `AVPlayerLayer`, which on the web is a `<video>` element. An `AVPlayerViewController` outlet bound to a `<video>` plays there, and bound to any other element appends the `<video>` it plays in.
+
+```js
+@IBOutlet("#hero-video", AVPlayerViewController) heroVideo
+
+viewDidLoad() {
+    this.heroVideo.player = new AVPlayer({url: "/static/hero.mp4"})
+    this.heroVideo.videoGravity = AVLayerVideoGravity.resizeAspectFill
+    NotificationCenter.default.addObserver(this, {name: AVPlayerItem.didPlayToEndTimeNotification, object: this.heroVideo.player.currentItem, selector: "videoDidEnd"})
+}
+```
+
+`play()`, `pause()`, `rate`, `isMuted`, `volume`, `currentTime()`, `seek({to})`, `status`, `timeControlStatus`, `actionAtItemEnd` and `replaceCurrentItem({with})` follow AVFoundation. The player writes only what the app sets, so a `<video muted autoplay loop>` keeps its own attributes. `AVPlayerLayer({player})` makes a layer with its own element for `view.layer.addSublayer(layer)`.
 
 ## Notifications
 
@@ -199,12 +218,12 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 | Foundation | UIKit | Other |
 |---|---|---|
 | NSObject | UIResponder, UIView, UIViewController | CALayer |
-| NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer |
+| NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer, AVPlayerViewController |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
 | | UIScrollView, UITableView, UITableViewCell | |
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
-| DispatchGroup, IndexPath, Locale | UIDevice, UIDatePicker, UICollectionView | |
+| DispatchGroup, IndexPath, Locale | UIDevice, UIDatePicker, UICollectionView | AVPlayerItem, AVURLAsset, AVPlayerLayer |
 | | IBOutlet, IBAction, UIKeyCommand, UIKeyModifierFlags | |
 
 ## Sample
