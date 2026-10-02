@@ -12,6 +12,15 @@ export class UIResponder extends NSObject {
         this.next = null
     }
 
+    // UIResponder.userActivity: what the user is doing in this responder.
+    get userActivity() {
+        return this._userActivity || null
+    }
+
+    set userActivity(activity) {
+        this._userActivity = activity
+    }
+
     get identifier() {
         if (this._identifier) { return this._identifier }
         var id = this.selector.replace(/#\b[\w\-]{36}\b #/, "").replaceAll("#", "")

@@ -181,6 +181,15 @@ function _keyMatches(binding, e) {
     return binding.requiresMeta === e.metaKey && binding.requiresShift === e.shiftKey && binding.requiresAlt === e.altKey && binding.requiresCtrl === e.ctrlKey
 }
 
+// A text input that is first responder consumes the characters typed into it,
+// so a key command with no modifiers never fires while one has the focus.
+const TEXT_INPUTS = /^(input|textarea|select)$/i
+
+function _isTypedInto(binding, active) {
+    if (!active || binding.modifiers.length > 0 || binding.key.length !== 1) { return false }
+    return TEXT_INPUTS.test(active.tagName || "") || active.isContentEditable === true
+}
+
 function _elementOf(control) {
     var $el = control.view ? control.view.$el : (control._$el || $(control.selector))
     return $el && $el[0] ? $el[0] : null
@@ -194,10 +203,10 @@ function _depth(element) {
 
 function _dispatchKey(e) {
     _keyBindings = _keyBindings.filter(function(binding) { return !binding.control._disposed })
-    var matching = _keyBindings.filter(function(binding) { return _keyMatches(binding, e) })
+    var active = document.activeElement && document.activeElement !== document.body ? document.activeElement : null
+    var matching = _keyBindings.filter(function(binding) { return _keyMatches(binding, e) && !_isTypedInto(binding, active) })
     if (matching.length === 0) { return }
     e.preventDefault()
-    var active = document.activeElement && document.activeElement !== document.body ? document.activeElement : null
     var chain = [], others = []
     for (var binding of matching) {
         var element = active ? _elementOf(binding.control) : null
