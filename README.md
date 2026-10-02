@@ -48,7 +48,7 @@ resolve: {
 }
 ```
 
-The same goes for `import "Foundation"`, `import "CoreAnimation"`, `import "CoreMedia"` and `import "AVKit"`. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
+The same goes for `import "Foundation"`, `import "CoreGraphics"`, `import "CoreAnimation"`, `import "CoreMedia"` and `import "AVKit"`; `import "UIKit"` brings Core Graphics along, as it does in Swift. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
 
 Requirements:
 
@@ -146,7 +146,11 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 
 - `UIControl`: `isEnabled = false` blocks the pointer and sets the `disabled` attribute; `isSelected` is the `selected` class. Both are there for stylesheets to draw.
 - `UIImageView`: `image` is the source of an `<img>`, `<video>` or `<lottie-player>` and the CSS background of any other element.
-- `UILabel`: `adjustsFontSizeToFitWidth` shrinks the font on one line until the text fits, no further than `minimumScaleFactor`.
+- `UILabel`: `adjustsFontSizeToFitWidth` shrinks the font on one line until the text fits, no further than `minimumScaleFactor`; `textColor` takes a `UIColor`.
+- `UIButton`: `setTitleColor(color, {for: state})` and `titleColor({for: state})`.
+- `UIColor`: `UIColor({named: "title-color"})` resolves the stylesheet's `--title-color` token, the way `UIColor(named:)` reads the asset catalog; `UIColor({red, green, blue, alpha})`, `UIColor({white, alpha})`, `UIColor.clear`, `.white` and `.black`. `cgColor` is the value a stylesheet understands.
+- `UIView.transform` is a `CGAffineTransform` (`identity`, `{scaleX, y}`, `{translationX, y}`, `{rotationAngle}`, `scaledBy`, `translatedBy`, `rotated`, `concatenating`, `inverted`), written as the element's CSS transform; inside `UIView.animate` the element transitions to it.
+- `CAGradientLayer`: `colors`, `locations`, `startPoint` and `endPoint` (`CGPoint`), drawn as a CSS linear-gradient in an element that fills the superlayer once `view.layer.addSublayer(layer)` adds it.
 - `UIButton`: `showsActivityIndicator = true` swaps the title for a spinner and disables the button until set back; `icon = {position, icon, text}` places an icon beside the title.
 - `UITextField`: the delegate gets `textFieldDidBeginEditing`, `textFieldDidEndEditing` and `textFieldShouldReturn`; `isFirstResponder`, `becomeFirstResponder()`, `resignFirstResponder()`.
 - `UISearchTextField`: tokens with `insertToken`, `removeToken`, `removeAllTokens`, validation, paste handling, keyboard selection; the delegate gets `tokensUpdated`, `textFieldWillInsertText` and `textFieldDidPaste`. Selected tokens use the view's `tintColor`, which defaults to the page's `--action-or-selection-color` token.
@@ -217,7 +221,7 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 
 | Foundation | UIKit | Other |
 |---|---|---|
-| NSObject | UIResponder, UIView, UIViewController | CALayer, CMTime |
+| NSObject | UIResponder, UIView, UIViewController | CALayer, CAGradientLayer, CMTime, CGPoint, CGAffineTransform |
 | NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer, AVPlayerViewController |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
 | | UIScrollView, UITableView, UITableViewCell | |

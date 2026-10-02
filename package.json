@@ -19,6 +19,10 @@
             "types": "./types/Foundation.d.ts",
             "default": "./src/Foundation.js"
         },
+        "./CoreGraphics": {
+            "types": "./types/CoreGraphics.d.ts",
+            "default": "./src/CoreGraphics.js"
+        },
         "./CoreAnimation": {
             "types": "./types/CoreAnimation.d.ts",
             "default": "./src/CoreAnimation.js"
@@ -38,6 +42,10 @@
         "./foundation": {
             "types": "./types/foundation/index.d.ts",
             "default": "./src/foundation/index.js"
+        },
+        "./coregraphics": {
+            "types": "./types/coregraphics/index.d.ts",
+            "default": "./src/coregraphics/index.js"
         },
         "./coreanimation": {
             "types": "./types/coreanimation/index.d.ts",
