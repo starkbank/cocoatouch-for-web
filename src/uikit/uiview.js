@@ -178,9 +178,14 @@ export class UIView extends UIResponder {
 
     addGestureRecognizer(recognizer) {
         recognizer.view = this
-        this.$el.off(recognizer.event).on(recognizer.event, () => {
-            return recognizer.action.call(recognizer.target, recognizer)
-        })
+        var events = recognizer.events
+        for (const event of Object.keys(events)) {
+            this.$el.off(event).on(event, (domEvent) => {
+                if (!recognizer._recognizes(domEvent)) { return }
+                recognizer.state = events[event]
+                return recognizer.action.call(recognizer.target, recognizer)
+            })
+        }
     }
 
     layoutSubviews() {

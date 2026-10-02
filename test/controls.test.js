@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
+import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
@@ -96,6 +96,18 @@ test("a tap gesture recognizer runs its action on the target with itself as argu
     assert.equal(seen.self, target)
     assert.equal(seen.recognizer, tap)
     assert.equal(tap.view, view)
+})
+
+test("a hover recognizer reports began, changed and ended for a mouse and ignores touches", function() {
+    var view = new UIView("#menu")
+    var states = []
+    view.addGestureRecognizer(new UIHoverGestureRecognizer({target: {}, action: function(recognizer) { states.push(recognizer.state) }}))
+    var el = view.$el
+    el._handlers.pointerenter({originalEvent: {pointerType: "touch"}})
+    el._handlers.pointerenter({originalEvent: {pointerType: "mouse"}})
+    el._handlers.pointermove({originalEvent: {pointerType: "mouse"}})
+    el._handlers.pointerleave({originalEvent: {pointerType: "mouse"}})
+    assert.deepEqual(states, [UIGestureRecognizer.State.began, UIGestureRecognizer.State.changed, UIGestureRecognizer.State.ended])
 })
 
 test("a view's init hook runs when it is constructed", function() {

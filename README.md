@@ -148,6 +148,7 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 - `UIImageView`: `image` is the source of an `<img>`, `<video>` or `<lottie-player>` and the CSS background of any other element.
 - `UILabel`: `adjustsFontSizeToFitWidth` shrinks the font on one line until the text fits, no further than `minimumScaleFactor`; `textColor` takes a `UIColor`.
 - `UIButton`: `setTitleColor(color, {for: state})` and `titleColor({for: state})`.
+- `UIHoverGestureRecognizer`: added with `view.addGestureRecognizer`, its action runs with `state` `.began`, `.changed` and `.ended` as a mouse pointer enters, moves over and leaves the view; touches are not hovers, as on iPadOS. Recognizers expose `UIGestureRecognizer.State`.
 - `UIColor`: `UIColor({named: "title-color"})` resolves the stylesheet's `--title-color` token, the way `UIColor(named:)` reads the asset catalog; `UIColor({red, green, blue, alpha})`, `UIColor({white, alpha})`, `UIColor.clear`, `.white` and `.black`. `cgColor` is the value a stylesheet understands.
 - `UIView.transform` is a `CGAffineTransform` (`identity`, `{scaleX, y}`, `{translationX, y}`, `{rotationAngle}`, `scaledBy`, `translatedBy`, `rotated`, `concatenating`, `inverted`), written as the element's CSS transform; inside `UIView.animate` the element transitions to it.
 - `CAGradientLayer`: `colors`, `locations`, `startPoint` and `endPoint` (`CGPoint`), drawn as a CSS linear-gradient in an element that fills the superlayer once `view.layer.addSublayer(layer)` adds it.
