@@ -36,9 +36,9 @@ test("the build emits a declaration for every framework entry", function() {
     })
 })
 
-test("globals.d.ts and the eslint globals cover every export of the four frameworks", async function() {
+test("globals.d.ts and the eslint globals cover every export of the six frameworks", async function() {
     var expected = []
-    for (var directory of ["uikit", "foundation", "coreanimation", "avkit"]) {
+    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit"]) {
         expected = expected.concat(Object.keys(await import("../src/" + directory + "/index.js")))
     }
     var dts = fs.readFileSync(path.join(root, "types/globals.d.ts"), "utf8")

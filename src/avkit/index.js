@@ -1,6 +1,16 @@
+import { AVAsset, AVURLAsset } from "./avasset.js"
+import { AVPlayerItem } from "./avplayeritem.js"
+import { AVPlayer } from "./avplayer.js"
+import { AVPlayerLayer, AVLayerVideoGravity } from "./avplayerlayer.js"
+import { AVPlayerViewController } from "./avplayerviewcontroller.js"
 
-import { AVPlayer } from "./avplayer.js";
 
 export {
-    AVPlayer
+    AVAsset,
+    AVURLAsset,
+    AVPlayerItem,
+    AVPlayer,
+    AVPlayerLayer,
+    AVLayerVideoGravity,
+    AVPlayerViewController,
 }

@@ -2,7 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { keydown } from "./setup.js"
-import { UIResponder, UIView, UIViewController, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
+import { UIResponder, UIView, UIViewController, UIScreen, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -15,6 +15,42 @@ function recordingController(name, log) {
     Controller.nib = "<div id=\"" + name + "\"></div>"
     return Controller
 }
+
+test("a view looks its element up again once the cached one has left the document", function() {
+    var view = new UIView("#icon")
+    var stale = {0: {isConnected: false}, length: 1}
+    view._$el = stale
+    assert.notEqual(view.$el, stale)
+    var live = {0: {isConnected: true}, length: 1}
+    view._$el = live
+    assert.equal(view.$el, live)
+})
+
+test("a window resize reaches the root controller, its children and the layout of their bound views", function() {
+    var log = []
+    var Controller = recordingController("page", [])
+    Controller.prototype.viewWillTransition = function({to: size, with: coordinator}) { log.push("page " + size.width + "x" + size.height); coordinator.animate({alongsideTransition: () => log.push("alongside"), completion: () => log.push("done")}) }
+    var controller = new Controller()
+    var Child = recordingController("child", [])
+    Child.prototype.viewWillTransition = function({to: size}) { log.push("child " + size.width) }
+    var child = new Child()
+    controller.addChild(child)
+    var outlet = new UIView("#outlet")
+    outlet.layoutSubviews = function() { log.push("outlet layout") }
+    var nested = new UIView("#nested")
+    nested.layoutSubviews = function() { log.push("nested layout") }
+    outlet.addSubview(nested)
+    controller._link(outlet)
+    var Embedded = recordingController("embedded", [])
+    Embedded.prototype.viewWillTransition = function({to: size}) { log.push("embedded " + size.height) }
+    controller._link(new Embedded())
+    controller.present(controller, {})
+    log.length = 0
+    window.innerWidth = 1024; window.innerHeight = 700
+    window.dispatchEvent(new Event("resize"))
+    assert.deepEqual(log, ["page 1024x700", "alongside", "done", "child 1024", "outlet layout", "nested layout", "embedded 700"])
+    assert.equal(UIScreen.main.bounds.width, 1024)
+})
 
 test("responders start with no next responder", function() {
     assert.equal(new UIResponder("#r").next, null)
@@ -71,6 +107,41 @@ test("presenting again tears the previous controller down first", function() {
         "second.viewWillAppear",
         "second.viewDidAppear"
     ])
+})
+
+// jQuery's ready runs on a later tick in the browser; the stub runs it inline.
+// This holds the callbacks back so two present() calls can land in one window.
+function withDeferredReady(run) {
+    var pending = []
+    var original = globalThis.$
+    globalThis.$ = function(html) {
+        var el = original(html)
+        el.ready = function(callback) { pending.push(callback); return el }
+        return el
+    }
+    try { run() } finally { globalThis.$ = original }
+    return function flush() { pending.splice(0).forEach(function(callback) { callback() }) }
+}
+
+test("a controller superseded before its ready tick never loads and releases its observers", function() {
+    var log = []
+    var target = new EventTarget()
+    var hits = 0
+    var First = recordingController("first", log)
+    var Second = recordingController("second", log)
+    var first = new First()
+    var second = new Second()
+    NotificationCenter.default.addObserver(first, {selector: function() { hits += 1 }, name: "tick", object: target})
+    var flush = withDeferredReady(function() {
+        first.present(first, {completion: function() { log.push("first.completion") }})
+        second.present(second, {completion: function() { log.push("second.completion") }})
+    })
+    flush()
+    target.dispatchEvent(new Event("tick"))
+    assert.deepEqual(log, ["second.viewDidLoad", "second.viewWillAppear", "second.viewDidAppear", "second.completion"])
+    assert.equal(hits, 0)
+    assert.equal(first.isViewLoaded, false)
+    assert.equal(second.isViewLoaded, true)
 })
 
 test("teardown removes observers owned by the controller and its whole view tree", function() {

@@ -27,11 +27,14 @@ test("CoreAnimation and AVKit follow the same shape", async function() {
     const AVKit = await import("../src/AVKit.js")
     assert.equal(globalThis.CALayer, CoreAnimation.CALayer)
     assert.equal(globalThis.AVPlayer, AVKit.AVPlayer)
+    assert.equal(globalThis.CMTime, AVKit.CMTime)
+    const CoreMedia = await import("../src/CoreMedia.js")
+    assert.equal(globalThis.CMTime, CoreMedia.CMTime)
 })
 
 test("the webpack aliases point every framework name at an existing entry", function() {
     const aliases = require("../webpack/aliases.cjs")
-    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "Foundation", "UIKit"])
+    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "UIKit"])
     for (const file of Object.values(aliases)) {
         assert.ok(fs.existsSync(file), file + " does not exist")
         assert.equal(path.basename(path.dirname(file)), "src")

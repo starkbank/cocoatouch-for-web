@@ -15,7 +15,7 @@ export class UIProgressView extends UIView {
     }
 
     set progressTintColor(color) {
-        this.$el.css("background", color.hex)
+        this.$el.css("background", color.cgColor)
     }
 
     setProgress(progress, {animated} = {}) {
