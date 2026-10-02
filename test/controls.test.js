@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
+import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
@@ -267,4 +267,51 @@ test("outlets and added subviews receive ids from their owner without the app na
     box.addSubview(second)
     assert.equal(first.identifier, "boxes-1")
     assert.equal(second.identifier, "boxes-2")
+})
+
+test("UIImageView paints a non-media element with the image as background and gives media a source", function() {
+    var box = new UIImageView("#box")
+    var css = {}, attrs = {}
+    box._$el = {0: {tagName: "DIV"}, length: 1, css: function(name, value) { css[name] = value; return this }, attr: function(name, value) { attrs[name] = value; return this }}
+    box.image = new UIImage({named: "/bg.jpg"})
+    assert.deepEqual(css, {"background-image": "url(/bg.jpg)"})
+    assert.deepEqual(attrs, {})
+    var photo = new UIImageView("#photo")
+    var photoAttrs = {}
+    photo._$el = {0: {tagName: "IMG"}, length: 1, css: function() { return this }, attr: function(name, value) { photoAttrs[name] = value; return this }}
+    photo.image = new UIImage({named: "/photo.jpg"})
+    assert.deepEqual(photoAttrs, {src: "/photo.jpg"})
+})
+
+test("UILabel shrinks its font to fit when adjustsFontSizeToFitWidth is on, down to the minimum scale", function() {
+    var label = new UILabel("#price")
+    var element = {tagName: "H3", style: {}, offsetParent: {}, clientWidth: 101, scrollWidth: 200}
+    globalThis.getComputedStyle = function() { return {fontSize: "48px"} }
+    label._$el = {0: element, length: 1, html: function() { return this }, text: function() { return "" }}
+    label.text = "R$ 2.915.820"
+    assert.equal(element.style.fontSize, undefined)
+    label.adjustsFontSizeToFitWidth = true
+    label.minimumScaleFactor = 16 / 48
+    label.text = "R$ 2.915.820"
+    assert.equal(element.style.fontSize, "24px")
+    element.scrollWidth = 1000
+    label.text = "R$ 2.915.820.000.000"
+    assert.equal(element.style.fontSize, "16px")
+    delete globalThis.getComputedStyle
+})
+
+test("UIControl reflects isEnabled as the disabled attribute and isSelected as the selected class", function() {
+    var control = new UIControl("#toggle")
+    var attrs = {}, classes = new Set()
+    control._$el = {0: {}, length: 1, css: function() { return this }, attr: function(name, value) { attrs[name] = value; return this }, removeAttr: function(name) { delete attrs[name]; return this }, hasClass: function(c) { return classes.has(c) }, toggleClass: function(c, on) { on ? classes.add(c) : classes.delete(c); return this }}
+    control.isEnabled = false
+    assert.deepEqual(attrs, {disabled: ""})
+    assert.equal(control.isEnabled, false)
+    control.isEnabled = true
+    assert.deepEqual(attrs, {})
+    assert.equal(control.isSelected, false)
+    control.isSelected = true
+    assert.equal(control.isSelected, true)
+    control.isSelected = false
+    assert.equal(classes.size, 0)
 })

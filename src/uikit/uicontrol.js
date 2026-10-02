@@ -23,13 +23,25 @@ export class UIControl extends UIView {
         return UIControlState
     }
 
+    // A disabled control ignores the pointer and carries the disabled
+    // attribute, for stylesheets to draw it as such.
     set isEnabled(bool) {
         this._isEnabled = bool
         this.$el.css("pointer-events", bool ? "" : "none")
+        bool ? this.$el.removeAttr("disabled") : this.$el.attr("disabled", "")
     }
 
     get isEnabled() {
         return this._isEnabled !== false
+    }
+
+    // Selection is the "selected" class, as on table view rows, for stylesheets to draw.
+    get isSelected() {
+        return this.$el.hasClass("selected")
+    }
+
+    set isSelected(selected) {
+        this.$el.toggleClass("selected", selected)
     }
 
     addTarget(target, {action, for: controlEvent}) {
