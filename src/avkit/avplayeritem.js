@@ -1,4 +1,5 @@
 import { NSObject } from "../foundation/nsobject.js"
+import { CMTime } from "../coremedia/cmtime.js"
 import { AVURLAsset } from "./avasset.js"
 
 
@@ -30,7 +31,7 @@ export class AVPlayerItem extends NSObject {
         super()
         this.asset = asset || new AVURLAsset({url})
         this.status = Status.unknown
-        this.duration = NaN
+        this.duration = CMTime.indefinite
         this.error = null
     }
 }

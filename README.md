@@ -48,7 +48,7 @@ resolve: {
 }
 ```
 
-The same goes for `import "Foundation"`, `import "CoreAnimation"` and `import "AVKit"`. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
+The same goes for `import "Foundation"`, `import "CoreAnimation"`, `import "CoreMedia"` and `import "AVKit"`. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
 
 Requirements:
 
@@ -173,7 +173,7 @@ viewDidLoad() {
 }
 ```
 
-`play()`, `pause()`, `rate`, `isMuted`, `volume`, `currentTime()`, `seek({to})`, `status`, `timeControlStatus`, `actionAtItemEnd` and `replaceCurrentItem({with})` follow AVFoundation. The player writes only what the app sets, so a `<video muted autoplay loop>` keeps its own attributes. `AVPlayerLayer({player})` makes a layer with its own element for `view.layer.addSublayer(layer)`.
+`play()`, `pause()`, `rate`, `isMuted`, `volume`, `currentTime()`, `seek({to, completionHandler})`, `status`, `error`, `timeControlStatus`, `actionAtItemEnd` and `replaceCurrentItem({with})` follow AVFoundation. Times are Core Media `CMTime` values, as in Swift: `player.currentTime().seconds` reads one, `player.seek({to: new CMTime({seconds: 10, preferredTimescale: 600})})` makes one, and an item's `duration` is `CMTime.indefinite` until the media reports it. `import "AVKit"` brings `CMTime` along, the way AVFoundation re-exports Core Media. The player writes only what the app sets, so a `<video muted autoplay loop>` keeps its own attributes. `AVPlayerLayer({player})` makes a layer with its own element for `view.layer.addSublayer(layer)`.
 
 ## Notifications
 
@@ -217,7 +217,7 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 
 | Foundation | UIKit | Other |
 |---|---|---|
-| NSObject | UIResponder, UIView, UIViewController | CALayer |
+| NSObject | UIResponder, UIView, UIViewController | CALayer, CMTime |
 | NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer, AVPlayerViewController |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
 | | UIScrollView, UITableView, UITableViewCell | |
