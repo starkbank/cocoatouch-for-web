@@ -3,6 +3,7 @@ import { NotificationCenter } from "./notificationcenter.js"
 import { DispatchGroup } from "./dispatchgroup.js"
 import { IndexPath } from "./indexpath.js"
 import { Locale } from "./locale.js"
+import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "./nsuseractivity.js"
 
 
 export {
@@ -11,4 +12,6 @@ export {
     DispatchGroup,
     IndexPath,
     Locale,
+    NSUserActivity,
+    NSUserActivityTypeBrowsingWeb,
 }

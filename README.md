@@ -145,7 +145,10 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 ## Controls
 
 - `UIControl`: `isEnabled = false` blocks the pointer and sets the `disabled` attribute; `isSelected` is the `selected` class. Both are there for stylesheets to draw.
-- `UIImageView`: `image` is the source of an `<img>`, `<video>` or `<lottie-player>` and the CSS background of any other element.
+- `UIImageView`: `image` is the source of an `<img>`, `<video>` or `<lottie-player>` and the CSS background of any other element. `UIImage({systemName})` is an icon font symbol: its classes replace the previous symbol's on the element.
+- `userActivity`: a view whose `NSUserActivity` has a `webpageURL` is a link to that page, so the url is written as the element's `href`. Set it where iOS would open a page on tap, and keep the `<a>` in the nib.
+- `UIScrollView`: `contentOffset`, `contentSize` and `setContentOffset(_:animated:)` read and move the element's scroll position.
+- Key commands: an `@IBAction` on a single character with no modifiers is typed into a focused text input instead of firing, as a `UIKeyCommand` is consumed by a first responder text field on iOS. Modified commands and non-character keys still fire.
 - `UILabel`: `adjustsFontSizeToFitWidth` shrinks the font on one line until the text fits, no further than `minimumScaleFactor`; `textColor` takes a `UIColor`.
 - `UIButton`: `setTitleColor(color, {for: state})` and `titleColor({for: state})`.
 - `viewWillTransition({to: size, with: coordinator})` runs on the root controller and its children when the window changes size, and every view bound to them gets `layoutSubviews()`, so a layout that depends on width is redone there; `UIScreen.main.bounds` reads the viewport.
@@ -230,7 +233,7 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
 | DispatchGroup, IndexPath, Locale | UIDevice, UIDatePicker, UICollectionView | AVPlayerItem, AVURLAsset, AVPlayerLayer |
-| | IBOutlet, IBAction, UIKeyCommand, UIKeyModifierFlags | |
+| NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, UIKeyCommand, UIKeyModifierFlags | |
 
 ## Sample
 

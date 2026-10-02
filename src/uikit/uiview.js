@@ -41,6 +41,22 @@ export class UIView extends UIResponder {
         return new CALayer(this.selector)
     }
 
+    // A view whose activity is browsing a web page is a link to it: the
+    // webpageURL becomes the element's href, so anchors keep working as links.
+    get userActivity() {
+        return this._userActivity || null
+    }
+
+    set userActivity(activity) {
+        this._userActivity = activity
+        var url = activity && activity.webpageURL
+        if (url === null || url === undefined) {
+            this.$el.removeAttr("href")
+            return
+        }
+        this.$el.attr("href", String(url))
+    }
+
     // The element id, so tests and stylesheets can address a nib's inner views.
     get accessibilityIdentifier() {
         return this.$el.attr("id") || null
