@@ -17,19 +17,17 @@ const OBJECT_FIT = {
 const HAVE_CURRENT_DATA = 2
 
 
-// Where a player draws: a <video> element. A selector binds a layer to one
-// already on the page; AVPlayerLayer(player:) makes its own, for a view's
-// layer to add as a sublayer.
+// Where a player draws: a <video> element of its own, which a view's layer
+// adds as a sublayer. AVPlayerViewController hands a layer the element it
+// already shows, so nothing is created for a <video> that is on the page.
 export class AVPlayerLayer extends CALayer {
 
-    constructor(selectorOrOptions) {
-        var options = typeof selectorOrOptions === "object" && selectorOrOptions !== null ? selectorOrOptions : null
-        var element = options ? document.createElement("video") : null
-        if (element) { element.id = uuid() }
-        super(element ? "#" + element.id : selectorOrOptions)
-        this._boundElement = element
+    // AVPlayerLayer() or AVPlayerLayer(player:)
+    constructor({player} = {}) {
+        super("#" + uuid())
+        this._boundElement = null
         this._player = null
-        if (options && options.player) { this.player = options.player }
+        if (player) { this.player = player }
     }
 
     get player() {
@@ -61,7 +59,9 @@ export class AVPlayerLayer extends CALayer {
 
     get _element() {
         if (this._boundElement) { return this._boundElement }
-        var found = $(this.selector)
-        return found && found[0] ? found[0] : null
+        var element = document.createElement("video")
+        element.id = this.selector.slice(1)
+        this._boundElement = element
+        return element
     }
 }

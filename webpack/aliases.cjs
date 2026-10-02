@@ -7,5 +7,6 @@ module.exports = {
     UIKit: path.join(__dirname, "../src/UIKit.js"),
     Foundation: path.join(__dirname, "../src/Foundation.js"),
     CoreAnimation: path.join(__dirname, "../src/CoreAnimation.js"),
+    CoreMedia: path.join(__dirname, "../src/CoreMedia.js"),
     AVKit: path.join(__dirname, "../src/AVKit.js")
 }

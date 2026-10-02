@@ -23,6 +23,10 @@
             "types": "./types/CoreAnimation.d.ts",
             "default": "./src/CoreAnimation.js"
         },
+        "./CoreMedia": {
+            "types": "./types/CoreMedia.d.ts",
+            "default": "./src/CoreMedia.js"
+        },
         "./AVKit": {
             "types": "./types/AVKit.d.ts",
             "default": "./src/AVKit.js"
@@ -38,6 +42,10 @@
         "./coreanimation": {
             "types": "./types/coreanimation/index.d.ts",
             "default": "./src/coreanimation/index.js"
+        },
+        "./coremedia": {
+            "types": "./types/coremedia/index.d.ts",
+            "default": "./src/coremedia/index.js"
         },
         "./avkit": {
             "types": "./types/avkit/index.d.ts",

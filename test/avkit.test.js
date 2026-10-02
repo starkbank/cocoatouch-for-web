@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { AVPlayer, AVPlayerItem, AVURLAsset, AVPlayerLayer, AVLayerVideoGravity, AVPlayerViewController, NotificationCenter, CALayer } from "../src/index.js"
+import { AVPlayer, AVPlayerItem, AVURLAsset, AVPlayerLayer, AVLayerVideoGravity, AVPlayerViewController, NotificationCenter, CALayer, CMTime } from "../src/index.js"
 
 
 // A <video> stand-in: the properties the player writes and the events it hears.
@@ -31,7 +31,7 @@ class FakeVideo extends EventTarget {
 }
 
 function layerOn(video) {
-    var layer = new AVPlayerLayer("#video")
+    var layer = new AVPlayerLayer()
     layer._boundElement = video
     return layer
 }
@@ -76,10 +76,17 @@ test("play, pause, rate, volume, mute and seek reach the element and read back f
     assert.equal(player.rate, 0)
     player.isMuted = true
     player.volume = 0.5
-    player.seek({to: 12})
+    var finished = []
+    player.seek({to: new CMTime({seconds: 12, preferredTimescale: 600}), completionHandler: (done) => finished.push(done)})
+    video.dispatchEvent(new Event("seeked"))
     assert.equal(video.muted, true)
     assert.equal(video.volume, 0.5)
-    assert.equal(player.currentTime(), 12)
+    assert.equal(player.currentTime().seconds, 12)
+    assert.equal(player.currentTime().timescale, 600)
+    assert.deepEqual(finished, [true])
+    player.seek({to: CMTime.invalid, completionHandler: (done) => finished.push(done)})
+    assert.deepEqual(finished, [true, false])
+    assert.equal(new AVPlayer().currentTime().isValid, false)
     assert.equal(player.timeControlStatus, AVPlayer.TimeControlStatus.paused)
     video.readyState = 4
     player.play()
@@ -89,12 +96,15 @@ test("play, pause, rate, volume, mute and seek reach the element and read back f
 test("settings made before a layer exists are applied when one attaches", function() {
     var player = new AVPlayer({url: "/a.mp4"})
     player.isMuted = true
+    player.seek({to: new CMTime({seconds: 7, preferredTimescale: 600})})
     player.play()
     assert.equal(player.isMuted, true)
     assert.equal(player.rate, 1)
+    assert.equal(player.currentTime().seconds, 0)
     var video = new FakeVideo()
     layerOn(video).player = player
     assert.equal(video.muted, true)
+    assert.equal(video.currentTime, 7)
     assert.deepEqual(video.calls, ["play"])
 })
 
@@ -104,11 +114,14 @@ test("the item reports status and duration, and the end of playback is a notific
     var layer = layerOn(video)
     layer.player = player
     assert.equal(player.status, AVPlayer.Status.unknown)
+    assert.equal(player.error, null)
+    assert.equal(player.currentItem.duration.isIndefinite, true)
     video.duration = 30
     video.dispatchEvent(new Event("loadedmetadata"))
     assert.equal(player.currentItem.status, AVPlayerItem.Status.readyToPlay)
     assert.equal(player.status, AVPlayer.Status.readyToPlay)
-    assert.equal(player.currentItem.duration, 30)
+    assert.equal(player.currentItem.duration.seconds, 30)
+    assert.equal(player.currentItem.duration.isNumeric, true)
     var ended = []
     var observer = {}
     NotificationCenter.default.addObserver(observer, {name: AVPlayerItem.didPlayToEndTimeNotification, object: player.currentItem, selector: (n) => ended.push(n.object)})
@@ -122,6 +135,14 @@ test("the item reports status and duration, and the end of playback is a notific
     assert.equal(ended.length, 1)
     video.dispatchEvent(new Event("error"))
     assert.equal(player.currentItem.status, AVPlayerItem.Status.readyToPlay)
+    var failing = new AVPlayer({url: "/missing.mp4"})
+    var broken = new FakeVideo()
+    layerOn(broken).player = failing
+    broken.error = {code: 4}
+    broken.dispatchEvent(new Event("error"))
+    assert.equal(failing.currentItem.status, AVPlayerItem.Status.failed)
+    assert.equal(failing.currentItem.error.code, 4)
+    assert.equal(failing.status, AVPlayer.Status.unknown)
 })
 
 test("AVPlayerLayer(player:) makes its own element that a layer adds as a sublayer; gravity maps to object-fit", function() {

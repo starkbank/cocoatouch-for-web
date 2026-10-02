@@ -1,6 +1,7 @@
 import { NSObject } from "../foundation/nsobject.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { AVPlayerItem } from "./avplayeritem.js"
+import { CMTime } from "../coremedia/cmtime.js"
 
 
 const Status = Object.freeze({
@@ -22,6 +23,10 @@ const ActionAtItemEnd = Object.freeze({
 })
 
 const HAVE_FUTURE_DATA = 3
+
+// Media elements report seconds as floats; AVFoundation keeps them as ticks.
+// 600 is the timescale Apple's samples use: it divides 24, 25, 30 and 60 fps evenly.
+const PREFERRED_TIMESCALE = 600
 
 
 // Plays one item at a time and reports on it, as AVFoundation's player does.
@@ -50,6 +55,8 @@ export class AVPlayer extends NSObject {
         this._layers = []
         this._settings = {}
         this._listeners = new Map()
+        this._status = Status.unknown
+        this._error = null
         this.actionAtItemEnd = ActionAtItemEnd.pause
     }
 
@@ -111,21 +118,41 @@ export class AVPlayer extends NSObject {
         }
     }
 
-    // Seconds into the current item.
     currentTime() {
+        if (!this._item) { return CMTime.invalid }
         var element = this._elements()[0]
-        return element ? element.currentTime : 0
+        if (!element) { return CMTime.zero }
+        return new CMTime({seconds: element.currentTime, preferredTimescale: PREFERRED_TIMESCALE})
     }
 
-    seek({to}) {
-        for (var element of this._elements()) {
-            element.currentTime = to
+    // seek(to:) or seek(to:completionHandler:); the handler hears whether the seek finished.
+    seek({to, completionHandler}) {
+        if (!to.isNumeric) {
+            if (completionHandler) { completionHandler(false) }
+            return
+        }
+        var elements = this._elements()
+        this._settings.currentTime = to.seconds
+        if (elements.length === 0) {
+            if (completionHandler) { completionHandler(true) }
+            return
+        }
+        if (completionHandler) {
+            elements[0].addEventListener("seeked", () => completionHandler(true), {once: true})
+        }
+        for (var element of elements) {
+            element.currentTime = to.seconds
         }
     }
 
+    // The player's own readiness: ready once it can play its first item. An
+    // item that fails keeps the player ready for the next one, as in AVFoundation.
     get status() {
-        if (!this._item) { return Status.unknown }
-        return this._item.status
+        return this._status
+    }
+
+    get error() {
+        return this._error
     }
 
     get timeControlStatus() {
@@ -144,6 +171,7 @@ export class AVPlayer extends NSObject {
         this._load(element)
         if (this._settings.muted !== undefined) { element.muted = this._settings.muted }
         if (this._settings.volume !== undefined) { element.volume = this._settings.volume }
+        if (this._settings.currentTime !== undefined) { element.currentTime = this._settings.currentTime }
         if (this._settings.rate !== undefined) { _applyRate(element, this._settings.rate) }
     }
 
@@ -197,7 +225,8 @@ export class AVPlayer extends NSObject {
     _itemDidLoad(element) {
         if (!this._item) { return }
         this._item.status = AVPlayerItem.Status.readyToPlay
-        this._item.duration = element.duration
+        this._item.duration = _duration(element.duration)
+        if (this._status === Status.unknown) { this._status = Status.readyToPlay }
     }
 
     _itemDidFail(element) {
@@ -213,6 +242,12 @@ export class AVPlayer extends NSObject {
     }
 }
 
+
+function _duration(seconds) {
+    if (Number.isNaN(seconds)) { return CMTime.indefinite }
+    if (seconds === Infinity) { return CMTime.positiveInfinity }
+    return new CMTime({seconds: seconds, preferredTimescale: PREFERRED_TIMESCALE})
+}
 
 function _applyRate(element, rate) {
     if (rate === 0) {

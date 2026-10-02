@@ -8,6 +8,7 @@ var FRAMEWORKS = {
     UIKit: "uikit",
     Foundation: "foundation",
     CoreAnimation: "coreanimation",
+    CoreMedia: "coremedia",
     AVKit: "avkit"
 }
 
@@ -29,7 +30,7 @@ async function main() {
             globals[name] = "readonly"
         }
     }
-    var dts = imports.join("\n") + "\n\n\n// Names made ambient by `import \"UIKit\"`, `import \"Foundation\"`, `import \"CoreAnimation\"` and `import \"AVKit\"`.\ndeclare global {\n" + declarations.join("\n") + "\n}\n\nexport {}\n"
+    var dts = imports.join("\n") + "\n\n\n// Names made ambient by `import \"UIKit\"`, `import \"Foundation\"`, `import \"CoreAnimation\"`, `import \"CoreMedia\"` and `import \"AVKit\"`.\ndeclare global {\n" + declarations.join("\n") + "\n}\n\nexport {}\n"
     fs.mkdirSync(path.join(ROOT, "types"), {recursive: true})
     fs.writeFileSync(path.join(ROOT, "types", "globals.d.ts"), dts)
     fs.mkdirSync(path.join(ROOT, "eslint"), {recursive: true})

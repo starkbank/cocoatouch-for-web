@@ -45,8 +45,9 @@ export class AVPlayerViewController extends UIViewController {
             $video = $("<video></video>")
             $host.append($video)
         }
-        this._playerLayer = new AVPlayerLayer(this.selector)
+        this._playerLayer = new AVPlayerLayer()
         this._playerLayer._boundElement = $video[0] || null
+        if ($video[0] && $video[0].id) { this._playerLayer.selector = "#" + $video[0].id }
         return this._playerLayer
     }
 
