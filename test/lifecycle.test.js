@@ -73,6 +73,41 @@ test("presenting again tears the previous controller down first", function() {
     ])
 })
 
+// jQuery's ready runs on a later tick in the browser; the stub runs it inline.
+// This holds the callbacks back so two present() calls can land in one window.
+function withDeferredReady(run) {
+    var pending = []
+    var original = globalThis.$
+    globalThis.$ = function(html) {
+        var el = original(html)
+        el.ready = function(callback) { pending.push(callback); return el }
+        return el
+    }
+    try { run() } finally { globalThis.$ = original }
+    return function flush() { pending.splice(0).forEach(function(callback) { callback() }) }
+}
+
+test("a controller superseded before its ready tick never loads and releases its observers", function() {
+    var log = []
+    var target = new EventTarget()
+    var hits = 0
+    var First = recordingController("first", log)
+    var Second = recordingController("second", log)
+    var first = new First()
+    var second = new Second()
+    NotificationCenter.default.addObserver(first, {selector: function() { hits += 1 }, name: "tick", object: target})
+    var flush = withDeferredReady(function() {
+        first.present(first, {completion: function() { log.push("first.completion") }})
+        second.present(second, {completion: function() { log.push("second.completion") }})
+    })
+    flush()
+    target.dispatchEvent(new Event("tick"))
+    assert.deepEqual(log, ["second.viewDidLoad", "second.viewWillAppear", "second.viewDidAppear", "second.completion"])
+    assert.equal(hits, 0)
+    assert.equal(first.isViewLoaded, false)
+    assert.equal(second.isViewLoaded, true)
+})
+
 test("teardown removes observers owned by the controller and its whole view tree", function() {
     var target = new EventTarget()
     var hits = {controller: 0, view: 0, nested: 0}
