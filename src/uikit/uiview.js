@@ -28,8 +28,10 @@ export class UIView extends UIResponder {
 
     }
 
+    // The element is looked up again when the cached one left the document: an
+    // icon font or a re-rendered nib can replace a node while keeping its id.
     get $el() {
-        if (!this._$el || this._$el.length === 0) {
+        if (!this._$el || this._$el.length === 0 || this._$el[0] && this._$el[0].isConnected === false) {
             this._$el = $(this.selector)
         }
         return this._$el
