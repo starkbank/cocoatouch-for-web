@@ -2,7 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { keydown } from "./setup.js"
-import { UIResponder, UIView, UIViewController, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
+import { UIResponder, UIView, UIViewController, UIScreen, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -24,6 +24,32 @@ test("a view looks its element up again once the cached one has left the documen
     var live = {0: {isConnected: true}, length: 1}
     view._$el = live
     assert.equal(view.$el, live)
+})
+
+test("a window resize reaches the root controller, its children and the layout of their bound views", function() {
+    var log = []
+    var Controller = recordingController("page", [])
+    Controller.prototype.viewWillTransition = function({to: size, with: coordinator}) { log.push("page " + size.width + "x" + size.height); coordinator.animate({alongsideTransition: () => log.push("alongside"), completion: () => log.push("done")}) }
+    var controller = new Controller()
+    var Child = recordingController("child", [])
+    Child.prototype.viewWillTransition = function({to: size}) { log.push("child " + size.width) }
+    var child = new Child()
+    controller.addChild(child)
+    var outlet = new UIView("#outlet")
+    outlet.layoutSubviews = function() { log.push("outlet layout") }
+    var nested = new UIView("#nested")
+    nested.layoutSubviews = function() { log.push("nested layout") }
+    outlet.addSubview(nested)
+    controller._link(outlet)
+    var Embedded = recordingController("embedded", [])
+    Embedded.prototype.viewWillTransition = function({to: size}) { log.push("embedded " + size.height) }
+    controller._link(new Embedded())
+    controller.present(controller, {})
+    log.length = 0
+    window.innerWidth = 1024; window.innerHeight = 700
+    window.dispatchEvent(new Event("resize"))
+    assert.deepEqual(log, ["page 1024x700", "alongside", "done", "child 1024", "outlet layout", "nested layout", "embedded 700"])
+    assert.equal(UIScreen.main.bounds.width, 1024)
 })
 
 test("responders start with no next responder", function() {
