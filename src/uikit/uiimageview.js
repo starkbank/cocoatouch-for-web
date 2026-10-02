@@ -10,6 +10,10 @@ export class UIImageView extends UIView {
     // element, a decorated box, is painted with it as a CSS background. A
     // <lottie-player> only reads src on its first render, so it is told to load.
     set image(image) {
+        if (image && image.systemName !== undefined) {
+            this._setSymbol(image.systemName)
+            return
+        }
         var element = this.$el[0]
         if (element && typeof element.tagName === "string" && !SOURCE_ELEMENTS.test(element.tagName)) {
             this.$el.css("background-image", `url(${image.named})`)
@@ -19,6 +23,13 @@ export class UIImageView extends UIView {
         if (element && typeof element.load === "function") {
             element.load(image.named)
         }
+    }
+
+    // A symbol image swaps the icon font's classes and leaves the element's own in place.
+    _setSymbol(systemName) {
+        if (this._symbolClasses) { this.$el.removeClass(this._symbolClasses) }
+        this._symbolClasses = systemName
+        this.$el.addClass(systemName)
     }
 
 }
