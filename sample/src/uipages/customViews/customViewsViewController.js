@@ -1,7 +1,7 @@
 import "UIKit"
 import "Foundation"
 import { MenuView } from "../../uicomponents/menu/menuView.js"
-import { CardView } from "../../uicomponents/card/cardView.js"
+import { CardView, HighlightCardView } from "../../uicomponents/card/cardView.js"
 
 
 const TITLES = ["Invoice", "Transfer", "Boleto", "Card", "Pix", "Loan"]
@@ -10,6 +10,7 @@ export class CustomViewsViewController extends UIViewController {
 
     @IBOutlet("#menu", MenuView) menuView
     @IBOutlet("#custom-views-featured", CardView) featuredCard
+    @IBOutlet("#custom-views-highlight", HighlightCardView) highlightCard
     @IBOutlet("#custom-views-grid", UIView) gridView
     @IBOutlet("#custom-views-count", UILabel) countLabel
     @IBOutlet("#custom-views-log", UILabel) logLabel

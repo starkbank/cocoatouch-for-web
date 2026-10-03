@@ -237,7 +237,7 @@ Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__P
 
 ## Sample
 
-`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib, and a table view with a custom cell. It depends on this package through `file:..`, so it runs against the working tree.
+`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, and, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images.
 
 ```
 cd sample

@@ -6,6 +6,7 @@ import { LabelsViewController } from "./uipages/labels/labelsViewController.js"
 import { TextFieldsViewController } from "./uipages/textFields/textFieldsViewController.js"
 import { CustomViewsViewController } from "./uipages/customViews/customViewsViewController.js"
 import { TableViewViewController } from "./uipages/tableView/tableViewViewController.js"
+import { LinksViewController } from "./uipages/links/linksViewController.js"
 
 
 const routes = {
@@ -15,6 +16,7 @@ const routes = {
     "/text-fields": TextFieldsViewController,
     "/custom-views": CustomViewsViewController,
     "/table-view": TableViewViewController,
+    "/links": LinksViewController,
 }
 
 // The page hosts one root controller at a time. Presenting the next one
