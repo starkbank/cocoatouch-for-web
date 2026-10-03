@@ -2,6 +2,7 @@ import { UIResponder } from "./uiresponder.js"
 import { CALayer } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { Bind } from "../utils/bind.js"
+import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 
 
 export class UIView extends UIResponder {
@@ -43,8 +44,16 @@ export class UIView extends UIResponder {
 
     // A view whose activity is browsing a web page is a link to it: the
     // webpageURL becomes the element's href, so anchors keep working as links.
+    // Read back, an anchor that already carries an href reports it as a browsing
+    // activity, so a sender created for a tapped link knows where it leads.
     get userActivity() {
-        return this._userActivity || null
+        if (this._userActivity) { return this._userActivity }
+        var href = this.$el.attr("href")
+        if (!href) { return null }
+        var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+        activity.webpageURL = href
+        this._userActivity = activity
+        return activity
     }
 
     set userActivity(activity) {

@@ -21,6 +21,14 @@ test("a responder's user activity with a webpage url is rendered as the element'
     assert.equal(button.$el.attr("href"), "")
 })
 
+test("a view bound to an anchor that already has an href reports it as a browsing activity", function() {
+    var link = new UIButton("#read-more")
+    link.$el.attr("href", "/sandbox")
+    assert.equal(link.userActivity.activityType, NSUserActivityTypeBrowsingWeb)
+    assert.equal(link.userActivity.webpageURL, "/sandbox")
+    assert.equal(new UIButton("#plain").userActivity, null)
+})
+
 test("a URL object is written as its string", function() {
     var button = new UIButton("#github")
     var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
