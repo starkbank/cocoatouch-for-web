@@ -8,6 +8,7 @@ The `cocoatouch` npm package: Apple's CocoaTouch for the browser. Every interfac
 - Names are Apple's: `setContentOffset(point, {animated})` for `setContentOffset(_:animated:)`, labels as object keys, `UIKeyCommand.input("k")` for `UIKeyCommand.input`. Everything that is not a type is lowerCamelCase, constants included (`keyboardPrefix`, never `KEYBOARD_PREFIX`).
 - The DOM and jQuery live only in this package, behind the Apple surface. Stylesheet-facing state is a class or attribute the setter writes (`selected`, `disabled`, `href`), never something a site toggles itself.
 - Every interface ships with a test in `test/*.test.js`; `npm test` runs them against the jQuery stand-in in `test/setup.js`, and also builds `types/` from the sources.
+- A view owns one element and its nib fills it. An outlet's element is the one the owner's nib names, so that nib may have several top-level elements; a view created in code gets its single nib root as its element, and a nib with several roots gets a bare `<div>`. Do not reinstate copying the superview's classes onto that wrapper, and do not make it `display: contents`: both leave a view that cannot report its frame.
 - Comments say why, not what.
 
 ## Git
