@@ -11,6 +11,12 @@
     </section>
 
     <section class="demo">
+        <h2>As a subclass outlet</h2>
+        <p><code>HighlightCardView extends CardView</code> declares no <code>awakeFromNib</code> of its own; the parent's runs when the outlet binds, as inheritance works on iOS.</p>
+        <div id="custom-views-highlight"></div>
+    </section>
+
+    <section class="demo">
         <h2>Via addSubview</h2>
         <p>Cards created at runtime join the responder chain, so <code>superview</code> and <code>parentViewController()</code> resolve. <code>removeFromSuperview</code> takes one out again and releases what it observed.</p>
         <div class="row">

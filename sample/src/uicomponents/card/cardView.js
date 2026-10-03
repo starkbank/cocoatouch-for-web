@@ -43,3 +43,13 @@ export class CardView extends UIView {
         NotificationCenter.default.post({name: "cardDidTap", object: this, userInfo: {title: this.title, taps: this.taps}})
     }
 }
+
+
+// A subclass that adds nothing of its own still wakes up when bound as an
+// outlet: the parent's awakeFromNib runs, as inheritance works on iOS.
+export class HighlightCardView extends CardView {
+
+    constructor(selector, options) {
+        super(selector, {title: "Highlight", subtitle: "A CardView subclass with no code of its own, bound as an outlet", ...options})
+    }
+}

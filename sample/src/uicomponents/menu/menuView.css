@@ -33,7 +33,7 @@
     background: var(--color-bg);
 }
 
-.menu-option-active {
+.menu-option.selected {
     color: var(--color-accent);
     background: rgba(0, 112, 224, .08);
     font-weight: 600;
