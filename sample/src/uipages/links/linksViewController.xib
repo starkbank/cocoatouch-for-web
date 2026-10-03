@@ -1,0 +1,43 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Links, symbols and scrolling</h1>
+    <p class="lead">What 1.4.0 added: NSUserActivity as a link, UIImage(systemName:), UIScrollView offsets, and key commands that yield to a focused text input.</p>
+
+    <section class="demo">
+        <h2>userActivity</h2>
+        <p>Each link below is a <code>UIButton</code> whose <code>userActivity</code> is an <code>NSUserActivity</code> of type <code>NSUserActivityTypeBrowsingWeb</code>. Its <code>webpageURL</code> is written as the anchor's <code>href</code>, so hover, middle-click and crawlers see a real link, and the tap action reads the same url back.</p>
+        <div id="links-list" class="links-list"></div>
+        <p id="links-output" class="output">Nothing opened yet.</p>
+    </section>
+
+    <section class="demo">
+        <h2>UIImage(systemName:) and UIImage(named:)</h2>
+        <p>A symbol image names a glyph of the icon font on the page, here Font Awesome; a named image is a file. Both go through <code>UIImageView.image</code>.</p>
+        <div class="row">
+            <i id="links-symbol" class="links-symbol"></i>
+            <img id="links-logo" class="links-logo" alt="">
+            <button id="links-next-symbol" class="button button-secondary">Next symbol</button>
+        </div>
+        <p id="links-symbol-name" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>UIScrollView</h2>
+        <p><code>contentOffset</code> and <code>contentSize</code> read the element's scroll position and extent; <code>setContentOffset(_:animated:)</code> moves it.</p>
+        <div id="links-scroll" class="links-scroll"></div>
+        <div class="row">
+            <button id="links-scroll-top" class="button button-secondary">Top</button>
+            <button id="links-scroll-step" class="button button-secondary">Down 120px</button>
+            <button id="links-scroll-bottom" class="button button-secondary">Bottom, animated</button>
+        </div>
+        <p id="links-scroll-output" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>Key commands and text input</h2>
+        <p>Press <kbd>/</kbd> anywhere on the page to focus the field. Inside the field, <kbd>/</kbd> is just a character: a bare key command never fires while a text input is first responder, as on iOS. <kbd>⌘J</kbd> carries a modifier and fires either way.</p>
+        <label class="field"><span>Search</span><input id="links-search" type="text"></label>
+        <p id="links-keys-output" class="output"></p>
+    </section>
+</main>
