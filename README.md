@@ -70,6 +70,8 @@ A `.xib` is the html of one view. The webpack loader attaches it to the class of
 
 A `.xib` without a sibling `.js`, or whose sibling does not export a class of that name, fails the build with a message naming both files.
 
+A view owns one element, and its nib fills that element. For a view declared as an `@IBOutlet`, the element is the one the outlet names in the owner's nib, so its own nib may have any number of top-level elements: they become the view's children, the way a xib's objects become a view's subviews. For a view created in code and placed with `addSubview`, there is no element yet: a nib with one root makes that root the view's element, so the classes the superview lays out by go on it; a nib with several roots gets a plain `<div>` the stylesheet cannot address. Give a view you create in code a single root.
+
 ## Lifecycle
 
 ```
