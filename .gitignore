@@ -3,3 +3,4 @@ types/
 eslint/
 *.tgz
 .DS_Store
+.idea/
