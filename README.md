@@ -254,3 +254,5 @@ Then open http://localhost:8080.
 ```
 npm test
 ```
+
+Each test file picks its page. A file that only exercises lifecycle, responder chain or observer bookkeeping imports `./setup.js`, a chainable jQuery stand-in that remembers the html it was given. A file that binds outlets, resolves nib roots, dequeues table rows or dispatches DOM events imports `./dom.js`, which installs a jsdom document and the real jQuery and exports `page(html)` to start from a body of its own. Node runs each file in its own process, so the two never meet; a file imports one of them and never both. `npm test` also regenerates `types/` and `eslint/globals.cjs`, which are committed.
