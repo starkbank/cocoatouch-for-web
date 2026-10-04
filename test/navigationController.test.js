@@ -275,3 +275,26 @@ test("a popstate whose depth is not an integer is ignored, and an integer depth 
     window.dispatchEvent(new window.PopStateEvent("popstate", {state: {cocoatouchNavDepth: 1}}))
     assert.deepEqual(nav.viewControllers, controllers.slice(0, 2))
 })
+
+
+// A cross-origin address cannot be pushed into this document's history, so it
+// pushes an entry without moving the address, as a controller without an
+// activity does; the stack and the screen stay consistent.
+test("pushing a controller whose webpageURL is on another origin does not throw, pushes the entry, keeps the address and still pops with back", async function() {
+    var log = []
+    var {nav, controllers} = await stackOf(log, ["a"])
+    var b = recording("b", log)
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    activity.webpageURL = "https://elsewhere.example/far"
+    b.userActivity = activity
+    var before = window.location.pathname
+    nav.pushViewController(b, {animated: false})
+    assert.deepEqual(nav.viewControllers, [controllers[0], b])
+    assert.equal(nav.topViewController, b)
+    assert.equal($("cocoatouch .b-page").length, 1)
+    assert.equal(window.location.pathname, before)
+    assert.equal(window.history.state.cocoatouchNavDepth, 1)
+    window.history.back()
+    await tick()
+    assert.deepEqual(nav.viewControllers, [controllers[0]])
+})

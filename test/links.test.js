@@ -1,8 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIImageView, UIImage, UIScrollView, IBAction, UIViewController, UIKeyCommand, UIKeyModifierFlags } from "../src/index.js"
-import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../src/index.js"
+import { UIButton, UIImageView, UIImage, UIScrollView, IBAction, UIViewController, UIKeyCommand, UIKeyModifierFlags, NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../src/index.js"
 import { CGPoint } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 import { IBOutlet, UIView } from "../src/index.js"
@@ -101,4 +100,37 @@ test("an outlet whose class inherits awakeFromNib from a parent view is still aw
     var page = new Page("#page")
     Bind.ibOutlet(page)
     assert.deepEqual(awakened, ["ApiMenuView"])
+})
+
+
+// webpageURL is the address of what the user is looking at and becomes the
+// element's href, so it must be one a browser may navigate to: a relative or
+// http(s) url, as a string or a URL, refused otherwise at the setter.
+test("webpageURL refuses a scheme a browser would execute, naming the member", function() {
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    for (var bad of ["javascript:alert(1)", "data:text/html,x", "vbscript:x"]) {
+        assert.throws(() => { activity.webpageURL = bad }, (error) => error instanceof TypeError && /NSUserActivity\.webpageURL/.test(error.message) && error.message.indexOf(bad) !== -1, bad)
+    }
+    assert.equal(activity.webpageURL, null)
+})
+
+test("webpageURL keeps a relative url relative, accepts an absolute http(s) one and a URL instance, and null removes the href", function() {
+    var view = new UIView("#link")
+    var attrs = {}
+    view._$el = {0: {}, length: 1, attr: function(name, value) { if (arguments.length > 1) { attrs[name] = value; return this } return attrs[name] }, removeAttr: function(name) { delete attrs[name]; return this }}
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    activity.webpageURL = "/buttons"
+    view.userActivity = activity
+    assert.equal(attrs.href, "/buttons")
+    activity.webpageURL = "https://stark.com/x"
+    view.userActivity = activity
+    assert.equal(attrs.href, "https://stark.com/x")
+    var url = new URL("https://stark.com/y?z=1")
+    activity.webpageURL = url
+    assert.equal(activity.webpageURL, url)
+    view.userActivity = activity
+    assert.equal(attrs.href, "https://stark.com/y?z=1")
+    activity.webpageURL = null
+    view.userActivity = activity
+    assert.equal("href" in attrs, false)
 })
