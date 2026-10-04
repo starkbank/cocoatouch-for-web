@@ -133,3 +133,12 @@ test("a text title survives the activity indicator round-trip without becoming m
     assert.equal(document.getElementById("send").textContent, "<b>Send</b>")
     assert.equal(button.currentTitle, "<b>Send</b>")
 })
+
+// Reading the plain text of markup must parse it somewhere inert: a live
+// element given innerHTML starts loading an <img> and would run its handler.
+test("the string of a markup attributed string is read without executing the markup", function() {
+    delete globalThis.hit
+    var attributed = new NSAttributedString({data: "<img src=x onerror=\"globalThis.hit = 1\">a", options: {documentType: NSAttributedStringDocumentType.html}})
+    assert.equal(attributed.string, "a")
+    assert.equal(globalThis.hit, undefined)
+})
