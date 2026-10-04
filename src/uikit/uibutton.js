@@ -19,13 +19,11 @@ export class UIButton extends UIControl {
     }
 
     title({for: state = UIControlState.normal} = {}) {
-        var titles = this._titles || {}
-        if (titles[state] !== undefined) { return titles[state] }
-        return titles[UIControlState.normal] === undefined ? null : titles[UIControlState.normal]
+        return _title(this, state)
     }
 
     get currentTitle() {
-        var title = this.title({for: _drawnState(this)})
+        var title = _title(this, _drawnState(this))
         return title === null ? this.$el.text() : title
     }
 
@@ -37,7 +35,7 @@ export class UIButton extends UIControl {
     // no title was ever set, so a title written in the nib stands.
     _drawTitle() {
         if (this._titleBeforeActivity !== undefined) { return }
-        var title = this.title({for: _drawnState(this)})
+        var title = _title(this, _drawnState(this))
         if (title === null) { return }
         this.$el.html(NSString.cleanScript(title))
     }
@@ -76,6 +74,16 @@ export class UIButton extends UIControl {
     }
 }
 
+
+// The drawn title is resolved here rather than through title({for:}): a
+// subclass may declare a `title` member of its own, as a Swift subclass may
+// beside title(for:), and in JavaScript an instance field shadows the
+// prototype method it is named after.
+function _title(button, state) {
+    var titles = button._titles || {}
+    if (titles[state] !== undefined) { return titles[state] }
+    return titles[UIControlState.normal] === undefined ? null : titles[UIControlState.normal]
+}
 
 // The single state whose title is drawn: disabled wins over selected, as a
 // disabled control cannot be interacted with whatever else it is.
