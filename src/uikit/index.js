@@ -19,6 +19,8 @@ import { UISearchTextField, UISearchToken } from "./uisearchtextfield.js"
 import { UIDevice } from "./uidevice.js"
 import { UIScreen } from "./uiscreen.js"
 import { UIUserInterfaceIdiom } from "./uiuserinterfaceidiom.js"
+import { UIUserInterfaceSizeClass } from "./uiuserinterfacesizeclass.js"
+import { UITraitCollection } from "./uitraitcollection.js"
 import { UIGestureRecognizer, UITapGestureRecognizer, UIHoverGestureRecognizer } from "./uigesturerecognizer.js"
 import { UISegmentedControl } from "./uisegmentedcontrol.js"
 import { UIViewController } from "./uiviewcontroller.js"
@@ -55,6 +57,8 @@ export {
      UIDevice,
      UIScreen,
      UIUserInterfaceIdiom,
+     UIUserInterfaceSizeClass,
+     UITraitCollection,
      UIGestureRecognizer,
      UITapGestureRecognizer,
      UIHoverGestureRecognizer,
