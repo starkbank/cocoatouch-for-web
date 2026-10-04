@@ -194,10 +194,12 @@ export class UITableView extends UIScrollView {
         return this._body().find("> #cell-" + row)
     }
 
+    // Each purpose binds under its own namespace and removes only that, so a
+    // reload or an editing change leaves a cell's recognizers and targets alone.
     _bindRows() {
         var tableView = this
         var rows = this._body().find("> tr[id^=cell-]")
-        rows.off("click").on("click", function(event) {
+        rows.off("click.uitableview").on("click.uitableview", function(event) {
             event.stopImmediatePropagation()
             if (!tableView._allowsSelection) { return }
             var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
@@ -205,16 +207,16 @@ export class UITableView extends UIScrollView {
         })
         rows.each((index, element) => {
             var indexPath = new IndexPath({row: index})
-            var deleteButton = $(element).find("[id^=delete-button]").off("click")
+            var deleteButton = $(element).find("[id^=delete-button]").off("click.uitableviewdelete")
             if (this._isEditing) {
-                deleteButton.on("click", (event) => {
+                deleteButton.on("click.uitableviewdelete", (event) => {
                     event.stopImmediatePropagation()
                     this._delegateCall("tableViewCommitEditingStyleForRowAt", "delete", indexPath)
                 })
             }
             var selection = $(element).find("[id^=table-cell-selected]")
-            selection.off("click").on("click", function(event) { event.stopImmediatePropagation() })
-            selection.find(":checkbox").off("change").on("change", (event) => {
+            selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
+            selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
                 if (event.target.checked) {
                     this.selectRow({at: indexPath})
                     this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
