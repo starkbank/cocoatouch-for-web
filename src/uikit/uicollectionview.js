@@ -72,7 +72,7 @@ export class UICollectionView extends UIView {
         var collectionView = this
         var delegate = this._delegate
         if (delegate === null) { return }
-        this.$el.find("[id^=cell-]").off("click").on("click", function(event) {
+        this.$el.find("[id^=cell-]").off("click.uicollectionview").on("click.uicollectionview", function(event) {
             var meta = event.currentTarget.id.match(/cell-section-(\d+)-row-(\d+)/)
             if (!meta) { return }
             delegate.collectionViewDidSelectItemAt(collectionView, new IndexPath({section: Number(meta[1]), row: Number(meta[2])}))
