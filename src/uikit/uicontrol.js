@@ -3,7 +3,7 @@ import { UIControlEvent } from "./uicontrolevent.js"
 import { UIControlState } from "./uicontrolstate.js"
 
 
-const EVENTS = {
+const events = {
     [UIControlEvent.valueChanged]: "change",
     [UIControlEvent.touchUpInside]: "click",
     [UIControlEvent.editingChanged]: "input",
@@ -54,7 +54,7 @@ export class UIControl extends UIView {
     // test stand-in's event has only the latter, hence the guard.
     addTarget(target, {action, for: controlEvent}) {
         var control = this
-        var event = EVENTS[controlEvent] || "click"
+        var event = events[controlEvent] || "click"
         var pair = {target: target, action: action, event: event, namespace: event + ".target" + (++_pairCount)}
         this._targets().push(pair)
         this.$el.on(pair.namespace, (e) => {
@@ -66,7 +66,7 @@ export class UIControl extends UIView {
     // removeTarget(_:action:for:): a null or omitted action removes every
     // action that target registered for the event, as Apple's Selector? does.
     removeTarget(target, {action = null, for: controlEvent} = {}) {
-        var event = EVENTS[controlEvent] || "click"
+        var event = events[controlEvent] || "click"
         var remaining = []
         for (var pair of this._targets()) {
             var matches = pair.target === target && pair.event === event && (action === null || pair.action === action)
@@ -83,6 +83,6 @@ export class UIControl extends UIView {
 
     // Fires the event the control would fire for that control event.
     sendActions({for: controlEvent} = {}) {
-        this.$el.trigger(EVENTS[controlEvent] || "click")
+        this.$el.trigger(events[controlEvent] || "click")
     }
 }

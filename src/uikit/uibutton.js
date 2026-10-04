@@ -4,7 +4,7 @@ import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
 
 
-const ACTIVITY_INDICATOR = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
+const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
 
 
 export class UIButton extends UIControl {
@@ -37,7 +37,7 @@ export class UIButton extends UIControl {
             if (this._titleBeforeActivity !== undefined) { return }
             this._titleBeforeActivity = this.$el.html()
             this.isEnabled = false
-            this.$el.html(ACTIVITY_INDICATOR)
+            this.$el.html(activityIndicator)
             return
         }
         if (this._titleBeforeActivity === undefined) { return }
