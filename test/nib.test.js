@@ -129,3 +129,59 @@ test("a nibbed view constructed in an outlet's field initialiser binds itself, a
     var log = []
     await assertBothSidesAwakeOnce(log, outerConstructingInner(log, "field"))
 })
+
+// Item 2.3: a view created in code takes its class nib's single root as its element.
+function nibbed(html) {
+    class Rooted extends UIView {}
+    Rooted.nib = html
+    return Rooted
+}
+
+test("a single-root class nib becomes the view's element and keeps its id", function() {
+    page("<div id=\"grid\"></div>")
+    var grid = new UIView("#grid")
+    var Card = nibbed("<section id=\"card-1\" class=\"card\"><h3>Hi</h3></section>")
+    var card = new Card()
+    grid.addSubview(card)
+    assert.equal(card.selector, "#card-1")
+    assert.equal(card.$el[0].tagName, "SECTION")
+    assert.ok(card.$el.hasClass("card"))
+    assert.equal($("#grid > section.card").length, 1)
+})
+
+test("a two-root class nib throws, naming the root count and an excerpt of the nib", function() {
+    page("<div id=\"grid\"></div>")
+    var grid = new UIView("#grid")
+    var Split = nibbed("<div class=\"sidebar-header\"></div><div class=\"sidebar-body\"></div>")
+    assert.throws(() => grid.addSubview(new Split()), (error) => {
+        assert.match(error.message, /2 top-level nodes/)
+        assert.match(error.message, /<div class="sidebar-header">/)
+        assert.match(error.message, /addSubview/)
+        return true
+    })
+})
+
+test("whitespace around a single root is not a second node, but stray text is", function() {
+    page("<div id=\"grid\"></div>")
+    var grid = new UIView("#grid")
+    var Padded = nibbed("\n    <div class=\"card\"></div>\n")
+    var padded = new Padded()
+    grid.addSubview(padded)
+    assert.ok(padded.$el.hasClass("card"))
+    var Texty = nibbed("<div class=\"card\"></div>hello")
+    assert.throws(() => grid.addSubview(new Texty()), /2 top-level nodes/)
+})
+
+test("an empty class nib and UIView.loadFromNib with several roots both still wrap", function() {
+    page("<div id=\"grid\"></div>")
+    var grid = new UIView("#grid")
+    var Empty = nibbed("")
+    var empty = new Empty()
+    grid.addSubview(empty)
+    assert.equal(empty.$el[0].tagName, "DIV")
+    assert.equal(empty.identifier, "grid-1")
+    var loaded = UIView.loadFromNib("<p>a</p><p>b</p>")
+    grid.addSubview(loaded)
+    assert.equal(loaded.identifier, "grid-2")
+    assert.equal(loaded.$el.children("p").length, 2)
+})
