@@ -4,6 +4,7 @@ import { DispatchGroup } from "./dispatchgroup.js"
 import { IndexPath } from "./indexpath.js"
 import { Locale } from "./locale.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "./nsuseractivity.js"
+import { NSRange, NSNotFound } from "./nsrange.js"
 
 
 export {
@@ -14,4 +15,6 @@ export {
     Locale,
     NSUserActivity,
     NSUserActivityTypeBrowsingWeb,
+    NSRange,
+    NSNotFound,
 }
