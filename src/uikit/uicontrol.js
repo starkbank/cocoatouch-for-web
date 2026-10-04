@@ -26,6 +26,34 @@ export class UIControl extends UIView {
         return UIControlState
     }
 
+    // A control is highlighted while the pointer is down on it, as a touch
+    // highlights it on iOS; the handlers bind to the element the control has
+    // when constructed.
+    init() {
+        this.$el.on("pointerdown.uicontrol", () => { if (this.isEnabled) { this.isHighlighted = true } })
+        this.$el.on("pointerup.uicontrol pointerleave.uicontrol pointercancel.uicontrol", () => { this.isHighlighted = false })
+    }
+
+    // Apple's state is an option set; JavaScript has none, so this is a frozen
+    // array of the active cases, [normal] for a plain control.
+    get state() {
+        var cases = []
+        if (this.isHighlighted) { cases.push(UIControlState.highlighted) }
+        if (this.isSelected) { cases.push(UIControlState.selected) }
+        if (!this.isEnabled) { cases.push(UIControlState.disabled) }
+        return Object.freeze(cases.length === 0 ? [UIControlState.normal] : cases)
+    }
+
+    // Highlight is the "highlighted" class, as selection is "selected", for stylesheets to draw.
+    get isHighlighted() {
+        return this.$el.hasClass("highlighted")
+    }
+
+    set isHighlighted(highlighted) {
+        this.$el.toggleClass("highlighted", highlighted)
+        this._stateDidChange()
+    }
+
     // A disabled control ignores the pointer and carries the disabled
     // attribute, for stylesheets to draw it as such.
     set isEnabled(bool) {

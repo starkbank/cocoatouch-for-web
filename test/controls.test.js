@@ -413,3 +413,26 @@ test("UIButton keeps a title per state, draws the current state's, and falls bac
     plain.isEnabled = false
     assert.equal(plain.currentTitle, "Send")
 })
+
+test("UIControl.state is the active cases, isHighlighted round-trips, and UIControlState has Apple's cases", function() {
+    assert.deepEqual([UIControlState.highlighted, UIControlState.selected, UIControlState.focused], ["highlighted", "selected", "focused"])
+    var control = new UIControl("#toggle")
+    var classes = new Set(), attrs = {}
+    control._$el = {0: {}, length: 1, css: function() { return this }, attr: function(name, value) { attrs[name] = value; return this }, removeAttr: function(name) { delete attrs[name]; return this }, hasClass: function(c) { return classes.has(c) }, toggleClass: function(c, on) { on ? classes.add(c) : classes.delete(c); return this }}
+    assert.deepEqual(control.state, [UIControlState.normal])
+    assert.ok(Object.isFrozen(control.state))
+    control.isEnabled = false
+    assert.deepEqual(control.state, [UIControlState.disabled])
+    control.isEnabled = true
+    control.isSelected = true
+    assert.deepEqual(control.state, [UIControlState.selected])
+    assert.equal(control.isHighlighted, false)
+    control.isHighlighted = true
+    assert.equal(control.isHighlighted, true)
+    assert.ok(classes.has("highlighted"))
+    assert.deepEqual(control.state, [UIControlState.highlighted, UIControlState.selected])
+    control.isEnabled = false
+    assert.deepEqual(control.state, [UIControlState.highlighted, UIControlState.selected, UIControlState.disabled])
+    control.isHighlighted = false
+    assert.ok(!classes.has("highlighted"))
+})
