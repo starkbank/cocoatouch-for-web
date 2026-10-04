@@ -1,11 +1,35 @@
 import { UIViewController } from "../uikit/uiviewcontroller.js"
 import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
+import { inspectableValue } from "../uikit/ibinspectable.js"
 
 
 export class Bind {
 
     static _restorePrototypes = new Set()
+
+    // {cls, selector} of the view a creator is inside `new` for. The view's own
+    // constructor fills its empty element but leaves binding to the creator, so
+    // awakeFromNib arrives once, after the subclass's fields exist. The previous
+    // marker is restored, not cleared: an outlet bound from inside a view's
+    // init() goes through here too, and clearing would hand the outer view back
+    // to its own constructor for a second bind.
+    static _constructing = null
+
+    static construct(cls, selector, ...rest) {
+        var previous = Bind._constructing
+        Bind._constructing = {cls: cls, selector: selector}
+        try {
+            return new cls(selector, ...rest)
+        } finally {
+            Bind._constructing = previous
+        }
+    }
+
+    static isConstructing(view) {
+        var marker = Bind._constructing
+        return !!marker && marker.cls === view.constructor && marker.selector === view.selector
+    }
 
     static registerPrototypeForRestore(prototype) {
         Bind._restorePrototypes.add(prototype)
@@ -13,23 +37,39 @@ export class Bind {
 
     // Views added at runtime through addSubview are not outlets of the
     // controller, so on a pre-rendered page they are found again by their
-    // action selectors. Only prototypes with an action target present in the
-    // page are revived; controllers are restored explicitly by restore().
+    // action selectors. One element has one owner: a target already answered
+    // by a bound responder declaring that same selector is not a reason to
+    // revive anything, and when a class and its subclass both match a target
+    // only the most derived is revived. The instance is constructed with no
+    // selector, so its fields and init() run as they would in code; a
+    // selector would point init() at the page root instead of an element.
     static restoreRegisteredViews($scope, owner) {
+        var bound = _boundResponders(owner)
+        var candidates = []
         for (var proto of Bind._restorePrototypes) {
             if (proto instanceof UIViewController) { continue }
-            if (!_hasActionTargetIn(proto, $scope)) { continue }
-            var instance = Object.create(proto)
+            var targets = _unclaimedTargets(proto, $scope, bound)
+            if (targets.length === 0) { continue }
+            candidates.push({proto: proto, targets: targets})
+        }
+        for (var candidate of candidates) {
+            if (_hasMoreDerived(candidate, candidates)) { continue }
+            var instance = new candidate.proto.constructor()
             instance._$el = $scope
             owner._link(instance)
             Bind.ibOutletRestore(instance)
             Bind.ibAction(instance)
-            if (proto.hasOwnProperty("didMoveToWindow")) {
+            if (_overrides(instance, "didMoveToWindow")) {
                 instance.didMoveToWindow()
             }
         }
     }
 
+    // An action binds under its own namespace, beside any target the app adds
+    // to the same element; binding twice over one element leaves one handler,
+    // since a row element outlives the cell bound to it on the previous reload.
+    // A matched element without an id is given one, as an outlet is, so the
+    // sender's selector resolves again when its node is replaced.
     static ibAction(control) {
         if (!control) { return }
         var actions = control["ibactions"] || []
@@ -40,11 +80,15 @@ export class Bind {
                 _bindKeyboardAction(control, action)
                 continue
             }
+            var unnamed = 0
             $parent.find(action.selector).each(function() {
-                var id = $(this).attr("id")
-                var sender = new action.cls(`${control.selector} #${id}`)
-                sender._$el = $(this)
-                sender.$el.off("click").on("click", (e) => {
+                var $target = $(this)
+                if (!$target.attr("id")) {
+                    $target.attr("id", _dashed(control.identifier, action.method) + "-" + (++unnamed))
+                }
+                var sender = new action.cls(`${control.selector} #${$target.attr("id")}`)
+                sender._$el = $target
+                $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
                     if (control[method]) {
                         e.preventDefault()
@@ -52,6 +96,20 @@ export class Bind {
                     }
                 })
             })
+        }
+    }
+
+    // Runtime attributes come after the connections and before awakeFromNib,
+    // in Interface Builder's order, so awakeFromNib sees the configured view.
+    static ibInspectable(view) {
+        if (!view) { return }
+        var inspectables = view["ibinspectables"] || []
+        if (inspectables.length === 0) { return }
+        var $el = view._$el || $(view.selector)
+        for (const inspectable of inspectables) {
+            var value = $el.attr("data-" + _dash(inspectable.property))
+            if (value === undefined) { continue }
+            view[inspectable.property] = inspectableValue({type: inspectable.type, value: value, property: inspectable.property})
         }
     }
 
@@ -67,7 +125,7 @@ export class Bind {
             var method = outlet.method
             var selector = outlet.selector
 
-            var responder = new cls(`${control.selector} ${selector}`)
+            var responder = Bind.construct(cls, `${control.selector} ${selector}`)
             responder._$el = $parent.find(selector)
             _identifyOutlet(control, responder, method)
             control._link(responder)
@@ -78,6 +136,8 @@ export class Bind {
                 Bind.ibOutlet(responder)
             }
 
+            Bind.ibInspectable(responder)
+
             if (_overrides(responder, "awakeFromNib")) {
                 responder.awakeFromNib()
             }
@@ -85,6 +145,8 @@ export class Bind {
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
                 Bind.ibAction(responder)
             }
+
+            _appear(responder)
         }
     }
 
@@ -100,7 +162,7 @@ export class Bind {
             var method = outlet.method
             var selector = outlet.selector
 
-            var responder = new cls(`${control.selector} ${selector}`)
+            var responder = Bind.construct(cls, `${control.selector} ${selector}`)
             responder._$el = $parent.find(selector)
             _identifyOutlet(control, responder, method)
             control._link(responder)
@@ -111,6 +173,8 @@ export class Bind {
                 Bind.ibOutletRestore(responder)
             }
 
+            Bind.ibInspectable(responder)
+
             if (_overrides(responder, "didMoveToWindow")) {
                 responder.didMoveToWindow()
             }
@@ -118,8 +182,23 @@ export class Bind {
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
                 Bind.ibAction(responder)
             }
+
+            _appear(responder)
         }
     }
+}
+
+
+// A controller bound as an outlet is a container view in all but name, so
+// once its own bindings are in place it appears, as an embedded child does.
+// It is not added to children: _layoutTree already reaches it through the
+// view tree, and a child entry would send viewWillTransition twice.
+function _appear(responder) {
+    if (!(responder instanceof UIViewController)) { return }
+    responder._isViewLoaded = true
+    responder.viewDidLoad()
+    responder.viewWillAppear(false)
+    responder.viewDidAppear(false)
 }
 
 
@@ -135,22 +214,74 @@ function _overrides(view, hook) {
 function _identifyOutlet(owner, responder, property) {
     var $el = responder._$el
     if (!$el || $el.length !== 1 || $el.attr("id")) { return }
-    var id = owner.identifier + "-" + property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
+    var id = _dashed(owner.identifier, property)
     $el.attr("id", id)
     responder.selector = "#" + id
     responder._identifier = id
 }
 
-const KEYBOARD_PREFIX = "keyboard:"
-
-function _isKeyboardAction(action) {
-    return action.selector.indexOf(KEYBOARD_PREFIX) !== -1
+function _dashed(ownerIdentifier, property) {
+    return ownerIdentifier + "-" + _dash(property)
 }
 
-function _hasActionTargetIn(proto, $scope) {
+function _dash(property) {
+    return property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
+}
+
+const keyboardPrefix = "keyboard:"
+
+function _isKeyboardAction(action) {
+    return action.selector.indexOf(keyboardPrefix) !== -1
+}
+
+// The owner and every responder bound under it, which is where ibOutletRestore
+// links what it binds; these are the views that may already own a target.
+function _boundResponders(owner) {
+    var responders = [owner]
+    var walk = function(view) {
+        for (var subview of view.subviews || []) {
+            responders.push(subview)
+            walk(subview)
+        }
+    }
+    walk(owner.view)
+    return responders
+}
+
+function _unclaimedTargets(proto, $scope, bound) {
+    var targets = []
     for (var action of proto["ibactions"] || []) {
         if (_isKeyboardAction(action)) { continue }
-        if ($scope.find(action.selector).length > 0) { return true }
+        var found = $scope.find(action.selector)
+        for (var i = 0; i < found.length; i++) {
+            if (!_isClaimed(found[i], action.selector, bound)) { targets.push(found[i]) }
+        }
+    }
+    return targets
+}
+
+function _isClaimed(target, selector, bound) {
+    for (var responder of bound) {
+        if (!_declaresAction(responder, selector)) { continue }
+        var $el = responder._$el || $(responder.selector)
+        for (var i = 0; i < $el.length; i++) {
+            if ($el[i] === target || $el[i].contains(target)) { return true }
+        }
+    }
+    return false
+}
+
+function _declaresAction(responder, selector) {
+    for (var action of responder["ibactions"] || []) {
+        if (action.selector === selector) { return true }
+    }
+    return false
+}
+
+function _hasMoreDerived(candidate, candidates) {
+    for (var other of candidates) {
+        if (other === candidate || !candidate.proto.isPrototypeOf(other.proto)) { continue }
+        if (other.targets.some(function(target) { return candidate.targets.indexOf(target) !== -1 })) { return true }
     }
     return false
 }
@@ -162,13 +293,13 @@ function _hasActionTargetIn(proto, $scope) {
 var _keyBindings = []
 
 function _bindKeyboardAction(control, action) {
-    var keyboardIndex = action.selector.indexOf(KEYBOARD_PREFIX)
+    var keyboardIndex = action.selector.indexOf(keyboardPrefix)
     var modifiers = action.selector.slice(0, keyboardIndex).split("+").filter(Boolean)
     control._disposed = false
     _keyBindings.push({
         control: control,
         method: action.method,
-        key: action.selector.slice(keyboardIndex + KEYBOARD_PREFIX.length),
+        key: action.selector.slice(keyboardIndex + keyboardPrefix.length),
         modifiers: modifiers,
         requiresMeta: modifiers.indexOf("meta") !== -1,
         requiresShift: modifiers.indexOf("shift") !== -1,
@@ -191,11 +322,11 @@ function _keyMatches(binding, e) {
 
 // A text input that is first responder consumes the characters typed into it,
 // so a key command with no modifiers never fires while one has the focus.
-const TEXT_INPUTS = /^(input|textarea|select)$/i
+const textInputs = /^(input|textarea|select)$/i
 
 function _isTypedInto(binding, active) {
     if (!active || binding.modifiers.length > 0 || binding.key.length !== 1) { return false }
-    return TEXT_INPUTS.test(active.tagName || "") || active.isContentEditable === true
+    return textInputs.test(active.tagName || "") || active.isContentEditable === true
 }
 
 function _elementOf(control) {

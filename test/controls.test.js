@@ -1,10 +1,10 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
+import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState, UIDatePicker } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
-import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
+import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
 
 
@@ -52,8 +52,13 @@ test("UIDevice.current tells the interface idiom from the user agent", function(
     assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.pad)
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.web)
+    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.mac)
     assert.equal(UIDevice.current, UIDevice.current)
+})
+
+test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
+    assert.equal(UIUserInterfaceIdiom.web, undefined)
+    assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
 test("NSString.cleanScript defers to DOMPurify when the page loads it", function() {
@@ -326,4 +331,116 @@ test("UIControl reflects isEnabled as the disabled attribute and isSelected as t
     assert.equal(control.isSelected, true)
     control.isSelected = false
     assert.equal(classes.size, 0)
+})
+
+test("accessibilityLabel round-trips through aria-label, and through alt on an image", function() {
+    var box = new UIView("#box")
+    var attrs = {}
+    box._$el = {0: {tagName: "DIV"}, length: 1, attr: function(name, value) { if (arguments.length > 1) { attrs[name] = value; return this } return attrs[name] }, removeAttr: function(name) { delete attrs[name]; return this }}
+    assert.equal(box.accessibilityLabel, null)
+    box.accessibilityLabel = "Close"
+    assert.deepEqual(attrs, {"aria-label": "Close"})
+    assert.equal(box.accessibilityLabel, "Close")
+    box.accessibilityLabel = null
+    assert.deepEqual(attrs, {})
+    var photo = new UIImageView("#photo")
+    var photoAttrs = {}
+    photo._$el = {0: {tagName: "IMG"}, length: 1, attr: function(name, value) { if (arguments.length > 1) { photoAttrs[name] = value; return this } return photoAttrs[name] }, removeAttr: function(name) { delete photoAttrs[name]; return this }}
+    photo.accessibilityLabel = "A credit card"
+    assert.deepEqual(photoAttrs, {alt: "A credit card"})
+    assert.equal(photo.accessibilityLabel, "A credit card")
+})
+
+// jQuery UI is not on the test page: the stand-in records the datepicker
+// options so the test can drive the picker's onSelect as the widget would,
+// and its off() really removes a handler, so removeTarget is observable.
+function withDatepickerStub(run) {
+    var original = globalThis.$
+    var options = {}
+    globalThis.$ = function(selector) {
+        var el = original(selector)
+        el.off = function(event) { delete el._handlers[event.split(".")[0]]; return el }
+        el.datepicker = function(method, name, value) {
+            if (typeof method === "object") { Object.assign(options, method) }
+            if (method === "option" && value !== undefined) { options[name] = value }
+            if (method === "setDate") { options.date = name }
+            if (method === "getDate") { return options.date || null }
+            return el
+        }
+        return el
+    }
+    try { run(options) } finally { globalThis.$ = original }
+}
+
+test("UIDatePicker.addTarget runs the action on the target with the picker as the sender, removeTarget undoes it, other events bind", function() {
+    withDatepickerStub(function(options) {
+        var picker = new UIDatePicker("#when")
+        var seen = []
+        var target = {name: "form"}
+        var action = function(t, sender) { seen.push({self: this, t: t, sender: sender}) }
+        picker.addTarget(target, {action: action, for: UIControlEvent.valueChanged})
+        options.onSelect("01/02/2026")
+        assert.equal(seen.length, 1)
+        assert.equal(seen[0].self, target)
+        assert.equal(seen[0].t, target)
+        assert.equal(seen[0].sender, picker)
+        picker.removeTarget(target, {action: action, for: UIControlEvent.valueChanged})
+        options.onSelect("01/03/2026")
+        assert.equal(seen.length, 1)
+        var began = 0
+        picker.addTarget(target, {action: function() { began += 1 }, for: UIControlEvent.editingDidBegin})
+        picker.$el.trigger("focus")
+        assert.equal(began, 1)
+    })
+})
+
+test("UIButton keeps a title per state, draws the current state's, and falls back to the normal title", function() {
+    var button = new UIButton("#save")
+    var html = ""
+    var attrs = {}
+    button._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return html } html = value; return this }, text: function() { return html }, css: function() { return this }, attr: function(name, value) { attrs[name] = value; return this }, removeAttr: function(name) { delete attrs[name]; return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
+    button.setTitle("Save", {for: UIControlState.normal})
+    button.setTitle("Saving", {for: UIControlState.disabled})
+    assert.equal(button.currentTitle, "Save")
+    button.isEnabled = false
+    assert.equal(button.currentTitle, "Saving")
+    assert.equal(button.title({for: UIControlState.normal}), "Save")
+    assert.equal(button.title({for: UIControlState.selected}), "Save")
+    var plain = new UIButton("#plain")
+    var plainHtml = ""
+    plain._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return plainHtml } plainHtml = value; return this }, text: function() { return plainHtml }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
+    plain.setTitle("Send", {for: UIControlState.normal})
+    plain.isEnabled = false
+    assert.equal(plain.currentTitle, "Send")
+})
+
+test("UIControl.state is the active cases, isHighlighted round-trips, and UIControlState has Apple's cases", function() {
+    assert.deepEqual([UIControlState.highlighted, UIControlState.selected, UIControlState.focused], ["highlighted", "selected", "focused"])
+    var control = new UIControl("#toggle")
+    var classes = new Set(), attrs = {}
+    control._$el = {0: {}, length: 1, css: function() { return this }, attr: function(name, value) { attrs[name] = value; return this }, removeAttr: function(name) { delete attrs[name]; return this }, hasClass: function(c) { return classes.has(c) }, toggleClass: function(c, on) { on ? classes.add(c) : classes.delete(c); return this }}
+    assert.deepEqual(control.state, [UIControlState.normal])
+    assert.ok(Object.isFrozen(control.state))
+    control.isEnabled = false
+    assert.deepEqual(control.state, [UIControlState.disabled])
+    control.isEnabled = true
+    control.isSelected = true
+    assert.deepEqual(control.state, [UIControlState.selected])
+    assert.equal(control.isHighlighted, false)
+    control.isHighlighted = true
+    assert.equal(control.isHighlighted, true)
+    assert.ok(classes.has("highlighted"))
+    assert.deepEqual(control.state, [UIControlState.highlighted, UIControlState.selected])
+    control.isEnabled = false
+    assert.deepEqual(control.state, [UIControlState.highlighted, UIControlState.selected, UIControlState.disabled])
+    control.isHighlighted = false
+    assert.ok(!classes.has("highlighted"))
+})
+
+test("NSRange carries location and length, and NSNotFound is a Foundation global", function() {
+    var range = new NSRange({location: 2, length: 3})
+    assert.equal(range.location, 2)
+    assert.equal(range.length, 3)
+    assert.equal(NSNotFound, Number.MAX_SAFE_INTEGER)
+    assert.equal(NSRange.NSNotFound, undefined)
 })

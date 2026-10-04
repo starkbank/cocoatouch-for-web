@@ -1,0 +1,4 @@
+<div class="badge" data-title="Created in code" data-count="3" data-tint="#d64545">
+    <span id="badge-title" class="badge-title"></span>
+    <span id="badge-count" class="badge-count"></span>
+</div>

@@ -3,6 +3,7 @@ import { Build } from "../utils/build.js"
 import { Bind } from "../utils/bind.js"
 import { UIView } from "./uiview.js"
 import { CGSize } from "../coregraphics/cgsize.js"
+import { traitCollectionForSize, sameTraits, currentTraitCollection, setCurrentTraitCollection } from "./uitraitcollection.js"
 
 
 export class UIViewController extends UIResponder {
@@ -11,19 +12,31 @@ export class UIViewController extends UIResponder {
 
     }
 
-    viewWillAppear() {
+    // The appearance callbacks carry the animated flag present(_:animated:)
+    // was given, false on restore and for an embedded child.
+    viewWillAppear(animated) {
 
     }
 
-    viewDidAppear() {
+    viewDidAppear(animated) {
 
     }
 
-    viewWillDisappear() {
+    viewWillDisappear(animated) {
 
     }
 
-    viewDidDisappear() {
+    viewDidDisappear(animated) {
+
+    }
+
+    // Around the layout pass: on first appearance, between viewWillAppear and
+    // viewDidAppear, and on each resize around the views' layoutSubviews.
+    viewWillLayoutSubviews() {
+
+    }
+
+    viewDidLayoutSubviews() {
 
     }
 
@@ -33,8 +46,22 @@ export class UIViewController extends UIResponder {
 
     }
 
-    present(viewController, {animated, completion} = {}) {
-        _dismissRootViewController()
+    // UIContentContainer: the size classes are about to change, before they do.
+    willTransition({to: newCollection, with: coordinator}) {
+
+    }
+
+    // UITraitEnvironment: the page's traits, and the hook sent after they change.
+    get traitCollection() {
+        return currentTraitCollection()
+    }
+
+    traitCollectionDidChange(previousTraitCollection) {
+
+    }
+
+    present(viewController, {animated = false, completion} = {}) {
+        _dismissRootViewController(animated)
         var nib = Build.html(viewController)
         var body = $("cocoatouch")
         var display = body.css("display")
@@ -53,14 +80,18 @@ export class UIViewController extends UIResponder {
             body.css("display", display)
             viewController._isViewLoaded = true
             viewController.viewDidLoad()
-            viewController.viewWillAppear()
-            viewController.viewDidAppear()
+            viewController.viewWillAppear(animated)
+            viewController.viewWillLayoutSubviews()
+            viewController.viewDidLayoutSubviews()
+            viewController.viewDidAppear(animated)
             if (completion) { completion() }
         })
     }
 
+    // The hydration entry: the html is already there, so no layout pass, but
+    // the controller is loaded and appears like any other.
     restore(viewController) {
-        _dismissRootViewController()
+        _dismissRootViewController(false)
         var body = $("cocoatouch")
         _adoptHost(viewController, body)
         viewController._$el = body
@@ -69,8 +100,9 @@ export class UIViewController extends UIResponder {
         Bind.restoreRegisteredViews(body, viewController)
         _rootViewController = viewController
         viewController._isViewLoaded = true
-        viewController.viewWillAppear()
-        viewController.viewDidAppear()
+        viewController.viewDidLoad()
+        viewController.viewWillAppear(false)
+        viewController.viewDidAppear(false)
     }
 
     get isViewLoaded() {
@@ -145,18 +177,22 @@ export class UIViewController extends UIResponder {
         Bind.ibAction(this)
         this._isEmbedded = true
         this.viewDidLoad()
-        this.viewWillAppear()
-        this.viewDidAppear()
+        this.viewWillAppear(false)
+        this.viewWillLayoutSubviews()
+        this.viewDidLayoutSubviews()
+        this.viewDidAppear(false)
         if (this._parent) { this.didMove({toParent: this._parent}) }
     }
 
     _unembed() {
         if (!this._isEmbedded) { return }
         this._isEmbedded = false
-        this.viewWillDisappear()
+        var controllers = _controllersUnder(this)
+        for (var controller of controllers) { controller.viewWillDisappear(false) }
         this._$el.empty()
         this._dispose()
-        this.viewDidDisappear()
+        _clearContainment(this)
+        for (var disposed of controllers) { disposed.viewDidDisappear(false) }
     }
 
     _link(view) {
@@ -187,7 +223,7 @@ if (typeof window !== "undefined" && typeof window.addEventListener === "functio
         var schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : function(run) { run() }
         schedule(function() {
             _resizeScheduled = false
-            if (_rootViewController) { _transition(_rootViewController, _windowSize()) }
+            _resize(_windowSize())
         })
     })
 }
@@ -196,33 +232,78 @@ function _windowSize() {
     return new CGSize({width: window.innerWidth || 0, height: window.innerHeight || 0})
 }
 
-function _transition(viewController, size) {
-    var coordinator = {
-        animate({alongsideTransition, completion}) {
-            if (alongsideTransition) { alongsideTransition() }
-            if (completion) { completion() }
-        }
+var _coordinator = {
+    animate({alongsideTransition, completion}) {
+        if (alongsideTransition) { alongsideTransition() }
+        if (completion) { completion() }
     }
-    viewController.viewWillTransition({to: size, with: coordinator})
-    for (var child of viewController.children) {
-        _transition(child, size)
-    }
-    _layoutTree(viewController.view, size)
 }
 
-// A controller bound as an outlet is a child in all but name, so it gets the transition too.
-function _layoutTree(view, size) {
+// Apple's order on a size change: willTransition(to:with:) while the old
+// traits still read, then viewWillTransition(to:with:), then, once the new
+// traits read, traitCollectionDidChange(_:) and layoutSubviews(). The trait
+// hooks go out only when the size classes actually changed.
+function _resize(size) {
+    var previous = currentTraitCollection()
+    var next = traitCollectionForSize(size)
+    var change = sameTraits(previous, next) ? null : previous
+    var root = _rootViewController
+    if (root && change) { _eachController(root, function(viewController) { viewController.willTransition({to: next, with: _coordinator}) }) }
+    setCurrentTraitCollection(next)
+    if (root) { _transition(root, size, change) }
+}
+
+function _transition(viewController, size, change) {
+    viewController.viewWillTransition({to: size, with: _coordinator})
+    for (var child of viewController.children) {
+        _transition(child, size, change)
+    }
+    if (change) {
+        viewController.traitCollectionDidChange(change)
+        _traitTree(viewController.view, change)
+    }
+    viewController.viewWillLayoutSubviews()
+    _layoutTree(viewController.view, size, change)
+    viewController.viewDidLayoutSubviews()
+}
+
+// A controller bound as an outlet is a child in all but name, so it gets the
+// transition too; its own trait hooks go out inside that transition.
+function _eachController(viewController, visit) {
+    visit(viewController)
+    for (var child of viewController.children) {
+        _eachController(child, visit)
+    }
+    _eachEmbedded(viewController.view, visit)
+}
+
+function _eachEmbedded(view, visit) {
+    for (var subview of view.subviews || []) {
+        if (subview instanceof UIViewController) { _eachController(subview, visit); continue }
+        _eachEmbedded(subview, visit)
+    }
+}
+
+function _traitTree(view, change) {
+    if (view instanceof UIViewController) { return }
+    if (typeof view.traitCollectionDidChange === "function") { view.traitCollectionDidChange(change) }
+    for (var subview of view.subviews || []) {
+        _traitTree(subview, change)
+    }
+}
+
+function _layoutTree(view, size, change) {
     if (view instanceof UIViewController) {
-        _transition(view, size)
+        _transition(view, size, change)
         return
     }
     if (typeof view.layoutSubviews === "function") { view.layoutSubviews() }
     for (var subview of view.subviews || []) {
-        _layoutTree(subview, size)
+        _layoutTree(subview, size, change)
     }
 }
 
-function _dismissRootViewController() {
+function _dismissRootViewController(animated) {
     var viewController = _rootViewController
     if (!viewController) { return }
     _rootViewController = null
@@ -232,9 +313,30 @@ function _dismissRootViewController() {
         viewController._dispose()
         return
     }
-    viewController.viewWillDisappear()
+    var controllers = _controllersUnder(viewController)
+    for (var controller of controllers) { controller.viewWillDisappear(animated) }
     viewController._dispose()
-    viewController.viewDidDisappear()
+    _clearContainment(viewController)
+    for (var disposed of controllers) { disposed.viewDidDisappear(animated) }
+}
+
+// A container forwards the appearance pair to its children and to the
+// controllers bound as its outlets, itself first, as UIKit's automatic
+// forwarding does. The tree is collected before disposal empties it.
+function _controllersUnder(viewController) {
+    var controllers = []
+    _eachController(viewController, function(controller) { controllers.push(controller) })
+    return controllers
+}
+
+// A disposed child is no longer anyone's child, as after removeFromParent.
+function _clearContainment(viewController) {
+    for (var child of viewController.children) {
+        _clearContainment(child)
+        child._parent = null
+        child.next = null
+    }
+    viewController._children = []
 }
 
 

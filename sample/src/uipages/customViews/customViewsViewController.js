@@ -29,7 +29,9 @@ export class CustomViewsViewController extends UIViewController {
 
     @IBAction("#custom-views-add-three", UIButton) addThreeTapped() {
         var index = this.gridView.subviews.length
-        this.gridView.addSubviews([this.makeCard(index), this.makeCard(index + 1), this.makeCard(index + 2)])
+        this.gridView.addSubview(this.makeCard(index))
+        this.gridView.addSubview(this.makeCard(index + 1))
+        this.gridView.addSubview(this.makeCard(index + 2))
         this.updateCount()
     }
 
