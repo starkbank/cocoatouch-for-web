@@ -29,6 +29,8 @@ export class UIPickerView extends UIView {
         return this._delegate || null
     }
 
+    // Apple marks numberOfComponents(in:) required; this falls back to one on
+    // purpose, since four consumer repos set a picker data source without it.
     get numberOfComponents() {
         var dataSource = this.dataSource
         if (dataSource && dataSource.numberOfComponentsInPickerView) { return dataSource.numberOfComponentsInPickerView(this) }
@@ -41,15 +43,18 @@ export class UIPickerView extends UIView {
         return dataSource.pickerViewNumberOfRowsInComponent(this, inComponent)
     }
 
+    // pickerView(_:titleForRow:forComponent:) is optional; a delegate that
+    // supplies no title, or no delegate at all, renders blank rows, as UIKit does.
     reloadAllComponents() {
+        if (!this.dataSource) { return }
         var delegate = this.delegate
-        if (!this.dataSource || !delegate) { return }
         var selected = this.$el.prop("selectedIndex")
         this.$el.empty()
         var rows = this.numberOfRows({inComponent: 0})
         for (var row = 0; row < rows; row++) {
-            var title = NSString.cleanScript(delegate.pickerViewTitleForRow(this, row, 0))
-            this.$el.append("<option value=\"" + row + "\">" + title + "</option>")
+            var title = delegate && delegate.pickerViewTitleForRow ? delegate.pickerViewTitleForRow(this, row, 0) : null
+            var text = title === null || title === undefined ? "" : NSString.cleanScript(String(title))
+            this.$el.append("<option value=\"" + row + "\">" + text + "</option>")
         }
         if (selected >= 0 && selected < rows) { this.$el.prop("selectedIndex", selected) }
     }

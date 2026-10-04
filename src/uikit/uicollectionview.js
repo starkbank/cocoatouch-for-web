@@ -40,7 +40,8 @@ export class UICollectionView extends UIView {
     reloadData() {
         var dataSource = this._dataSource
         if (dataSource === null) { return }
-        var numberOfSections = dataSource.numberOfSectionsInCollectionView(this)
+        // numberOfSections(in:) is optional in Apple's protocol and defaults to one.
+        var numberOfSections = dataSource.numberOfSectionsInCollectionView ? dataSource.numberOfSectionsInCollectionView(this) : 1
         if (!(numberOfSections > 0)) { return }
         this.$el.empty()
         for (var section = 0; section < numberOfSections; section++) {
@@ -71,7 +72,7 @@ export class UICollectionView extends UIView {
     _bindItems() {
         var collectionView = this
         var delegate = this._delegate
-        if (delegate === null) { return }
+        if (!delegate || typeof delegate.collectionViewDidSelectItemAt !== "function") { return }
         this.$el.find("[id^=cell-]").off("click.uicollectionview").on("click.uicollectionview", function(event) {
             var meta = event.currentTarget.id.match(/cell-section-(\d+)-row-(\d+)/)
             if (!meta) { return }
