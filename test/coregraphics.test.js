@@ -51,7 +51,7 @@ test("UIColor(named:) reads the design token, clear is transparent, and labels a
     assert.equal(label.textColor.cgColor, "var(--title-color)")
     var button = new UIButton("#cta")
     button._$el = stub
-    button.setTitleColor(UIColor.white)
+    button.setTitleColor(UIColor.white, {for: UIControlState.normal})
     assert.equal(css.color, "#FFFFFF")
     button.setTitleColor(UIColor.black, {for: UIControlState.disabled})
     assert.equal(css.color, "#FFFFFF")

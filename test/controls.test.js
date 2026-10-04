@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState, UIDatePicker } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
-import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound } from "../src/index.js"
+import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound, UIPickerView, UIColor } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
 
 
@@ -86,7 +86,7 @@ test("addTarget calls the action with the target and the control", function() {
     var seen = null
     var target = {}
     button.addTarget(target, {action: function(t, control) { seen = {t: t, control: control} }, for: UIControlEvent.touchUpInside})
-    button.sendActions()
+    button.sendActions({for: UIControlEvent.touchUpInside})
     assert.equal(seen.t, target)
     assert.equal(seen.control, button)
 })
@@ -145,7 +145,7 @@ test("reloadData dequeues one registered cell per row, bound to its row", functi
     assert.equal(setup.dequeued[1].reuseIdentifier, "row")
     assert.equal(setup.table.indexPath({for: setup.dequeued[2]}).row, 2)
     assert.equal(setup.table.cellForRow({at: new IndexPath({row: 1})}), setup.dequeued[1])
-    assert.equal(setup.table.numberOfRows(), 3)
+    assert.equal(setup.table.numberOfRows({inSection: 0}), 3)
     assert.equal(setup.dequeued[0].next, setup.table)
 })
 
@@ -468,4 +468,72 @@ test("a UIButton subclass that declares its own title member still draws, redraw
     plain.setTitle("Save", {for: UIControlState.normal})
     assert.equal(plain.title({for: UIControlState.normal}), "Save")
     assert.equal(plain.title({for: UIControlState.selected}), "Save")
+})
+
+// Apple requires these labels; JavaScript cannot refuse at compile time, so
+// the call refuses, naming the method and the Swift signature.
+function stubbed(control) {
+    control._$el = {0: {}, length: 1, html: function() { return this }, text: function() { return "" }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }, trigger: function() { return this }, on: function() { return this }, off: function() { return this }, prop: function() { return 0 }, empty: function() { return this }, append: function() { return this }, find: function() { return {length: 0, each: function() {}, off: function() { return this }, on: function() { return this }} }}
+    return control
+}
+
+test("setTitle, title, setTitleColor and titleColor require the state", function() {
+    var button = stubbed(new UIButton("#required"))
+    var cases = [
+        [() => button.setTitle("Save"), "UIButton.setTitle", "setTitle(_:for:)"],
+        [() => button.setTitle("Save", {}), "UIButton.setTitle", "setTitle(_:for:)"],
+        [() => button.title(), "UIButton.title", "title(for:)"],
+        [() => button.title({}), "UIButton.title", "title(for:)"],
+        [() => button.setTitleColor(UIColor.white), "UIButton.setTitleColor", "setTitleColor(_:for:)"],
+        [() => button.setTitleColor(UIColor.white, {}), "UIButton.setTitleColor", "setTitleColor(_:for:)"],
+        [() => button.titleColor(), "UIButton.titleColor", "titleColor(for:)"],
+        [() => button.titleColor({}), "UIButton.titleColor", "titleColor(for:)"],
+    ]
+    for (var [call, method, signature] of cases) {
+        assert.throws(call, (error) => error instanceof TypeError && error.message.indexOf(method) !== -1 && error.message.indexOf(signature) !== -1, method)
+    }
+})
+
+test("sendActions, removeTarget, numberOfRows and selectedRow require their label", function() {
+    var control = stubbed(new UIControl("#required-control"))
+    var isTypeError = (error) => error instanceof TypeError && /requires a/.test(error.message)
+    assert.throws(() => control.sendActions(), isTypeError)
+    assert.throws(() => control.sendActions({}), isTypeError)
+    var target = {}
+    var action = function() {}
+    assert.throws(() => control.removeTarget(target), isTypeError)
+    assert.throws(() => control.removeTarget(target, {action: action}), isTypeError)
+    var picker = stubbed(new UIPickerView("#required-picker"))
+    assert.throws(() => picker.numberOfRows(), isTypeError)
+    assert.throws(() => picker.selectedRow(), isTypeError)
+    var table = stubbed(new UITableView("#required-table"))
+    assert.throws(() => table.numberOfRows(), isTypeError)
+    assert.throws(() => table.numberOfRows({}), isTypeError)
+})
+
+test("the nine still behave when the label is given", function() {
+    var button = stubbed(new UIButton("#labelled"))
+    var html = ""
+    button._$el.html = function(value) { if (value === undefined) { return html } html = value; return this }
+    button._$el.text = function() { return html }
+    button.setTitle("Save", {for: UIControlState.normal})
+    button.setTitle("Saving", {for: UIControlState.disabled})
+    assert.equal(button.title({for: UIControlState.normal}), "Save")
+    assert.equal(button.title({for: UIControlState.selected}), "Save")
+    assert.equal(button.currentTitle, "Save")
+    button.isEnabled = false
+    assert.equal(button.currentTitle, "Saving")
+    button.setTitleColor(UIColor.black, {for: UIControlState.disabled})
+    assert.equal(button.titleColor({for: UIControlState.disabled}).cgColor, "#000000")
+    var fired = []
+    button.addTarget({}, {action: function() { fired.push("tap") }, for: UIControlEvent.touchUpInside})
+    button._$el.trigger = function(event) { fired.push(event); return this }
+    button.sendActions({for: UIControlEvent.touchUpInside})
+    assert.deepEqual(fired, ["click"])
+    button.removeTarget({}, {for: UIControlEvent.touchUpInside})
+    var picker = stubbed(new UIPickerView("#labelled-picker"))
+    assert.equal(picker.numberOfRows({inComponent: 0}), 0)
+    assert.equal(picker.selectedRow({inComponent: 0}), 0)
+    var table = stubbed(new UITableView("#labelled-table"))
+    assert.equal(table.numberOfRows({inSection: 0}), 0)
 })
