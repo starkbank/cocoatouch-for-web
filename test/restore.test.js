@@ -89,3 +89,57 @@ test("a revived UISearchTextField does not append its input to the restore scope
     assert.equal($("cocoatouch > input").length, 0)
     assert.equal($("input.search-input-tag").length, 0)
 })
+
+// The prerenderer loaded the page; the client only appears. A viewDidLoad
+// that builds content must therefore not run again on restore, or the
+// prerendered html is duplicated.
+function present(controller) {
+    return new Promise((resolve) => controller.present(controller, {completion: resolve}))
+}
+
+function capturedPage() {
+    return "<cocoatouch>" + $("cocoatouch").html() + "</cocoatouch>"
+}
+
+test("restoring a prerendered page does not run its content builders again", async function() {
+    Bind._restorePrototypes.clear()
+    class Docs extends UIViewController {
+        viewDidLoad() {
+            for (var i = 0; i < 3; i++) { this.contentView.addSubview(UIView.loadFromNib("<section class=\"section\"></section>")) }
+        }
+    }
+    Docs.nib = "<main id=\"content\"></main>"
+    IBOutlet("#content", UIView)(Docs.prototype, "contentView", {})
+    page("<cocoatouch></cocoatouch>")
+    var presented = new Docs()
+    await present(presented)
+    assert.equal($("cocoatouch .section").length, 3)
+    var html = capturedPage()
+    page(html)
+    assert.equal($("cocoatouch .section").length, 3)
+    var restored = new Docs()
+    restored.restore(restored)
+    assert.equal($("cocoatouch .section").length, 3)
+    assert.equal(restored.isViewLoaded, true)
+})
+
+test("restoring a prerendered page does not run an outlet-bound controller's content builder again", async function() {
+    Bind._restorePrototypes.clear()
+    class Panel extends UIViewController {
+        viewDidLoad() { this.view.addSubview(UIView.loadFromNib("<p class=\"row\"></p>")) }
+    }
+    Panel.nib = ""
+    class Host extends UIViewController {}
+    Host.nib = "<div id=\"panel\"></div>"
+    IBOutlet("#panel", Panel)(Host.prototype, "panel", {})
+    page("<cocoatouch></cocoatouch>")
+    var presented = new Host()
+    await present(presented)
+    assert.equal($("#panel .row").length, 1)
+    var html = capturedPage()
+    page(html)
+    var restored = new Host()
+    restored.restore(restored)
+    assert.equal($("#panel .row").length, 1)
+    assert.equal(restored.panel.isViewLoaded, true)
+})
