@@ -95,10 +95,13 @@ export class BannerView extends UIView {
 ## Lifecycle
 
 ```
-present(controller)   viewDidLoad -> viewWillAppear -> viewDidAppear
-                      the previous root controller first gets viewWillDisappear -> viewDidDisappear
-restore(controller)   rebinds outlets and actions on pre-rendered html: viewWillAppear -> viewDidAppear
+present(controller, {animated})   viewDidLoad -> viewWillAppear(animated) -> viewWillLayoutSubviews -> viewDidLayoutSubviews -> viewDidAppear(animated)
+                                  the previous root controller and its tree first get viewWillDisappear(animated) -> viewDidDisappear(animated)
+restore(controller)               rebinds outlets and actions on pre-rendered html: viewDidLoad -> viewWillAppear(false) -> viewDidAppear(false)
+resize                            viewWillTransition -> viewWillLayoutSubviews -> layoutSubviews on every view -> viewDidLayoutSubviews
 ```
+
+`animated` is the flag `present` was given, `false` by default, on `restore` and for an embedded child; an override that declares no parameter keeps working. `restore` sends no layout pair, since the html it rebinds is already laid out; the views' `layoutSubviews` runs on resize, between the controller's layout pair. `loadView()` is not provided: `view` is created by the framework and the nib injected before any hook runs, so an override could neither create nor replace it.
 
 Views get `awakeFromNib` after their outlets are bound, `layoutSubviews` once their element is in place and `didMoveToWindow` when their element enters the page, by `addSubview` or when a pre-rendered page is restored. `addSubview(view)` sends, in this order: `willMove({toSuperview})`, the insertion, `didMoveToSuperview()`, `didMoveToWindow()`, outlet and inspectable binding, `awakeFromNib()`, action binding, `layoutSubviews()`; `removeFromSuperview()` sends `willMove({toSuperview: null})` before the removal and `didMoveToSuperview()` after, and no `didMoveToWindow`. Three deviations from UIKit, on purpose: `awakeFromNib` follows the insertion here, where UIKit awakes nib objects before inserting them, so a body may measure or style the element; `didMoveToWindow` here means "entered the page", where Apple also sends it on removal when the window becomes `nil`; and the superview pair coming before the window hook is this package's order, which Apple's reference does not document, pinned by a test. `willMove(toWindow:)` is not provided, since its parameter is a `UIWindow`, which does not exist here. `addSubview` links the child into the responder chain, so `view.next`, `view.superview` and `view.subviews` work. `view.parentViewController()` walks `next` up to the controller; it is a convenience this package carries for its consumers and not a UIKit member, so do not imitate it elsewhere.
 

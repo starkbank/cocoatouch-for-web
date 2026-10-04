@@ -12,19 +12,31 @@ export class UIViewController extends UIResponder {
 
     }
 
-    viewWillAppear() {
+    // The appearance callbacks carry the animated flag present(_:animated:)
+    // was given, false on restore and for an embedded child.
+    viewWillAppear(animated) {
 
     }
 
-    viewDidAppear() {
+    viewDidAppear(animated) {
 
     }
 
-    viewWillDisappear() {
+    viewWillDisappear(animated) {
 
     }
 
-    viewDidDisappear() {
+    viewDidDisappear(animated) {
+
+    }
+
+    // Around the layout pass: on first appearance, between viewWillAppear and
+    // viewDidAppear, and on each resize around the views' layoutSubviews.
+    viewWillLayoutSubviews() {
+
+    }
+
+    viewDidLayoutSubviews() {
 
     }
 
@@ -48,8 +60,8 @@ export class UIViewController extends UIResponder {
 
     }
 
-    present(viewController, {animated, completion} = {}) {
-        _dismissRootViewController()
+    present(viewController, {animated = false, completion} = {}) {
+        _dismissRootViewController(animated)
         var nib = Build.html(viewController)
         var body = $("cocoatouch")
         var display = body.css("display")
@@ -68,14 +80,18 @@ export class UIViewController extends UIResponder {
             body.css("display", display)
             viewController._isViewLoaded = true
             viewController.viewDidLoad()
-            viewController.viewWillAppear()
-            viewController.viewDidAppear()
+            viewController.viewWillAppear(animated)
+            viewController.viewWillLayoutSubviews()
+            viewController.viewDidLayoutSubviews()
+            viewController.viewDidAppear(animated)
             if (completion) { completion() }
         })
     }
 
+    // The hydration entry: the html is already there, so no layout pass, but
+    // the controller is loaded and appears like any other.
     restore(viewController) {
-        _dismissRootViewController()
+        _dismissRootViewController(false)
         var body = $("cocoatouch")
         _adoptHost(viewController, body)
         viewController._$el = body
@@ -84,8 +100,9 @@ export class UIViewController extends UIResponder {
         Bind.restoreRegisteredViews(body, viewController)
         _rootViewController = viewController
         viewController._isViewLoaded = true
-        viewController.viewWillAppear()
-        viewController.viewDidAppear()
+        viewController.viewDidLoad()
+        viewController.viewWillAppear(false)
+        viewController.viewDidAppear(false)
     }
 
     get isViewLoaded() {
@@ -160,8 +177,10 @@ export class UIViewController extends UIResponder {
         Bind.ibAction(this)
         this._isEmbedded = true
         this.viewDidLoad()
-        this.viewWillAppear()
-        this.viewDidAppear()
+        this.viewWillAppear(false)
+        this.viewWillLayoutSubviews()
+        this.viewDidLayoutSubviews()
+        this.viewDidAppear(false)
         if (this._parent) { this.didMove({toParent: this._parent}) }
     }
 
@@ -169,11 +188,11 @@ export class UIViewController extends UIResponder {
         if (!this._isEmbedded) { return }
         this._isEmbedded = false
         var controllers = _controllersUnder(this)
-        for (var controller of controllers) { controller.viewWillDisappear() }
+        for (var controller of controllers) { controller.viewWillDisappear(false) }
         this._$el.empty()
         this._dispose()
         _clearContainment(this)
-        for (var disposed of controllers) { disposed.viewDidDisappear() }
+        for (var disposed of controllers) { disposed.viewDidDisappear(false) }
     }
 
     _link(view) {
@@ -243,7 +262,9 @@ function _transition(viewController, size, change) {
         viewController.traitCollectionDidChange(change)
         _traitTree(viewController.view, change)
     }
+    viewController.viewWillLayoutSubviews()
     _layoutTree(viewController.view, size, change)
+    viewController.viewDidLayoutSubviews()
 }
 
 // A controller bound as an outlet is a child in all but name, so it gets the
@@ -282,7 +303,7 @@ function _layoutTree(view, size, change) {
     }
 }
 
-function _dismissRootViewController() {
+function _dismissRootViewController(animated) {
     var viewController = _rootViewController
     if (!viewController) { return }
     _rootViewController = null
@@ -293,10 +314,10 @@ function _dismissRootViewController() {
         return
     }
     var controllers = _controllersUnder(viewController)
-    for (var controller of controllers) { controller.viewWillDisappear() }
+    for (var controller of controllers) { controller.viewWillDisappear(animated) }
     viewController._dispose()
     _clearContainment(viewController)
-    for (var disposed of controllers) { disposed.viewDidDisappear() }
+    for (var disposed of controllers) { disposed.viewDidDisappear(animated) }
 }
 
 // A container forwards the appearance pair to its children and to the

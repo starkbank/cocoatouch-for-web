@@ -9,6 +9,7 @@ The `cocoatouch` npm package: Apple's CocoaTouch for the browser. Every interfac
 - The DOM and jQuery live only in this package, behind the Apple surface. Stylesheet-facing state is a class or attribute the setter writes (`selected`, `disabled`, `href`), never something a site toggles itself.
 - Every interface ships with a test in `test/*.test.js`; `npm test` runs them against the jQuery stand-in in `test/setup.js` or, for files that import `test/dom.js`, a jsdom document with the real jQuery, and also builds `types/` from the sources.
 - A view's nib describes the view's contents when the view has a host element, and the view itself when it does not. A view owns one element and its nib fills it. An outlet's element is the one the owner's nib names, so that nib may have several top-level elements; a view created in code gets its single nib root as its element, and a class nib with several roots is refused with an error naming the count; only an empty nib or `UIView.loadFromNib` html still gets a bare `<div>`. Do not reinstate copying the superview's classes onto that wrapper, and do not make it `display: contents`: both leave a view that cannot report its frame.
+- Every lifecycle hook has its order written in README §Lifecycle (`present`, `restore`, an outlet-bound controller, `addSubview`, `removeFromSuperview`, containment, a root swap, a resize); a new hook lands in the same commit as the sentence that places it, and a test asserts the whole sequence with `deepEqual`.
 - Comments say why, not what.
 
 ## Git
