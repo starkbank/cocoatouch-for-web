@@ -444,3 +444,28 @@ test("NSRange carries location and length, and NSNotFound is a Foundation global
     assert.equal(NSNotFound, Number.MAX_SAFE_INTEGER)
     assert.equal(NSRange.NSNotFound, undefined)
 })
+
+// Swift lets a subclass hold `var title` beside `title(for:)`; JavaScript has
+// one namespace, so the field shadows the method on the instance, and the
+// framework's own drawing must not go through it.
+test("a UIButton subclass that declares its own title member still draws, redraws and reports its title", function() {
+    class MenuItem extends UIButton {
+        title = ""
+    }
+    var item = new MenuItem("#item")
+    var html = ""
+    item._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return html } html = value; return this }, text: function() { return html }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
+    item.title = "Overview"
+    item.setTitle(item.title, {for: UIControlState.normal})
+    assert.equal(html, "Overview")
+    assert.equal(item.currentTitle, "Overview")
+    item.isSelected = true
+    item.isEnabled = false
+    assert.equal(item.currentTitle, "Overview")
+    assert.equal(item.title, "Overview")
+    var plain = new UIButton("#plain-title")
+    plain._$el = {0: {}, length: 1, html: function() { return this }, text: function() { return "" }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
+    plain.setTitle("Save", {for: UIControlState.normal})
+    assert.equal(plain.title({for: UIControlState.normal}), "Save")
+    assert.equal(plain.title({for: UIControlState.selected}), "Save")
+})
