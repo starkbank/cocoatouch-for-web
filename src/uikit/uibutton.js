@@ -9,12 +9,37 @@ const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activ
 
 export class UIButton extends UIControl {
 
-    setTitle(title, {for: state} = {}) {
-        this.$el.html(NSString.cleanScript(title))
+    // setTitle(_:for:) keeps a title per state and draws the current state's;
+    // title(for:) and currentTitle fall back to the normal title when none was
+    // set for the state asked about, as Apple's do.
+    setTitle(title, {for: state = UIControlState.normal} = {}) {
+        if (!this._titles) { this._titles = {} }
+        this._titles[state] = title
+        this._drawTitle()
+    }
+
+    title({for: state = UIControlState.normal} = {}) {
+        var titles = this._titles || {}
+        if (titles[state] !== undefined) { return titles[state] }
+        return titles[UIControlState.normal] === undefined ? null : titles[UIControlState.normal]
     }
 
     get currentTitle() {
-        return this.$el.text()
+        var title = this.title({for: _drawnState(this)})
+        return title === null ? this.$el.text() : title
+    }
+
+    _stateDidChange() {
+        this._drawTitle()
+    }
+
+    // Nothing is drawn while the activity indicator holds the html, nor when
+    // no title was ever set, so a title written in the nib stands.
+    _drawTitle() {
+        if (this._titleBeforeActivity !== undefined) { return }
+        var title = this.title({for: _drawnState(this)})
+        if (title === null) { return }
+        this.$el.html(NSString.cleanScript(title))
     }
 
     // setTitleColor(_:for:): the normal state's color is drawn; others are kept for titleColor(for:).
@@ -49,4 +74,13 @@ export class UIButton extends UIControl {
     get showsActivityIndicator() {
         return this._titleBeforeActivity !== undefined
     }
+}
+
+
+// The single state whose title is drawn: disabled wins over selected, as a
+// disabled control cannot be interacted with whatever else it is.
+function _drawnState(button) {
+    if (!button.isEnabled) { return UIControlState.disabled }
+    if (button.isSelected) { return UIControlState.selected }
+    return UIControlState.normal
 }

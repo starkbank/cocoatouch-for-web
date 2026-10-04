@@ -393,3 +393,23 @@ test("UIDatePicker.addTarget runs the action on the target with the picker as th
         assert.equal(began, 1)
     })
 })
+
+test("UIButton keeps a title per state, draws the current state's, and falls back to the normal title", function() {
+    var button = new UIButton("#save")
+    var html = ""
+    var attrs = {}
+    button._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return html } html = value; return this }, text: function() { return html }, css: function() { return this }, attr: function(name, value) { attrs[name] = value; return this }, removeAttr: function(name) { delete attrs[name]; return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
+    button.setTitle("Save", {for: UIControlState.normal})
+    button.setTitle("Saving", {for: UIControlState.disabled})
+    assert.equal(button.currentTitle, "Save")
+    button.isEnabled = false
+    assert.equal(button.currentTitle, "Saving")
+    assert.equal(button.title({for: UIControlState.normal}), "Save")
+    assert.equal(button.title({for: UIControlState.selected}), "Save")
+    var plain = new UIButton("#plain")
+    var plainHtml = ""
+    plain._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return plainHtml } plainHtml = value; return this }, text: function() { return plainHtml }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
+    plain.setTitle("Send", {for: UIControlState.normal})
+    plain.isEnabled = false
+    assert.equal(plain.currentTitle, "Send")
+})
