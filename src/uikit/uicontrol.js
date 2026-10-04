@@ -27,9 +27,20 @@ export class UIControl extends UIView {
     }
 
     // A control is highlighted while the pointer is down on it, as a touch
-    // highlights it on iOS; the handlers bind to the element the control has
-    // when constructed.
+    // highlights it on iOS. The handlers bind at construction for a control
+    // that already has an element, and again when addSubview gives one to a
+    // control created in code; the namespace is cleared first, so a control
+    // never carries two bindings.
     init() {
+        this._bindHighlight()
+    }
+
+    didMoveToSuperview() {
+        this._bindHighlight()
+    }
+
+    _bindHighlight() {
+        this.$el.off(".uicontrol")
         this.$el.on("pointerdown.uicontrol", () => { if (this.isEnabled) { this.isHighlighted = true } })
         this.$el.on("pointerup.uicontrol pointerleave.uicontrol pointercancel.uicontrol", () => { this.isHighlighted = false })
     }
