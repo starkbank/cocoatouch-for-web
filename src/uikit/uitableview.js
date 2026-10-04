@@ -127,7 +127,7 @@ export class UITableView extends UIScrollView {
             element.attr("id", id)
             this._body().append(element)
         }
-        var cell = new cellClass(this.selector + " #" + id, indexPath)
+        var cell = Bind.construct(cellClass, this.selector + " #" + id, indexPath)
         cell.reuseIdentifier = withIdentifier
         cell._$el = element
         this._link(cell)

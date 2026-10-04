@@ -7,6 +7,29 @@ export class Bind {
 
     static _restorePrototypes = new Set()
 
+    // {cls, selector} of the view a creator is inside `new` for. The view's own
+    // constructor fills its empty element but leaves binding to the creator, so
+    // awakeFromNib arrives once, after the subclass's fields exist. The previous
+    // marker is restored, not cleared: an outlet bound from inside a view's
+    // init() goes through here too, and clearing would hand the outer view back
+    // to its own constructor for a second bind.
+    static _constructing = null
+
+    static construct(cls, selector, ...rest) {
+        var previous = Bind._constructing
+        Bind._constructing = {cls: cls, selector: selector}
+        try {
+            return new cls(selector, ...rest)
+        } finally {
+            Bind._constructing = previous
+        }
+    }
+
+    static isConstructing(view) {
+        var marker = Bind._constructing
+        return !!marker && marker.cls === view.constructor && marker.selector === view.selector
+    }
+
     static registerPrototypeForRestore(prototype) {
         Bind._restorePrototypes.add(prototype)
     }
@@ -67,7 +90,7 @@ export class Bind {
             var method = outlet.method
             var selector = outlet.selector
 
-            var responder = new cls(`${control.selector} ${selector}`)
+            var responder = Bind.construct(cls, `${control.selector} ${selector}`)
             responder._$el = $parent.find(selector)
             _identifyOutlet(control, responder, method)
             control._link(responder)
@@ -100,7 +123,7 @@ export class Bind {
             var method = outlet.method
             var selector = outlet.selector
 
-            var responder = new cls(`${control.selector} ${selector}`)
+            var responder = Bind.construct(cls, `${control.selector} ${selector}`)
             responder._$el = $parent.find(selector)
             _identifyOutlet(control, responder, method)
             control._link(responder)

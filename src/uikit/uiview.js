@@ -307,12 +307,15 @@ export class UIView extends UIResponder {
 
     // A view class designed in a .xib fills an empty element it is created
     // on, so `new SecureTextField("#password")` renders like the outlet would.
+    // A view the framework is constructing is bound by its creator instead,
+    // once `new` has returned and the subclass's fields are initialised.
     _loadNibIfNeeded() {
         var nib = this.constructor.nib
         if (!nib) { return }
         var $el = this.$el
         if ($el.length === 0 || $el.children().length > 0 || $el.html().trim() !== "") { return }
         $el.html(nib)
+        if (Bind.isConstructing(this)) { return }
         Bind.ibOutlet(this)
         this.awakeFromNib()
         Bind.ibAction(this)
