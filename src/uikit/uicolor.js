@@ -7,6 +7,16 @@ import { NSObject } from "../foundation/nsobject.js"
 export class UIColor extends NSObject {
 
     // UIColor(named:), UIColor(red:green:blue:alpha:), UIColor(white:alpha:) or, web-side, {hex}
+    /**
+     * @param {object} [options]
+     * @param {string} [options.named]
+     * @param {number} [options.red]
+     * @param {number} [options.green]
+     * @param {number} [options.blue]
+     * @param {number} [options.white]
+     * @param {number} [options.alpha]
+     * @param {string} [options.hex]
+     */
     constructor({named, red, green, blue, white, alpha = 1, hex} = {}) {
         super()
         if (named !== undefined) {

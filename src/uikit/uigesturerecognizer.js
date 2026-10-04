@@ -17,6 +17,11 @@ export class UIGestureRecognizer extends NSObject {
         return State
     }
 
+    /**
+     * @param {object} options
+     * @param {object} options.target
+     * @param {Function} options.action
+     */
     constructor({target, action}) {
         super()
         this.target = target

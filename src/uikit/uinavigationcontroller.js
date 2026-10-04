@@ -5,7 +5,7 @@ import { IBOutlet } from "./iboutlet.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIControlState } from "./uicontrolstate.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
-import { required } from "../utils/required.js"
+import { required, Bool } from "../utils/required.js"
 
 
 // UINavigationController: a stack of controllers, one host view per entry,
@@ -15,6 +15,10 @@ import { required } from "../utils/required.js"
 // know what a forward entry held, so popstate only ever pops.
 export class UINavigationController extends UIViewController {
 
+    /**
+     * @param {object} [options]
+     * @param {UIViewController} [options.rootViewController]
+     */
     constructor({rootViewController} = {}) {
         super()
         this._isNavigationStack = true
@@ -57,14 +61,24 @@ export class UINavigationController extends UIViewController {
         this.setNavigationBarHidden(hidden, {animated: false})
     }
 
+    /**
+     * @param {boolean} hidden
+     * @param {object} options
+     * @param {boolean} options.animated
+     */
     setNavigationBarHidden(hidden, {animated} = {}) {
-        required({animated: animated}, "animated", "UINavigationController.setNavigationBarHidden", "setNavigationBarHidden(hidden, {animated: false}). Apple's is setNavigationBarHidden(_:animated:)")
+        required(animated, "animated", Bool, "UINavigationController.setNavigationBarHidden", "setNavigationBarHidden(hidden, {animated: false}). Apple's is setNavigationBarHidden(_:animated:)")
         this._isNavigationBarHidden = hidden
         if (this.isViewLoaded) { this.navigationBar.isHidden = hidden }
     }
 
+    /**
+     * @param {UIViewController} viewController
+     * @param {object} options
+     * @param {boolean} options.animated
+     */
     pushViewController(viewController, {animated} = {}) {
-        required({animated: animated}, "animated", "UINavigationController.pushViewController", "pushViewController(viewController, {animated: true}). Apple's is pushViewController(_:animated:)")
+        required(animated, "animated", Bool, "UINavigationController.pushViewController", "pushViewController(viewController, {animated: true}). Apple's is pushViewController(_:animated:)")
         var outgoing = this._top()
         var entry = _entry(viewController)
         this._entries.push(entry)
@@ -75,24 +89,40 @@ export class UINavigationController extends UIViewController {
     }
 
     // Apple refuses to pop the root; a stack that could be emptied would leave the page blank.
+    /**
+     * @param {object} options
+     * @param {boolean} options.animated
+     * @returns {UIViewController|null}
+     */
     popViewController({animated} = {}) {
-        required({animated: animated}, "animated", "UINavigationController.popViewController", "popViewController({animated: true}). Apple's is popViewController(animated:)")
+        required(animated, "animated", Bool, "UINavigationController.popViewController", "popViewController({animated: true}). Apple's is popViewController(animated:)")
         if (this._entries.length < 2) { return null }
         var popped = this._popTo(this._entries.length - 2, animated)
         this._goBack(popped.length)
         return popped[0]
     }
 
+    /**
+     * @param {object} options
+     * @param {boolean} options.animated
+     * @returns {UIViewController[]}
+     */
     popToRootViewController({animated} = {}) {
-        required({animated: animated}, "animated", "UINavigationController.popToRootViewController", "popToRootViewController({animated: true}). Apple's is popToRootViewController(animated:)")
+        required(animated, "animated", Bool, "UINavigationController.popToRootViewController", "popToRootViewController({animated: true}). Apple's is popToRootViewController(animated:)")
         if (this._entries.length < 2) { return [] }
         var popped = this._popTo(0, animated)
         this._goBack(popped.length)
         return popped
     }
 
+    /**
+     * @param {UIViewController} viewController
+     * @param {object} options
+     * @param {boolean} options.animated
+     * @returns {UIViewController[]|null}
+     */
     popToViewController(viewController, {animated} = {}) {
-        required({animated: animated}, "animated", "UINavigationController.popToViewController", "popToViewController(viewController, {animated: true}). Apple's is popToViewController(_:animated:)")
+        required(animated, "animated", Bool, "UINavigationController.popToViewController", "popToViewController(viewController, {animated: true}). Apple's is popToViewController(_:animated:)")
         var index = this.viewControllers.indexOf(viewController)
         if (index === -1) { return null }
         if (index === this._entries.length - 1) { return [] }
@@ -103,8 +133,13 @@ export class UINavigationController extends UIViewController {
 
     // Tears every host down and builds fresh ones for the new stack; the new
     // top appears, the others load when they are popped back to.
+    /**
+     * @param {UIViewController[]} viewControllers
+     * @param {object} options
+     * @param {boolean} options.animated
+     */
     setViewControllers(viewControllers, {animated} = {}) {
-        required({animated: animated}, "animated", "UINavigationController.setViewControllers", "setViewControllers(viewControllers, {animated: false}). Apple's is setViewControllers(_:animated:)")
+        required(animated, "animated", Bool, "UINavigationController.setViewControllers", "setViewControllers(viewControllers, {animated: false}). Apple's is setViewControllers(_:animated:)")
         if (this.isViewLoaded) {
             for (var entry of this._entries.slice().reverse()) { this._remove(entry, animated) }
         }

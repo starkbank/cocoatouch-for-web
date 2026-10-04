@@ -13,6 +13,7 @@ The `cocoatouch` npm package: Apple's CocoaTouch for the browser. Every interfac
 - Every lifecycle hook has its order written in README §Lifecycle (`present`, `restore`, an outlet-bound controller, `addSubview`, `removeFromSuperview`, containment, a root swap, a resize); a new hook lands in the same commit as the sentence that places it, and a test asserts the whole sequence with `deepEqual`.
 - The framework never resolves its own stored state through a public method on `this` when a module-private function will do: Swift lets a subclass hold `var title` beside `title(for:)`, JavaScript has one namespace, and a subclass property sharing an Apple method's base name must not be able to break the superclass.
 - A label Apple requires is required here: an option Apple's signature makes mandatory gets no default, and its absence throws a `TypeError` naming the method and the Swift signature.
+- Labelled arguments are destructured in the signature and typed with a JSDoc `@param` per label, never received as `options`: the declaration must show which labels a member takes and which of them Apple requires, and the shared `required()`/`typed()` guards check the type as well as the presence.
 - Comments say why, not what.
 
 ## Git

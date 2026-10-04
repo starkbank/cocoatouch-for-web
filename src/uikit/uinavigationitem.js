@@ -5,6 +5,10 @@ import { NSObject } from "../foundation/nsobject.js"
 // button items wait for UIBarButtonItem.
 export class UINavigationItem extends NSObject {
 
+    /**
+     * @param {object} [options]
+     * @param {string|null} [options.title]
+     */
     constructor({title = null} = {}) {
         super()
         this.title = title

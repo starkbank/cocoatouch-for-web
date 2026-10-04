@@ -2,8 +2,11 @@ import { NSString } from "../utils/nsstring.js"
 import { UIControl } from "./uicontrol.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
-import { required } from "../utils/required.js"
+import { required, typed, enumeration, optional, instance } from "../utils/required.js"
 
+
+const stateType = enumeration(UIControlState, "UIControl.State")
+const colorType = instance(UIColor, "UIColor")
 
 const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
 
@@ -13,15 +16,24 @@ export class UIButton extends UIControl {
     // setTitle(_:for:) keeps a title per state and draws the current state's;
     // title(for:) and currentTitle fall back to the normal title when none was
     // set for the state asked about, as Apple's do.
-    setTitle(title, options) {
-        var state = required(options, "for", "UIButton.setTitle", "setTitle(title, {for: UIControlState.normal}). Apple's is setTitle(_:for:)")
+    /**
+     * @param {string|null} title
+     * @param {object} options
+     * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
+     */
+    setTitle(title, {for: state} = {}) {
+        required(state, "for", stateType, "UIButton.setTitle", "Apple's is setTitle(_:for:); write setTitle(title, {for: UIControlState.normal}).")
         if (!this._titles) { this._titles = {} }
         this._titles[state] = title
         this._drawTitle()
     }
 
-    title(options) {
-        return _title(this, required(options, "for", "UIButton.title", "title({for: UIControlState.normal}). Apple's is title(for:)"))
+    /**
+     * @param {object} options
+     * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
+     */
+    title({for: state} = {}) {
+        return _title(this, required(state, "for", stateType, "UIButton.title", "Apple's is title(for:); write title({for: UIControlState.normal})."))
     }
 
     get currentTitle() {
@@ -43,15 +55,25 @@ export class UIButton extends UIControl {
     }
 
     // setTitleColor(_:for:): the normal state's color is drawn; others are kept for titleColor(for:).
-    setTitleColor(color, options) {
-        var state = required(options, "for", "UIButton.setTitleColor", "setTitleColor(color, {for: UIControlState.normal}). Apple's is setTitleColor(_:for:)")
+    /**
+     * @param {UIColor|null} color
+     * @param {object} options
+     * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
+     */
+    setTitleColor(color, {for: state} = {}) {
+        required(state, "for", stateType, "UIButton.setTitleColor", "Apple's is setTitleColor(_:for:); write setTitleColor(color, {for: UIControlState.normal}).")
+        typed(color, "color", optional(colorType), "UIButton.setTitleColor", "Apple's is setTitleColor(_:for:); the color is a UIColor, or null to clear it.")
         if (!this._titleColors) { this._titleColors = {} }
         this._titleColors[state] = color
-        if (state === UIControlState.normal) { this.$el.css("color", color.cgColor) }
+        if (state === UIControlState.normal) { this.$el.css("color", color === null ? "" : color.cgColor) }
     }
 
-    titleColor(options) {
-        var state = required(options, "for", "UIButton.titleColor", "titleColor({for: UIControlState.normal}). Apple's is titleColor(for:)")
+    /**
+     * @param {object} options
+     * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
+     */
+    titleColor({for: state} = {}) {
+        required(state, "for", stateType, "UIButton.titleColor", "Apple's is titleColor(for:); write titleColor({for: UIControlState.normal}).")
         var kept = this._titleColors && this._titleColors[state]
         if (kept) { return kept }
         if (state !== UIControlState.normal) { return null }

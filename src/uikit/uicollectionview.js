@@ -36,12 +36,19 @@ export class UICollectionView extends UIView {
     }
 
     // register(CellClass, {forCellWithReuseIdentifier}) or register({nib, identifier})
-    register(cellClassOrNib, options) {
-        if (options === undefined) {
+    /**
+     * register(_:forCellWithReuseIdentifier:) with a cell class or a nib string, or
+     * the legacy register({nib, identifier}) when no options object is given.
+     * @param {Function|string|{nib: string, identifier: string}} cellClassOrNib
+     * @param {object} [options]
+     * @param {string} options.forCellWithReuseIdentifier
+     */
+    register(cellClassOrNib, {forCellWithReuseIdentifier} = {forCellWithReuseIdentifier: undefined}) {
+        if (forCellWithReuseIdentifier === undefined) {
             this._registeredNibs[cellClassOrNib.identifier] = cellClassOrNib.nib
             return
         }
-        this._registeredNibs[options.forCellWithReuseIdentifier] = typeof cellClassOrNib === "string" ? cellClassOrNib : cellClassOrNib.nib
+        this._registeredNibs[forCellWithReuseIdentifier] = typeof cellClassOrNib === "string" ? cellClassOrNib : cellClassOrNib.nib
     }
 
     reloadData() {
@@ -59,6 +66,11 @@ export class UICollectionView extends UIView {
 
     // The item's element is already in place, empty: the registered nib goes
     // in here, before the cell is constructed, so its awakeFromNib binds to it.
+    /**
+     * @param {object} options
+     * @param {string} options.withReuseIdentifier
+     * @param {IndexPath} options.for
+     */
     dequeueReusableCell({withReuseIdentifier, for: indexPath}) {
         var element = this.$el.find("> #" + _cellId(indexPath))
         if (element.length > 0 && element.html() === "") {
@@ -67,6 +79,11 @@ export class UICollectionView extends UIView {
         return new UICollectionViewCell(withReuseIdentifier, indexPath)
     }
 
+    /**
+     * @param {object} options
+     * @param {UICollectionViewCell} options.for
+     * @returns {IndexPath|null}
+     */
     indexPath({for: cell}) {
         return cell._indexPath || null
     }
