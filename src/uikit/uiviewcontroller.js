@@ -88,8 +88,9 @@ export class UIViewController extends UIResponder {
         })
     }
 
-    // The hydration entry: the html is already there, so no layout pass, but
-    // the controller is loaded and appears like any other.
+    // The hydration entry. The prerenderer loaded the page, so restore sends
+    // the did-move and appear hooks and never the load hooks: a viewDidLoad
+    // that builds content would duplicate the html it is restoring into.
     restore(viewController) {
         _dismissRootViewController(false)
         var body = $("cocoatouch")
@@ -100,7 +101,6 @@ export class UIViewController extends UIResponder {
         Bind.restoreRegisteredViews(body, viewController)
         _rootViewController = viewController
         viewController._isViewLoaded = true
-        viewController.viewDidLoad()
         viewController.viewWillAppear(false)
         viewController.viewDidAppear(false)
     }

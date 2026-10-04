@@ -181,12 +181,12 @@ test("keyboard actions stop firing once their controller is dismissed", function
     assert.equal(pressed, 1)
 })
 
-test("restore runs viewDidLoad, viewWillAppear and viewDidAppear", function() {
+test("restore runs viewWillAppear and viewDidAppear, not viewDidLoad", function() {
     var log = []
     var Controller = recordingController("restored", log)
     var controller = new Controller()
     controller.restore(controller)
-    assert.deepEqual(log, ["restored.viewDidLoad", "restored.viewWillAppear", "restored.viewDidAppear"])
+    assert.deepEqual(log, ["restored.viewWillAppear", "restored.viewDidAppear"])
 })
 
 function scopeMatching(selectors) {
@@ -448,13 +448,13 @@ test("a controller bound as an outlet receives awakeFromNib, viewDidLoad, viewWi
     assert.deepEqual(log, ["outletVC.viewWillDisappear", "outletVC.viewDidDisappear"])
 })
 
-test("a controller bound as an outlet of a restored controller receives didMoveToWindow, viewDidLoad, viewWillAppear and viewDidAppear", function() {
+test("a controller bound as an outlet of a restored controller receives didMoveToWindow, viewWillAppear and viewDidAppear, not viewDidLoad", function() {
     var log = []
     var Host = recordingController("host", [])
     IBOutlet("#panel", outletControllerClass(log))(Host.prototype, "panel", {})
     var host = new Host()
     host.restore(host)
-    assert.deepEqual(log, ["outletVC.didMoveToWindow", "outletVC.viewDidLoad", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
+    assert.deepEqual(log, ["outletVC.didMoveToWindow", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
     assert.equal(host.panel.isViewLoaded, true)
 })
 
