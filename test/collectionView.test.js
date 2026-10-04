@@ -20,3 +20,16 @@ test("a data source with only the required methods renders one section without t
     assert.equal($("#grid collection-view-cell").length, 2)
     assert.equal($("#grid #cell-section-0-row-1").length, 1)
 })
+
+test("items render once each, in index order", function() {
+    var calls = []
+    collectionWith({
+        numberOfItemsInSection: function() { return 3 },
+        collectionViewCellForItemAtIndexPath: function(collectionView, indexPath) {
+            calls.push(indexPath.row)
+            return collectionView.dequeueReusableCell({withReuseIdentifier: "item", for: indexPath})
+        },
+    })
+    assert.deepEqual(calls, [0, 1, 2])
+    assert.deepEqual($("#grid collection-view-cell").map(function() { return this.id }).get(), ["cell-section-0-row-0", "cell-section-0-row-1", "cell-section-0-row-2"])
+})
