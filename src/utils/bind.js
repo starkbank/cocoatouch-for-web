@@ -36,18 +36,29 @@ export class Bind {
 
     // Views added at runtime through addSubview are not outlets of the
     // controller, so on a pre-rendered page they are found again by their
-    // action selectors. Only prototypes with an action target present in the
-    // page are revived; controllers are restored explicitly by restore().
+    // action selectors. One element has one owner: a target already answered
+    // by a bound responder declaring that same selector is not a reason to
+    // revive anything, and when a class and its subclass both match a target
+    // only the most derived is revived. The instance is constructed with no
+    // selector, so its fields and init() run as they would in code; a
+    // selector would point init() at the page root instead of an element.
     static restoreRegisteredViews($scope, owner) {
+        var bound = _boundResponders(owner)
+        var candidates = []
         for (var proto of Bind._restorePrototypes) {
             if (proto instanceof UIViewController) { continue }
-            if (!_hasActionTargetIn(proto, $scope)) { continue }
-            var instance = Object.create(proto)
+            var targets = _unclaimedTargets(proto, $scope, bound)
+            if (targets.length === 0) { continue }
+            candidates.push({proto: proto, targets: targets})
+        }
+        for (var candidate of candidates) {
+            if (_hasMoreDerived(candidate, candidates)) { continue }
+            var instance = new candidate.proto.constructor()
             instance._$el = $scope
             owner._link(instance)
             Bind.ibOutletRestore(instance)
             Bind.ibAction(instance)
-            if (proto.hasOwnProperty("didMoveToWindow")) {
+            if (_overrides(instance, "didMoveToWindow")) {
                 instance.didMoveToWindow()
             }
         }
@@ -170,10 +181,54 @@ function _isKeyboardAction(action) {
     return action.selector.indexOf(KEYBOARD_PREFIX) !== -1
 }
 
-function _hasActionTargetIn(proto, $scope) {
+// The owner and every responder bound under it, which is where ibOutletRestore
+// links what it binds; these are the views that may already own a target.
+function _boundResponders(owner) {
+    var responders = [owner]
+    var walk = function(view) {
+        for (var subview of view.subviews || []) {
+            responders.push(subview)
+            walk(subview)
+        }
+    }
+    walk(owner.view)
+    return responders
+}
+
+function _unclaimedTargets(proto, $scope, bound) {
+    var targets = []
     for (var action of proto["ibactions"] || []) {
         if (_isKeyboardAction(action)) { continue }
-        if ($scope.find(action.selector).length > 0) { return true }
+        var found = $scope.find(action.selector)
+        for (var i = 0; i < found.length; i++) {
+            if (!_isClaimed(found[i], action.selector, bound)) { targets.push(found[i]) }
+        }
+    }
+    return targets
+}
+
+function _isClaimed(target, selector, bound) {
+    for (var responder of bound) {
+        if (!_declaresAction(responder, selector)) { continue }
+        var $el = responder._$el || $(responder.selector)
+        for (var i = 0; i < $el.length; i++) {
+            if ($el[i] === target || $el[i].contains(target)) { return true }
+        }
+    }
+    return false
+}
+
+function _declaresAction(responder, selector) {
+    for (var action of responder["ibactions"] || []) {
+        if (action.selector === selector) { return true }
+    }
+    return false
+}
+
+function _hasMoreDerived(candidate, candidates) {
+    for (var other of candidates) {
+        if (other === candidate || !candidate.proto.isPrototypeOf(other.proto)) { continue }
+        if (other.targets.some(function(target) { return candidate.targets.indexOf(target) !== -1 })) { return true }
     }
     return false
 }

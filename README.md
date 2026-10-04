@@ -224,7 +224,9 @@ For ESLint, `cocoatouch/eslint/globals` exports the same names as a `globals` ob
 
 ## Server side rendering
 
-Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__PRERENDERED = true`, and call `controller.restore(controller)` instead of `present`. Outlets and actions rebind to the existing DOM, and views added at runtime through `addSubview` are found again by their `@IBAction` selectors.
+Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__PRERENDERED = true`, and call `controller.restore(controller)` instead of `present`. Outlets and actions rebind to the existing DOM, and views added at runtime through `addSubview` are found again by their `@IBAction` selectors. `restore(_:)` is this framework's hydration entry point, not a UIKit interface; UIKit's vocabulary for it is state restoration, which is where this is headed.
+
+One element has one owner. A registered view class is revived only for an action target no bound responder already answers with that same selector, so an outlet that declares `@IBAction("#logo")` is not shadowed by a page-wide ghost of its own class; a target inside an outlet container that declares no action on it, such as a message view added into `this.messagesView`, is still revived. When a class and its subclass both match the same target, only the most derived is revived. Two limitations remain. Sibling subclasses that declare the same action selectors cannot be told apart by this scan; the fix is `restorationIdentifier`, which is not here yet. And a revived view is constructed with no selector, so its class fields and `init()` run, but `init()` runs against an empty `$el`: work `init()` does on the element, such as `UISearchTextField` appending its input, does not land. A view that touches its element should do so in `awakeFromNib`, which `restore` does not send either; `didMoveToWindow` is the hook a restored view receives.
 
 ## Classes
 
