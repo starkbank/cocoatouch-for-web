@@ -45,7 +45,7 @@ export class CustomViewsViewController extends UIViewController {
     cardDidTap(notification) {
         var card = notification.object
         var inGrid = card.superview === this.gridView
-        var owner = card.parentViewController() === this
+        var owner = _enclosingController(card) === this
         this.logLabel.text = `${notification.userInfo.title} tapped ${notification.userInfo.taps}× · in grid: ${inGrid} · parent controller is this page: ${owner}`
     }
 
@@ -58,4 +58,13 @@ export class CustomViewsViewController extends UIViewController {
         var count = this.gridView.subviews.length
         this.countLabel.text = `${count} subview${count === 1 ? "" : "s"}`
     }
+}
+
+
+// The responder chain is how a view reaches its controller on iOS: walk next
+// until a UIViewController answers.
+function _enclosingController(view) {
+    var responder = view.next
+    while (responder && !(responder instanceof UIViewController)) { responder = responder.next }
+    return responder || null
 }

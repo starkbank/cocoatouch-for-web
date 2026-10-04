@@ -77,16 +77,3 @@ export {
      UIKeyModifierFlags,
      UIControlState,
 }
-
-// Default Extensions
-
-UIView.prototype.parentViewController = function() {
-    var parentResponder = this.next
-    while (parentResponder) {
-        if (parentResponder instanceof UIViewController) {
-            return parentResponder
-        }
-        parentResponder = parentResponder.next
-    }
-    return null
-}
