@@ -209,10 +209,10 @@ function _dash(property) {
     return property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
 }
 
-const KEYBOARD_PREFIX = "keyboard:"
+const keyboardPrefix = "keyboard:"
 
 function _isKeyboardAction(action) {
-    return action.selector.indexOf(KEYBOARD_PREFIX) !== -1
+    return action.selector.indexOf(keyboardPrefix) !== -1
 }
 
 // The owner and every responder bound under it, which is where ibOutletRestore
@@ -274,13 +274,13 @@ function _hasMoreDerived(candidate, candidates) {
 var _keyBindings = []
 
 function _bindKeyboardAction(control, action) {
-    var keyboardIndex = action.selector.indexOf(KEYBOARD_PREFIX)
+    var keyboardIndex = action.selector.indexOf(keyboardPrefix)
     var modifiers = action.selector.slice(0, keyboardIndex).split("+").filter(Boolean)
     control._disposed = false
     _keyBindings.push({
         control: control,
         method: action.method,
-        key: action.selector.slice(keyboardIndex + KEYBOARD_PREFIX.length),
+        key: action.selector.slice(keyboardIndex + keyboardPrefix.length),
         modifiers: modifiers,
         requiresMeta: modifiers.indexOf("meta") !== -1,
         requiresShift: modifiers.indexOf("shift") !== -1,
@@ -303,11 +303,11 @@ function _keyMatches(binding, e) {
 
 // A text input that is first responder consumes the characters typed into it,
 // so a key command with no modifiers never fires while one has the focus.
-const TEXT_INPUTS = /^(input|textarea|select)$/i
+const textInputs = /^(input|textarea|select)$/i
 
 function _isTypedInto(binding, active) {
     if (!active || binding.modifiers.length > 0 || binding.key.length !== 1) { return false }
-    return TEXT_INPUTS.test(active.tagName || "") || active.isContentEditable === true
+    return textInputs.test(active.tagName || "") || active.isContentEditable === true
 }
 
 function _elementOf(control) {

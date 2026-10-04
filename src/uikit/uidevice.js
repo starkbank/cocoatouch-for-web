@@ -2,8 +2,8 @@ import { NSObject } from "../foundation/nsobject.js"
 import { UIUserInterfaceIdiom } from "./uiuserinterfaceidiom.js"
 
 
-const PHONE_BROWSERS = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i
-const PAD_BROWSERS = /iPad/i
+const phoneBrowsers = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i
+const padBrowsers = /iPad/i
 
 
 export class UIDevice extends NSObject {
@@ -23,8 +23,8 @@ export class UIDevice extends NSObject {
     }
 
     get userInterfaceIdiom() {
-        if (PAD_BROWSERS.test(this.model)) { return UIUserInterfaceIdiom.pad }
-        if (PHONE_BROWSERS.test(this.model)) { return UIUserInterfaceIdiom.phone }
+        if (padBrowsers.test(this.model)) { return UIUserInterfaceIdiom.pad }
+        if (phoneBrowsers.test(this.model)) { return UIUserInterfaceIdiom.phone }
         if (this.model) { return UIUserInterfaceIdiom.mac }
         return UIUserInterfaceIdiom.unspecified
     }

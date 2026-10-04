@@ -8,13 +8,13 @@ export const AVLayerVideoGravity = Object.freeze({
     resize: "resize",
 })
 
-const OBJECT_FIT = {
+const objectFit = {
     [AVLayerVideoGravity.resizeAspect]: "contain",
     [AVLayerVideoGravity.resizeAspectFill]: "cover",
     [AVLayerVideoGravity.resize]: "fill",
 }
 
-const HAVE_CURRENT_DATA = 2
+const haveCurrentData = 2
 
 
 // Where a player draws: a <video> element of its own, which a view's layer
@@ -43,18 +43,18 @@ export class AVPlayerLayer extends CALayer {
 
     get videoGravity() {
         var fit = this._element ? this._element.style.objectFit : ""
-        for (var gravity in OBJECT_FIT) {
-            if (OBJECT_FIT[gravity] === fit) { return gravity }
+        for (var gravity in objectFit) {
+            if (objectFit[gravity] === fit) { return gravity }
         }
         return AVLayerVideoGravity.resizeAspect
     }
 
     set videoGravity(gravity) {
-        if (this._element) { this._element.style.objectFit = OBJECT_FIT[gravity] || "" }
+        if (this._element) { this._element.style.objectFit = objectFit[gravity] || "" }
     }
 
     get isReadyForDisplay() {
-        return !!this._element && this._element.readyState >= HAVE_CURRENT_DATA
+        return !!this._element && this._element.readyState >= haveCurrentData
     }
 
     get _element() {

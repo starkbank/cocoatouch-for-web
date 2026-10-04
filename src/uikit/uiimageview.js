@@ -1,7 +1,7 @@
 import { UIView } from "./uiview.js"
 
 
-const SOURCE_ELEMENTS = /^(img|video|audio|source|iframe|lottie-player)$/i
+const sourceElements = /^(img|video|audio|source|iframe|lottie-player)$/i
 
 
 export class UIImageView extends UIView {
@@ -15,7 +15,7 @@ export class UIImageView extends UIView {
             return
         }
         var element = this.$el[0]
-        if (element && typeof element.tagName === "string" && !SOURCE_ELEMENTS.test(element.tagName)) {
+        if (element && typeof element.tagName === "string" && !sourceElements.test(element.tagName)) {
             this.$el.css("background-image", `url(${image.named})`)
             return
         }
