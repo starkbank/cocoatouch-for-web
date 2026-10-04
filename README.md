@@ -270,7 +270,7 @@ One element has one owner. A registered view class is revived only for an action
 
 ## Sample
 
-`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, and, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images.
+`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field, and, since 1.5.0, a Traits page with a badge configured through `@IBInspectable`, `CGRect` frames and bounds, and the size-class hooks on resize. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images.
 
 ```
 cd sample
