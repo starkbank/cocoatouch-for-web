@@ -32,7 +32,9 @@ export class UIDatePicker extends UIControl {
         return this.$input.datepicker("getDate")
     }
 
-    setDate(date, {animated} = {}) {
+    // setDate(_:animated:): animated is required and recorded; the picker does not animate.
+    setDate(date, options) {
+        _required(options, "animated", "UIDatePicker.setDate", "setDate(date, {animated: false}). Apple's is setDate(_:animated:)")
         this.date = date
     }
 
@@ -101,4 +103,14 @@ export class UIDatePicker extends UIControl {
             },
         })
     }
+}
+
+
+// Apple requires the label; JavaScript cannot refuse at compile time, so the
+// call refuses instead and names what to write.
+function _required(options, label, method, signature) {
+    if (!options || options[label] === undefined) {
+        throw new TypeError(`${method} requires a ${label}: ${signature}`)
+    }
+    return options[label]
 }

@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState, UIDatePicker } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
-import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound, UIPickerView, UIColor } from "../src/index.js"
+import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound, UIPickerView, UIColor, UITableViewScrollPosition, UISwitch, UIProgressView, UIScrollView, UISearchTextField, UISearchToken, CGPoint } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
 
 
@@ -151,16 +151,16 @@ test("reloadData dequeues one registered cell per row, bound to its row", functi
 
 test("selection follows allowsMultipleSelection and reports through indexPathsForSelectedRows", function() {
     var table = tableWithRows(3).table
-    table.selectRow({at: 0})
-    table.selectRow({at: new IndexPath({row: 2})})
+    table.selectRow({at: 0, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    table.selectRow({at: new IndexPath({row: 2}), animated: false, scrollPosition: UITableViewScrollPosition.none})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [2])
     assert.equal(table.indexPathForSelectedRow.row, 2)
     table.allowsMultipleSelection = true
-    table.selectRow({at: 0})
+    table.selectRow({at: 0, animated: false, scrollPosition: UITableViewScrollPosition.none})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [2, 0])
-    table.deselectRow({at: 2})
+    table.deselectRow({at: 2, animated: false})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [0])
-    table.deselectRow({at: 0})
+    table.deselectRow({at: 0, animated: false})
     assert.equal(table.indexPathForSelectedRow, null)
 })
 
@@ -230,7 +230,7 @@ test("insertSubview places a view's nib without restyling it and links it", func
     var el = parent.$el
     el.children = function() { return {length: 0} }
     el.append = function(inserted) { appended.push(inserted.html()); return el }
-    parent.insertSubview(child)
+    parent.insertSubview(child, {at: 0})
     assert.equal(appended.length, 1)
     assert.ok(appended[0].indexOf("<span>hi</span>") !== -1)
     assert.deepEqual(parent.subviews, [child])
@@ -536,4 +536,88 @@ test("the nine still behave when the label is given", function() {
     assert.equal(picker.selectedRow({inComponent: 0}), 0)
     var table = stubbed(new UITableView("#labelled-table"))
     assert.equal(table.numberOfRows({inSection: 0}), 0)
+})
+
+// The animated: and at: labels Apple requires; the guard names the method and
+// the Swift signature, as for the state labels.
+var isRequiredError = (error) => error instanceof TypeError && /requires a/.test(error.message)
+
+function datepickerStubbed(run) {
+    withDatepickerStub(run)
+}
+
+test("the animated members require animated:", function() {
+    var toggle = stubbed(new UISwitch("#req-switch"))
+    var progress = stubbed(new UIProgressView("#req-progress"))
+    var scroll = stubbed(new UIScrollView("#req-scroll"))
+    var table = stubbed(new UITableView("#req-table"))
+    var cases = [
+        [() => toggle.setOn(true), "UISwitch.setOn", "setOn(_:animated:)"],
+        [() => toggle.setOn(true, {}), "UISwitch.setOn", "setOn(_:animated:)"],
+        [() => progress.setProgress(0.5), "UIProgressView.setProgress", "setProgress(_:animated:)"],
+        [() => progress.setProgress(0.5, {}), "UIProgressView.setProgress", "setProgress(_:animated:)"],
+        [() => table.setEditing(true), "UITableView.setEditing", "setEditing(_:animated:)"],
+        [() => table.setEditing(true, {}), "UITableView.setEditing", "setEditing(_:animated:)"],
+        [() => scroll.setContentOffset(CGPoint.zero), "UIScrollView.setContentOffset", "setContentOffset(_:animated:)"],
+        [() => scroll.setContentOffset(CGPoint.zero, {}), "UIScrollView.setContentOffset", "setContentOffset(_:animated:)"],
+    ]
+    for (var [call, method, signature] of cases) {
+        assert.throws(call, (error) => isRequiredError(error) && error.message.indexOf(method) !== -1 && error.message.indexOf(signature) !== -1, method)
+    }
+    datepickerStubbed(function() {
+        var picker = new UIDatePicker("#req-date")
+        assert.throws(() => picker.setDate(new Date()), (error) => isRequiredError(error) && error.message.indexOf("UIDatePicker.setDate") !== -1 && error.message.indexOf("setDate(_:animated:)") !== -1)
+        assert.throws(() => picker.setDate(new Date(), {}), isRequiredError)
+    })
+})
+
+test("the picker and table row members require every label Apple requires", function() {
+    var picker = stubbed(new UIPickerView("#req-picker"))
+    assert.throws(() => picker.selectRow(1, {animated: false}), (error) => isRequiredError(error) && /inComponent/.test(error.message))
+    assert.throws(() => picker.selectRow(1, {inComponent: 0}), (error) => isRequiredError(error) && /animated/.test(error.message))
+    assert.throws(() => picker.selectRow(1), isRequiredError)
+    var table = stubbed(new UITableView("#req-rows"))
+    assert.throws(() => table.selectRow({animated: false, scrollPosition: UITableViewScrollPosition.none}), (error) => isRequiredError(error) && /\bat\b/.test(error.message))
+    assert.throws(() => table.selectRow({at: 0, scrollPosition: UITableViewScrollPosition.none}), (error) => isRequiredError(error) && /animated/.test(error.message))
+    assert.throws(() => table.selectRow({at: 0, animated: false}), (error) => isRequiredError(error) && /scrollPosition/.test(error.message))
+    assert.throws(() => table.deselectRow({animated: false}), (error) => isRequiredError(error) && /\bat\b/.test(error.message))
+    assert.throws(() => table.deselectRow({at: 0}), (error) => isRequiredError(error) && /animated/.test(error.message))
+})
+
+test("insertToken and insertSubview require at:", function() {
+    var field = stubbed(new UISearchTextField("#req-search"))
+    assert.throws(() => field.insertToken(new UISearchToken({text: "a"})), (error) => isRequiredError(error) && /UISearchTextField.insertToken/.test(error.message) && /insertToken\(_:at:\)/.test(error.message))
+    assert.throws(() => field.insertToken(new UISearchToken({text: "a"}), {}), isRequiredError)
+    var parent = new UIView("#req-parent")
+    assert.throws(() => parent.insertSubview(new UIView()), (error) => isRequiredError(error) && /UIView.insertSubview/.test(error.message) && /insertSubview\(_:at:\)/.test(error.message))
+    assert.throws(() => parent.insertSubview(new UIView(), {}), isRequiredError)
+})
+
+test("the eleven still behave when the labels are given", function() {
+    var toggle = stubbed(new UISwitch("#ok-switch"))
+    var checked = false
+    toggle._$el.prop = function(name, value) { if (value === undefined) { return checked } checked = value; return this }
+    toggle.setOn(true, {animated: false})
+    assert.equal(toggle.isOn, true)
+    var progress = stubbed(new UIProgressView("#ok-progress"))
+    var css = {}
+    var bar = {stop: function() { return bar }, css: function(name, value) { css[name] = value; return bar }, animate: function() { css.animated = true; return bar }}
+    progress._$el.width = function() { return 200 }
+    progress._$el.children = function() { return bar }
+    progress.setProgress(0.5, {animated: false})
+    assert.equal(css.left, 100)
+    var picker = stubbed(new UIPickerView("#ok-picker"))
+    var selectedIndex = 0
+    picker._$el.prop = function(name, value) { if (value === undefined) { return selectedIndex } selectedIndex = value; return this }
+    picker.selectRow(2, {inComponent: 0, animated: false})
+    assert.equal(picker.selectedRow({inComponent: 0}), 2)
+    var setup = tableWithRows(3)
+    setup.table.selectRow({at: 1, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.equal(setup.table.indexPathForSelectedRow.row, 1)
+    setup.table.deselectRow({at: 1, animated: false})
+    assert.equal(setup.table.indexPathForSelectedRow, null)
+    setup.table.setEditing(true, {animated: false})
+    assert.equal(setup.table.isEditing, true)
+    assert.equal(UITableView.ScrollPosition, UITableViewScrollPosition)
+    assert.deepEqual(Object.keys(UITableViewScrollPosition).sort(), ["bottom", "middle", "none", "top"])
 })

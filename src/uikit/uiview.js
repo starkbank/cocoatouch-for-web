@@ -270,7 +270,8 @@ export class UIView extends UIResponder {
         this._attach(view, {})
     }
 
-    insertSubview(view, {at} = {}) {
+    insertSubview(view, options) {
+        var at = _required(options, "at", "UIView.insertSubview", "insertSubview(view, {at: index}). Apple's is insertSubview(_:at:)")
         this._attach(view, {at})
     }
 
@@ -460,4 +461,14 @@ function _identify(view, superview) {
     view.selector = "#" + id
     view._identifier = id
     return id
+}
+
+
+// Apple requires the label; JavaScript cannot refuse at compile time, so the
+// call refuses instead and names what to write.
+function _required(options, label, method, signature) {
+    if (!options || options[label] === undefined) {
+        throw new TypeError(`${method} requires a ${label}: ${signature}`)
+    }
+    return options[label]
 }
