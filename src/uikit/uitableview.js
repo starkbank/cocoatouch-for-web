@@ -3,6 +3,10 @@ import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
+
+
+const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
 
 
 // Rows are <tr id="cell-<row>"> children of the table's tbody. A cell class
@@ -46,6 +50,7 @@ export class UITableView extends UIScrollView {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UITableView.delegate")
         this._delegate = delegate
     }
 
@@ -235,7 +240,7 @@ export class UITableView extends UIScrollView {
             if (this._isEditing) {
                 deleteButton.on("click.uitableviewdelete", (event) => {
                     event.stopImmediatePropagation()
-                    this._delegateCall("tableViewCommitEditingStyleForRowAt", "delete", indexPath)
+                    this._delegateCall("tableViewCommitEditingStyleForRowAtIndexPath", "delete", indexPath)
                 })
             }
             var selection = $(element).find("[id^=table-cell-selected]")

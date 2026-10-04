@@ -50,7 +50,7 @@ export class TableViewViewController extends UIViewController {
         this.selectedLabel.text = `Selected row ${indexPath.row}: ${contact.name} (${contact.role})`
     }
 
-    tableViewCommitEditingStyleForRowAt(tableView, editingStyle, indexPath) {
+    tableViewCommitEditingStyleForRowAtIndexPath(tableView, editingStyle, indexPath) {
         if (editingStyle !== "delete") { return }
         this.contacts.splice(indexPath.row, 1)
         this.reload()

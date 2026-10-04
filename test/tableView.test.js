@@ -111,3 +111,14 @@ test("selectRow(at: null) clears the selection", function() {
     assert.equal(setup.table.indexPathForSelectedRow, null)
     assert.equal($("#table tbody > tr.selected").length, 0)
 })
+
+test("a table view delegate carrying the retired commit name is refused, and the new name receives the editing style", function() {
+    var setup = tableWithRows(2)
+    assert.throws(() => { setup.table.delegate = {tableViewCommitEditingStyleForRowAt: function() {}} }, (error) => error instanceof TypeError && /tableViewCommitEditingStyleForRowAtIndexPath/.test(error.message))
+    var committed = []
+    setup.table.delegate = {tableViewCommitEditingStyleForRowAtIndexPath: function(tableView, editingStyle, indexPath) { committed.push([editingStyle, indexPath.row]) }}
+    $("#cell-1").append("<button id=\"delete-button-1\"></button>")
+    setup.table.setEditing(true, {animated: false})
+    $("#delete-button-1").trigger("click")
+    assert.deepEqual(committed, [["delete", 1]])
+})

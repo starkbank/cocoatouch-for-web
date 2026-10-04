@@ -1,5 +1,10 @@
 import { UIView } from "./uiview.js"
 import { IndexPath } from "../foundation/indexpath.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
+
+
+const retiredDataSourceNames = {numberOfItemsInSection: "collectionViewNumberOfItemsInSection"}
+const retiredDelegateNames = {collectionViewDidSelectItemAt: "collectionViewDidSelectItemAtIndexPath"}
 
 
 export class UICollectionView extends UIView {
@@ -12,6 +17,7 @@ export class UICollectionView extends UIView {
     }
 
     set dataSource(dataSource) {
+        rejectRetiredDelegateNames(dataSource, retiredDataSourceNames, "UICollectionView.dataSource")
         this._dataSource = dataSource
         this.reloadData()
     }
@@ -21,6 +27,7 @@ export class UICollectionView extends UIView {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UICollectionView.delegate")
         this._delegate = delegate
     }
 
@@ -45,7 +52,7 @@ export class UICollectionView extends UIView {
         if (!(numberOfSections > 0)) { return }
         this.$el.empty()
         for (var section = 0; section < numberOfSections; section++) {
-            this._loadItems(section, dataSource.numberOfItemsInSection(this, section))
+            this._loadItems(section, dataSource.collectionViewNumberOfItemsInSection(this, section))
         }
         this._bindItems()
     }
@@ -80,11 +87,11 @@ export class UICollectionView extends UIView {
     _bindItems() {
         var collectionView = this
         var delegate = this._delegate
-        if (!delegate || typeof delegate.collectionViewDidSelectItemAt !== "function") { return }
+        if (!delegate || typeof delegate.collectionViewDidSelectItemAtIndexPath !== "function") { return }
         this.$el.find("[id^=cell-]").off("click.uicollectionview").on("click.uicollectionview", function(event) {
             var meta = event.currentTarget.id.match(/cell-section-(\d+)-row-(\d+)/)
             if (!meta) { return }
-            delegate.collectionViewDidSelectItemAt(collectionView, new IndexPath({section: Number(meta[1]), row: Number(meta[2])}))
+            delegate.collectionViewDidSelectItemAtIndexPath(collectionView, new IndexPath({section: Number(meta[1]), row: Number(meta[2])}))
         })
     }
 }

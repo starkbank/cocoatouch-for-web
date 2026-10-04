@@ -1,5 +1,9 @@
 import { UIView } from "./uiview.js"
 import { NSString } from "../utils/nsstring.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
+
+
+const retiredDelegateNames = {pickerViewTitleForRow: "pickerViewTitleForRowForComponent", pickerViewDidSelectRow: "pickerViewDidSelectRowInComponent"}
 
 
 // A <select> driven like UIPickerView: the data source counts the rows, the
@@ -16,10 +20,11 @@ export class UIPickerView extends UIView {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIPickerView.delegate")
         this._delegate = delegate
         this.$el.off("change.picker").on("change.picker", () => {
-            if (delegate && delegate.pickerViewDidSelectRow) {
-                delegate.pickerViewDidSelectRow(this, this.selectedRow({inComponent: 0}), 0)
+            if (delegate && delegate.pickerViewDidSelectRowInComponent) {
+                delegate.pickerViewDidSelectRowInComponent(this, this.selectedRow({inComponent: 0}), 0)
             }
         })
         this.reloadAllComponents()
@@ -53,7 +58,7 @@ export class UIPickerView extends UIView {
         this.$el.empty()
         var rows = this.numberOfRows({inComponent: 0})
         for (var row = 0; row < rows; row++) {
-            var title = delegate && delegate.pickerViewTitleForRow ? delegate.pickerViewTitleForRow(this, row, 0) : null
+            var title = delegate && delegate.pickerViewTitleForRowForComponent ? delegate.pickerViewTitleForRowForComponent(this, row, 0) : null
             var text = title === null || title === undefined ? "" : NSString.cleanScript(String(title))
             this.$el.append("<option value=\"" + row + "\">" + text + "</option>")
         }
