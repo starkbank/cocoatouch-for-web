@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState } from "../src/index.js"
+import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState, UIDatePicker } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
 import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
@@ -349,4 +349,47 @@ test("accessibilityLabel round-trips through aria-label, and through alt on an i
     photo.accessibilityLabel = "A credit card"
     assert.deepEqual(photoAttrs, {alt: "A credit card"})
     assert.equal(photo.accessibilityLabel, "A credit card")
+})
+
+// jQuery UI is not on the test page: the stand-in records the datepicker
+// options so the test can drive the picker's onSelect as the widget would,
+// and its off() really removes a handler, so removeTarget is observable.
+function withDatepickerStub(run) {
+    var original = globalThis.$
+    var options = {}
+    globalThis.$ = function(selector) {
+        var el = original(selector)
+        el.off = function(event) { delete el._handlers[event.split(".")[0]]; return el }
+        el.datepicker = function(method, name, value) {
+            if (typeof method === "object") { Object.assign(options, method) }
+            if (method === "option" && value !== undefined) { options[name] = value }
+            if (method === "setDate") { options.date = name }
+            if (method === "getDate") { return options.date || null }
+            return el
+        }
+        return el
+    }
+    try { run(options) } finally { globalThis.$ = original }
+}
+
+test("UIDatePicker.addTarget runs the action on the target with the picker as the sender, removeTarget undoes it, other events bind", function() {
+    withDatepickerStub(function(options) {
+        var picker = new UIDatePicker("#when")
+        var seen = []
+        var target = {name: "form"}
+        var action = function(t, sender) { seen.push({self: this, t: t, sender: sender}) }
+        picker.addTarget(target, {action: action, for: UIControlEvent.valueChanged})
+        options.onSelect("01/02/2026")
+        assert.equal(seen.length, 1)
+        assert.equal(seen[0].self, target)
+        assert.equal(seen[0].t, target)
+        assert.equal(seen[0].sender, picker)
+        picker.removeTarget(target, {action: action, for: UIControlEvent.valueChanged})
+        options.onSelect("01/03/2026")
+        assert.equal(seen.length, 1)
+        var began = 0
+        picker.addTarget(target, {action: function() { began += 1 }, for: UIControlEvent.editingDidBegin})
+        picker.$el.trigger("focus")
+        assert.equal(began, 1)
+    })
 })
