@@ -142,3 +142,19 @@ test("the string of a markup attributed string is read without executing the mar
     assert.equal(attributed.string, "a")
     assert.equal(globalThis.hit, undefined)
 })
+
+// The spinner is the framework's one internal markup write, and it goes through
+// setMarkup so the setHTML hardening reaches it too.
+test("the activity indicator writes its spinner and the restored title through Element.setHTML where the browser has it", function() {
+    page("<button id=\"send\"></button>")
+    var element = document.getElementById("send")
+    var calls = []
+    element.setHTML = function(markup) { calls.push(markup); this.innerHTML = markup }
+    var button = new UIButton("#send")
+    button.setTitle("Send", {for: UIControlState.normal})
+    button.showsActivityIndicator = true
+    button.showsActivityIndicator = false
+    assert.equal(calls.length, 2)
+    assert.match(calls[0], /fa-spin/)
+    assert.equal(calls[1], "Send")
+})
