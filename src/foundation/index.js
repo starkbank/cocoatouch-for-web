@@ -5,6 +5,7 @@ import { IndexPath } from "./indexpath.js"
 import { Locale } from "./locale.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "./nsuseractivity.js"
 import { NSRange, NSNotFound } from "./nsrange.js"
+import { NSAttributedString, NSAttributedStringDocumentType } from "./nsattributedstring.js"
 
 
 export {
@@ -17,4 +18,6 @@ export {
     NSUserActivityTypeBrowsingWeb,
     NSRange,
     NSNotFound,
+    NSAttributedString,
+    NSAttributedStringDocumentType,
 }

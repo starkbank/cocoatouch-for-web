@@ -1,4 +1,4 @@
-import { NSString } from "../utils/nsstring.js"
+import { setText } from "../utils/text.js"
 import { UITextField } from "./uitextfield.js"
 import { required, Int } from "../utils/required.js"
 
@@ -68,7 +68,8 @@ export class UISearchTextField extends UITextField {
      */
     insertToken(token, {at} = {}) {
         var index = required(at, "at", Int, "UISearchTextField.insertToken", "Apple's is insertToken(_:at:); write insertToken(token, {at: index}).")
-        var $tag = $("<div class=\"tag\"><div class=\"tag-text\">" + NSString.cleanScript(token.text) + "</div></div>")
+        var $tag = $("<div class=\"tag\"><div class=\"tag-text\"></div></div>")
+        setText($tag.children(".tag-text"), token.text)
         if (token.icon) { $tag.prepend(token.icon) }
         var tags = this.$el.children(".tag")
         if (index < tags.length) { tags.eq(index).before($tag) }
