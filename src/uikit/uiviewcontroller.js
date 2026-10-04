@@ -168,10 +168,12 @@ export class UIViewController extends UIResponder {
     _unembed() {
         if (!this._isEmbedded) { return }
         this._isEmbedded = false
-        this.viewWillDisappear()
+        var controllers = _controllersUnder(this)
+        for (var controller of controllers) { controller.viewWillDisappear() }
         this._$el.empty()
         this._dispose()
-        this.viewDidDisappear()
+        _clearContainment(this)
+        for (var disposed of controllers) { disposed.viewDidDisappear() }
     }
 
     _link(view) {
@@ -290,9 +292,30 @@ function _dismissRootViewController() {
         viewController._dispose()
         return
     }
-    viewController.viewWillDisappear()
+    var controllers = _controllersUnder(viewController)
+    for (var controller of controllers) { controller.viewWillDisappear() }
     viewController._dispose()
-    viewController.viewDidDisappear()
+    _clearContainment(viewController)
+    for (var disposed of controllers) { disposed.viewDidDisappear() }
+}
+
+// A container forwards the appearance pair to its children and to the
+// controllers bound as its outlets, itself first, as UIKit's automatic
+// forwarding does. The tree is collected before disposal empties it.
+function _controllersUnder(viewController) {
+    var controllers = []
+    _eachController(viewController, function(controller) { controllers.push(controller) })
+    return controllers
+}
+
+// A disposed child is no longer anyone's child, as after removeFromParent.
+function _clearContainment(viewController) {
+    for (var child of viewController.children) {
+        _clearContainment(child)
+        child._parent = null
+        child.next = null
+    }
+    viewController._children = []
 }
 
 

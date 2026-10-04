@@ -2,7 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { keydown } from "./setup.js"
-import { UIResponder, UIView, UIViewController, UIScreen, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
+import { UIResponder, UIView, UIViewController, UIScreen, IBOutlet, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -355,4 +355,62 @@ test("key commands go to the deepest responder holding focus and climb only when
     assert.deepEqual(log, ["field", "field", "page", "page", "field"])
     page._dispose()
     field._dispose()
+})
+
+// A container forwards the disappear pair to its children and to the
+// controllers bound as its outlets, parent first, as UIKit's automatic
+// forwarding does; a root swap must therefore tell the whole tree.
+test("a root swap forwards the disappear pair to children and outlet controllers, then clears containment", function() {
+    var log = []
+    var hooks = ["viewWillDisappear", "viewDidDisappear"]
+    function disappearing(name, Base) {
+        class Controller extends (Base || UIViewController) {}
+        hooks.forEach(function(hook) { Controller.prototype[hook] = function() { log.push(name + "." + hook) } })
+        Controller.nib = "<div id=\"" + name + "\"></div>"
+        return Controller
+    }
+    var Host = disappearing("host")
+    var OutletController = disappearing("outletVC")
+    IBOutlet("#host", OutletController)(Host.prototype, "outletController", {})
+    var Child = disappearing("child")
+    var host = new Host()
+    host.present(host, {})
+    var child = new Child()
+    host.addChild(child)
+    host.view.addSubview(child.view)
+    var Next = recordingController("next", log)
+    var next = new Next()
+    log.length = 0
+    next.present(next, {})
+    assert.deepEqual(log, [
+        "host.viewWillDisappear", "child.viewWillDisappear", "outletVC.viewWillDisappear",
+        "host.viewDidDisappear", "child.viewDidDisappear", "outletVC.viewDidDisappear",
+        "next.viewDidLoad", "next.viewWillAppear", "next.viewDidAppear",
+    ])
+    assert.equal(child.parent, null)
+    assert.deepEqual(host.children, [])
+})
+
+test("removing an embedded child forwards the disappear pair to its own children", function() {
+    var log = []
+    function disappearing(name) {
+        class Controller extends UIViewController {}
+        ;["viewWillDisappear", "viewDidDisappear"].forEach(function(hook) { Controller.prototype[hook] = function() { log.push(name + "." + hook) } })
+        Controller.nib = "<div id=\"" + name + "\"></div>"
+        return Controller
+    }
+    var host = new (recordingController("host", []))()
+    host.present(host, {})
+    var child = new (disappearing("child"))()
+    host.addChild(child)
+    host.view.addSubview(child.view)
+    var grandchild = new (disappearing("grandchild"))()
+    child.addChild(grandchild)
+    child.view.addSubview(grandchild.view)
+    log.length = 0
+    child.removeFromParent()
+    assert.deepEqual(log, ["child.viewWillDisappear", "grandchild.viewWillDisappear", "child.viewDidDisappear", "grandchild.viewDidDisappear"])
+    assert.equal(grandchild.parent, null)
+    assert.deepEqual(child.children, [])
+    assert.deepEqual(host.children, [])
 })
