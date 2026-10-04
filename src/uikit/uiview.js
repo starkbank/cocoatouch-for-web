@@ -4,6 +4,7 @@ import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
+import { currentTraitCollection } from "./uitraitcollection.js"
 
 
 export class UIView extends UIResponder {
@@ -219,6 +220,15 @@ export class UIView extends UIResponder {
     }
 
     layoutSubviews() {
+
+    }
+
+    // UITraitEnvironment: the page's traits, and the hook sent after they change.
+    get traitCollection() {
+        return currentTraitCollection()
+    }
+
+    traitCollectionDidChange(previousTraitCollection) {
 
     }
 

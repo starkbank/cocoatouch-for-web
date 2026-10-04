@@ -3,6 +3,7 @@ import { Build } from "../utils/build.js"
 import { Bind } from "../utils/bind.js"
 import { UIView } from "./uiview.js"
 import { CGSize } from "../coregraphics/cgsize.js"
+import { traitCollectionForSize, sameTraits, currentTraitCollection, setCurrentTraitCollection } from "./uitraitcollection.js"
 
 
 export class UIViewController extends UIResponder {
@@ -30,6 +31,20 @@ export class UIViewController extends UIResponder {
     // Runs when the window changes size, before the page lays out for it; the
     // coordinator runs work alongside the change and after it, as UIKit's does.
     viewWillTransition({to: size, with: coordinator}) {
+
+    }
+
+    // UIContentContainer: the size classes are about to change, before they do.
+    willTransition({to: newCollection, with: coordinator}) {
+
+    }
+
+    // UITraitEnvironment: the page's traits, and the hook sent after they change.
+    get traitCollection() {
+        return currentTraitCollection()
+    }
+
+    traitCollectionDidChange(previousTraitCollection) {
 
     }
 
@@ -187,7 +202,7 @@ if (typeof window !== "undefined" && typeof window.addEventListener === "functio
         var schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : function(run) { run() }
         schedule(function() {
             _resizeScheduled = false
-            if (_rootViewController) { _transition(_rootViewController, _windowSize()) }
+            _resize(_windowSize())
         })
     })
 }
@@ -196,29 +211,72 @@ function _windowSize() {
     return new CGSize({width: window.innerWidth || 0, height: window.innerHeight || 0})
 }
 
-function _transition(viewController, size) {
-    var coordinator = {
-        animate({alongsideTransition, completion}) {
-            if (alongsideTransition) { alongsideTransition() }
-            if (completion) { completion() }
-        }
+var _coordinator = {
+    animate({alongsideTransition, completion}) {
+        if (alongsideTransition) { alongsideTransition() }
+        if (completion) { completion() }
     }
-    viewController.viewWillTransition({to: size, with: coordinator})
-    for (var child of viewController.children) {
-        _transition(child, size)
-    }
-    _layoutTree(viewController.view, size)
 }
 
-// A controller bound as an outlet is a child in all but name, so it gets the transition too.
-function _layoutTree(view, size) {
+// Apple's order on a size change: willTransition(to:with:) while the old
+// traits still read, then viewWillTransition(to:with:), then, once the new
+// traits read, traitCollectionDidChange(_:) and layoutSubviews(). The trait
+// hooks go out only when the size classes actually changed.
+function _resize(size) {
+    var previous = currentTraitCollection()
+    var next = traitCollectionForSize(size)
+    var change = sameTraits(previous, next) ? null : previous
+    var root = _rootViewController
+    if (root && change) { _eachController(root, function(viewController) { viewController.willTransition({to: next, with: _coordinator}) }) }
+    setCurrentTraitCollection(next)
+    if (root) { _transition(root, size, change) }
+}
+
+function _transition(viewController, size, change) {
+    viewController.viewWillTransition({to: size, with: _coordinator})
+    for (var child of viewController.children) {
+        _transition(child, size, change)
+    }
+    if (change) {
+        viewController.traitCollectionDidChange(change)
+        _traitTree(viewController.view, change)
+    }
+    _layoutTree(viewController.view, size, change)
+}
+
+// A controller bound as an outlet is a child in all but name, so it gets the
+// transition too; its own trait hooks go out inside that transition.
+function _eachController(viewController, visit) {
+    visit(viewController)
+    for (var child of viewController.children) {
+        _eachController(child, visit)
+    }
+    _eachEmbedded(viewController.view, visit)
+}
+
+function _eachEmbedded(view, visit) {
+    for (var subview of view.subviews || []) {
+        if (subview instanceof UIViewController) { _eachController(subview, visit); continue }
+        _eachEmbedded(subview, visit)
+    }
+}
+
+function _traitTree(view, change) {
+    if (view instanceof UIViewController) { return }
+    if (typeof view.traitCollectionDidChange === "function") { view.traitCollectionDidChange(change) }
+    for (var subview of view.subviews || []) {
+        _traitTree(subview, change)
+    }
+}
+
+function _layoutTree(view, size, change) {
     if (view instanceof UIViewController) {
-        _transition(view, size)
+        _transition(view, size, change)
         return
     }
     if (typeof view.layoutSubviews === "function") { view.layoutSubviews() }
     for (var subview of view.subviews || []) {
-        _layoutTree(subview, size)
+        _layoutTree(subview, size, change)
     }
 }
 
