@@ -1,5 +1,6 @@
 import { UIControl } from "./uicontrol.js"
-import { NSString } from "../utils/nsstring.js"
+import { setText, setMarkup } from "../utils/text.js"
+import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { NSRange } from "../foundation/nsrange.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 
@@ -12,12 +13,33 @@ export class UITextField extends UIControl {
         return this.__tagName
     }
 
+    // text is plain text: a value on an input, escaped text on anything else.
     set text(text) {
-        var cleanedScriptText = NSString.cleanScript(text)
+        this._attributedText = null
+        var value = text === null || text === undefined ? "" : String(text)
         if (this._tagName === "input" || this._tagName === "textarea") {
-            return this.$el.val(cleanedScriptText)
+            this.$el.val(value)
+            return
         }
-        return this.$el.html(cleanedScriptText)
+        setText(this.$el, value)
+    }
+
+    set attributedText(attributedText) {
+        this._attributedText = attributedText
+        if (this._tagName === "input" || this._tagName === "textarea") {
+            this.$el.val(attributedText ? attributedText.string : "")
+            return
+        }
+        if (attributedText && attributedText._isMarkup) {
+            setMarkup(this.$el, attributedText._markup)
+            return
+        }
+        setText(this.$el, attributedText ? attributedText.string : "")
+    }
+
+    get attributedText() {
+        if (this._attributedText) { return this._attributedText }
+        return new NSAttributedString({string: this.text})
     }
 
     get text() {
@@ -27,9 +49,9 @@ export class UITextField extends UIControl {
         return this.$el.text()
     }
 
+    // An attribute value is text by construction; it is written as given.
     set placeholder(text) {
-        var cleanedScriptText = NSString.cleanScript(text)
-        this.$el.attr("placeholder", cleanedScriptText)
+        this.$el.attr("placeholder", text === null || text === undefined ? "" : String(text))
     }
 
     get placeholder() {

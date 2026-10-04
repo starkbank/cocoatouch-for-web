@@ -1,5 +1,5 @@
 import { UIView } from "./uiview.js"
-import { NSString } from "../utils/nsstring.js"
+import { setText } from "../utils/text.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 import { required, Int, Bool } from "../utils/required.js"
 
@@ -64,8 +64,9 @@ export class UIPickerView extends UIView {
         var rows = this.numberOfRows({inComponent: 0})
         for (var row = 0; row < rows; row++) {
             var title = delegate && delegate.pickerViewTitleForRowForComponent ? delegate.pickerViewTitleForRowForComponent(this, row, 0) : null
-            var text = title === null || title === undefined ? "" : NSString.cleanScript(String(title))
-            this.$el.append("<option value=\"" + row + "\">" + text + "</option>")
+            var option = $("<option></option>").attr("value", row)
+            setText(option, title === null || title === undefined ? "" : title)
+            this.$el.append(option)
         }
         if (selected >= 0 && selected < rows) { this.$el.prop("selectedIndex", selected) }
     }

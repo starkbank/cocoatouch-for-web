@@ -1,4 +1,5 @@
-import { NSString } from "../utils/nsstring.js"
+import { setText, setMarkup } from "../utils/text.js"
+import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { UIControl } from "./uicontrol.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
@@ -7,6 +8,7 @@ import { required, typed, enumeration, optional, instance } from "../utils/requi
 
 const stateType = enumeration(UIControlState, "UIControl.State")
 const colorType = instance(UIColor, "UIColor")
+const attributedType = instance(NSAttributedString, "NSAttributedString")
 
 const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
 
@@ -33,12 +35,14 @@ export class UIButton extends UIControl {
      * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
      */
     title({for: state} = {}) {
-        return _title(this, required(state, "for", stateType, "UIButton.title", "Apple's is title(for:); write title({for: UIControlState.normal})."))
+        var title = _title(this, required(state, "for", stateType, "UIButton.title", "Apple's is title(for:); write title({for: UIControlState.normal})."))
+        return title instanceof NSAttributedString ? title.string : title
     }
 
     get currentTitle() {
         var title = _title(this, _drawnState(this))
-        return title === null ? this.$el.text() : title
+        if (title === null) { return this.$el.text() }
+        return title instanceof NSAttributedString ? title.string : title
     }
 
     _stateDidChange() {
@@ -47,11 +51,43 @@ export class UIButton extends UIControl {
 
     // Nothing is drawn while the activity indicator holds the html, nor when
     // no title was ever set, so a title written in the nib stands.
+    /**
+     * setAttributedTitle(_:for:): markup for a state, through NSAttributedString's
+     * html document type, trusted input only; plain attributed strings draw as text.
+     * @param {NSAttributedString|null} attributedTitle
+     * @param {object} options
+     * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
+     */
+    setAttributedTitle(attributedTitle, {for: state} = {}) {
+        required(state, "for", stateType, "UIButton.setAttributedTitle", "Apple's is setAttributedTitle(_:for:); write setAttributedTitle(attributedTitle, {for: UIControlState.normal}).")
+        typed(attributedTitle, "attributedTitle", optional(attributedType), "UIButton.setAttributedTitle", "Apple's is setAttributedTitle(_:for:); the title is an NSAttributedString, or null to clear it.")
+        if (!this._titles) { this._titles = {} }
+        this._titles[state] = attributedTitle
+        this._drawTitle()
+    }
+
+    /**
+     * @param {object} options
+     * @param {"normal"|"highlighted"|"disabled"|"selected"|"focused"} options.for
+     * @returns {NSAttributedString|null}
+     */
+    attributedTitle({for: state} = {}) {
+        var title = _title(this, required(state, "for", stateType, "UIButton.attributedTitle", "Apple's is attributedTitle(for:); write attributedTitle({for: UIControlState.normal})."))
+        if (title === null) { return null }
+        return title instanceof NSAttributedString ? title : new NSAttributedString({string: title})
+    }
+
+    // A title is drawn as text unless it is an NSAttributedString carrying markup.
     _drawTitle() {
         if (this._titleBeforeActivity !== undefined) { return }
         var title = _title(this, _drawnState(this))
         if (title === null) { return }
-        this.$el.html(NSString.cleanScript(title))
+        if (title instanceof NSAttributedString) {
+            if (title._isMarkup) { setMarkup(this.$el, title._markup) }
+            if (!title._isMarkup) { setText(this.$el, title.string) }
+            return
+        }
+        setText(this.$el, title)
     }
 
     // setTitleColor(_:for:): the normal state's color is drawn; others are kept for titleColor(for:).
@@ -86,11 +122,11 @@ export class UIButton extends UIControl {
             if (this._titleBeforeActivity !== undefined) { return }
             this._titleBeforeActivity = this.$el.html()
             this.isEnabled = false
-            this.$el.html(activityIndicator)
+            setMarkup(this.$el, activityIndicator)
             return
         }
         if (this._titleBeforeActivity === undefined) { return }
-        this.$el.html(this._titleBeforeActivity)
+        setMarkup(this.$el, this._titleBeforeActivity)
         this._titleBeforeActivity = undefined
         this.isEnabled = true
     }
