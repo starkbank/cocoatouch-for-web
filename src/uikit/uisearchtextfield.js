@@ -25,7 +25,7 @@ export class UISearchTextField extends UITextField {
             if (e.key !== "Backspace" || this.textField.val() !== "" || !this._allowsDeletingTokens) { return }
             if (this._tokens.length === 0) { return }
             e.preventDefault()
-            this._removeToken(this._tokens.length - 1)
+            this.removeToken({at: this._tokens.length - 1})
         })
     }
 
@@ -61,8 +61,8 @@ export class UISearchTextField extends UITextField {
         this._tokens.splice(index, 0, token)
     }
 
-    _removeToken(index) {
-        this.$el.children(".tag").eq(index).remove()
-        this._tokens.splice(index, 1)
+    removeToken({at}) {
+        this.$el.children(".tag").eq(at).remove()
+        this._tokens.splice(at, 1)
     }
 }

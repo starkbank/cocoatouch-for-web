@@ -79,6 +79,22 @@ export class UIView extends UIResponder {
         this._identifier = identifier
     }
 
+    // The label assistive technology reads: aria-label, or alt on an image,
+    // which is the attribute a screen reader reads for one.
+    get accessibilityLabel() {
+        var label = this.$el.attr(_labelAttribute(this.$el))
+        return label === undefined || label === "" ? null : label
+    }
+
+    set accessibilityLabel(label) {
+        var attribute = _labelAttribute(this.$el)
+        if (label === null || label === undefined) {
+            this.$el.removeAttr(attribute)
+            return
+        }
+        this.$el.attr(attribute, label)
+    }
+
     get superview() {
         return this._superview || null
     }
@@ -352,6 +368,13 @@ export class UIView extends UIResponder {
         super._dispose()
     }
 
+}
+
+
+function _labelAttribute($el) {
+    var element = $el[0]
+    var isImage = !!element && typeof element.tagName === "string" && element.tagName.toLowerCase() === "img"
+    return isImage ? "alt" : "aria-label"
 }
 
 
