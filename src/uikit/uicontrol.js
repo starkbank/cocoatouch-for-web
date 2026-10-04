@@ -32,6 +32,7 @@ export class UIControl extends UIView {
         this._isEnabled = bool
         this.$el.css("pointer-events", bool ? "" : "none")
         bool ? this.$el.removeAttr("disabled") : this.$el.attr("disabled", "")
+        this._stateDidChange()
     }
 
     get isEnabled() {
@@ -45,6 +46,12 @@ export class UIControl extends UIView {
 
     set isSelected(selected) {
         this.$el.toggleClass("selected", selected)
+        this._stateDidChange()
+    }
+
+    // A subclass that draws per state, as UIButton does its titles, redraws here.
+    _stateDidChange() {
+
     }
 
     // Adding a target never removes another: each pair gets its own jQuery
