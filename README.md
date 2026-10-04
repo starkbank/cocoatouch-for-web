@@ -148,7 +148,7 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 
 ## Controls
 
-- `UIControl`: `isEnabled = false` blocks the pointer and sets the `disabled` attribute; `isSelected` is the `selected` class. Both are there for stylesheets to draw.
+- `UIControl`: `isEnabled = false` blocks the pointer and sets the `disabled` attribute; `isSelected` is the `selected` class. Both are there for stylesheets to draw. `addTarget(target, {action, for})` accumulates, as on iOS: a second pair never removes the first, nor an `@IBAction` bound to the same element, and the action runs on its target with `(target, control, event)`; `removeTarget(target, {action, for})` removes one pair, or every action that target registered for the event when `action` is omitted. An `@IBAction` matched by class gives an id-less element `<owner id>-<action name>-<n>`, so the sender it hands over stays addressable.
 - `UIImageView`: `image` is the source of an `<img>`, `<video>` or `<lottie-player>` and the CSS background of any other element. `UIImage({systemName})` is an icon font symbol: its classes replace the previous symbol's on the element.
 - `userActivity`: a view whose `NSUserActivity` has a `webpageURL` is a link to that page, so the url is written as the element's `href`. Set it where iOS would open a page on tap, and keep the `<a>` in the nib. Read on a view bound to an anchor that already has an href, it is that page as a browsing activity, so an `@IBAction` sender can navigate with `sender.userActivity.webpageURL`.
 - `UIScrollView`: `contentOffset`, `contentSize` and `setContentOffset(_:animated:)` read and move the element's scroll position.
