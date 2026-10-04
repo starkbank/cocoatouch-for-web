@@ -181,12 +181,12 @@ test("keyboard actions stop firing once their controller is dismissed", function
     assert.equal(pressed, 1)
 })
 
-test("restore runs viewWillAppear and viewDidAppear but not viewDidLoad", function() {
+test("restore runs viewDidLoad, viewWillAppear and viewDidAppear", function() {
     var log = []
     var Controller = recordingController("restored", log)
     var controller = new Controller()
     controller.restore(controller)
-    assert.deepEqual(log, ["restored.viewWillAppear", "restored.viewDidAppear"])
+    assert.deepEqual(log, ["restored.viewDidLoad", "restored.viewWillAppear", "restored.viewDidAppear"])
 })
 
 function scopeMatching(selectors) {
@@ -456,4 +456,43 @@ test("a controller bound as an outlet of a restored controller receives didMoveT
     host.restore(host)
     assert.deepEqual(log, ["outletVC.didMoveToWindow", "outletVC.viewDidLoad", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
     assert.equal(host.panel.isViewLoaded, true)
+})
+
+// The controller's full first appearance, with the animated flag present()
+// was given and the layout pair around the layout pass, in Apple's order.
+function appearingController(log) {
+    class Controller extends UIViewController {}
+    ;["viewDidLoad", "viewWillLayoutSubviews", "viewDidLayoutSubviews"].forEach(function(hook) {
+        Controller.prototype[hook] = function() { log.push(hook) }
+    })
+    ;["viewWillAppear", "viewDidAppear"].forEach(function(hook) {
+        Controller.prototype[hook] = function(animated) { log.push(hook + "(" + animated + ")") }
+    })
+    Controller.prototype.viewWillTransition = function() { log.push("viewWillTransition") }
+    Controller.nib = "<div id=\"appearing\"></div>"
+    return Controller
+}
+
+test("present(_, {animated: true}) sends viewDidLoad, viewWillAppear(true), the layout pair and viewDidAppear(true)", function() {
+    var log = []
+    var controller = new (appearingController(log))()
+    controller.present(controller, {animated: true})
+    assert.deepEqual(log, ["viewDidLoad", "viewWillAppear(true)", "viewWillLayoutSubviews", "viewDidLayoutSubviews", "viewDidAppear(true)"])
+    log.length = 0
+    var plain = new (appearingController(log))()
+    plain.present(plain, {})
+    assert.deepEqual(log, ["viewDidLoad", "viewWillAppear(false)", "viewWillLayoutSubviews", "viewDidLayoutSubviews", "viewDidAppear(false)"])
+})
+
+test("a resize sends the layout pair around the layout pass", function() {
+    var log = []
+    var controller = new (appearingController(log))()
+    controller.present(controller, {})
+    var outlet = new UIView("#outlet")
+    outlet.layoutSubviews = function() { log.push("outlet.layoutSubviews") }
+    controller._link(outlet)
+    log.length = 0
+    window.innerWidth = 1100; window.innerHeight = 700
+    window.dispatchEvent(new Event("resize"))
+    assert.deepEqual(log, ["viewWillTransition", "viewWillLayoutSubviews", "outlet.layoutSubviews", "viewDidLayoutSubviews"])
 })
