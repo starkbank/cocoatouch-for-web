@@ -13,6 +13,9 @@ const EVENTS = {
 }
 
 
+var _pairCount = 0
+
+
 export class UIControl extends UIView {
 
     static get Event() {
@@ -44,13 +47,38 @@ export class UIControl extends UIView {
         this.$el.toggleClass("selected", selected)
     }
 
+    // Adding a target never removes another: each pair gets its own jQuery
+    // namespace, which is also what removeTarget takes off. The event stops
+    // at the control, as it did, but other handlers on the same element still
+    // run, so stopPropagation rather than stopImmediatePropagation; the
+    // test stand-in's event has only the latter, hence the guard.
     addTarget(target, {action, for: controlEvent}) {
         var control = this
         var event = EVENTS[controlEvent] || "click"
-        this.$el.off(event).on(event, (e) => {
-            e.stopImmediatePropagation()
-            return action(target, control, e)
+        var pair = {target: target, action: action, event: event, namespace: event + ".target" + (++_pairCount)}
+        this._targets().push(pair)
+        this.$el.on(pair.namespace, (e) => {
+            if (e.stopPropagation) { e.stopPropagation() }
+            return action.call(target, target, control, e)
         })
+    }
+
+    // removeTarget(_:action:for:): a null or omitted action removes every
+    // action that target registered for the event, as Apple's Selector? does.
+    removeTarget(target, {action = null, for: controlEvent} = {}) {
+        var event = EVENTS[controlEvent] || "click"
+        var remaining = []
+        for (var pair of this._targets()) {
+            var matches = pair.target === target && pair.event === event && (action === null || pair.action === action)
+            if (!matches) { remaining.push(pair); continue }
+            this.$el.off(pair.namespace)
+        }
+        this._targetPairs = remaining
+    }
+
+    _targets() {
+        if (!this._targetPairs) { this._targetPairs = [] }
+        return this._targetPairs
     }
 
     // Fires the event the control would fire for that control event.

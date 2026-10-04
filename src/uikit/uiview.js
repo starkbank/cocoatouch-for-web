@@ -201,11 +201,14 @@ export class UIView extends UIResponder {
         return {hex: token || "#0070E0"}
     }
 
+    // Each recognizer listens under its own namespace, so adding one never
+    // removes another, nor a target or an @IBAction bound to the same element.
     addGestureRecognizer(recognizer) {
         recognizer.view = this
         var events = recognizer.events
+        var namespace = ".gesture" + (++_recognizerCount)
         for (const event of Object.keys(events)) {
-            this.$el.off(event).on(event, (domEvent) => {
+            this.$el.on(event + namespace, (domEvent) => {
                 if (!recognizer._recognizes(domEvent)) { return }
                 recognizer.state = events[event]
                 return recognizer.action.call(recognizer.target, recognizer)
@@ -345,6 +348,7 @@ function _isControllerRootView(view) {
 
 
 var _animation = null
+var _recognizerCount = 0
 
 const AnimationOptions = Object.freeze({
     transitionFlipFromLeft: "transitionFlipFromLeft",

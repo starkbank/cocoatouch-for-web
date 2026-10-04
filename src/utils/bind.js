@@ -64,6 +64,9 @@ export class Bind {
         }
     }
 
+    // An action binds under its own namespace, beside any target the app adds
+    // to the same element. A matched element without an id is given one, as an
+    // outlet is, so the sender's selector resolves again when its node is replaced.
     static ibAction(control) {
         if (!control) { return }
         var actions = control["ibactions"] || []
@@ -74,11 +77,15 @@ export class Bind {
                 _bindKeyboardAction(control, action)
                 continue
             }
+            var unnamed = 0
             $parent.find(action.selector).each(function() {
-                var id = $(this).attr("id")
-                var sender = new action.cls(`${control.selector} #${id}`)
-                sender._$el = $(this)
-                sender.$el.off("click").on("click", (e) => {
+                var $target = $(this)
+                if (!$target.attr("id")) {
+                    $target.attr("id", _dashed(control.identifier, action.method) + "-" + (++unnamed))
+                }
+                var sender = new action.cls(`${control.selector} #${$target.attr("id")}`)
+                sender._$el = $target
+                $target.on("click.ibaction", (e) => {
                     var method = action.method
                     if (control[method]) {
                         e.preventDefault()
@@ -169,10 +176,14 @@ function _overrides(view, hook) {
 function _identifyOutlet(owner, responder, property) {
     var $el = responder._$el
     if (!$el || $el.length !== 1 || $el.attr("id")) { return }
-    var id = owner.identifier + "-" + property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
+    var id = _dashed(owner.identifier, property)
     $el.attr("id", id)
     responder.selector = "#" + id
     responder._identifier = id
+}
+
+function _dashed(ownerIdentifier, property) {
+    return ownerIdentifier + "-" + property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
 }
 
 const KEYBOARD_PREFIX = "keyboard:"
