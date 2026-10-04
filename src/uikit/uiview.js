@@ -249,6 +249,7 @@ export class UIView extends UIResponder {
         view._$el = $viewEl
         this._link(view)
         Bind.ibOutlet(view)
+        Bind.ibInspectable(view)
         view.awakeFromNib()
         Bind.ibAction(view)
     }
@@ -322,6 +323,7 @@ export class UIView extends UIResponder {
         $el.html(nib)
         if (Bind.isConstructing(this)) { return }
         Bind.ibOutlet(this)
+        Bind.ibInspectable(this)
         this.awakeFromNib()
         Bind.ibAction(this)
     }

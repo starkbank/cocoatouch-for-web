@@ -1,6 +1,7 @@
 import { UIViewController } from "../uikit/uiviewcontroller.js"
 import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
+import { inspectableValue } from "../uikit/ibinspectable.js"
 
 
 export class Bind {
@@ -96,6 +97,20 @@ export class Bind {
         }
     }
 
+    // Runtime attributes come after the connections and before awakeFromNib,
+    // in Interface Builder's order, so awakeFromNib sees the configured view.
+    static ibInspectable(view) {
+        if (!view) { return }
+        var inspectables = view["ibinspectables"] || []
+        if (inspectables.length === 0) { return }
+        var $el = view._$el || $(view.selector)
+        for (const inspectable of inspectables) {
+            var value = $el.attr("data-" + _dash(inspectable.property))
+            if (value === undefined) { continue }
+            view[inspectable.property] = inspectableValue({type: inspectable.type, value: value, property: inspectable.property})
+        }
+    }
+
     static ibOutlet(control) {
         if (!control) { return }
         var outlets = control["iboutlets"] || []
@@ -118,6 +133,8 @@ export class Bind {
             if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
                 Bind.ibOutlet(responder)
             }
+
+            Bind.ibInspectable(responder)
 
             if (_overrides(responder, "awakeFromNib")) {
                 responder.awakeFromNib()
@@ -152,6 +169,8 @@ export class Bind {
                 Bind.ibOutletRestore(responder)
             }
 
+            Bind.ibInspectable(responder)
+
             if (_overrides(responder, "didMoveToWindow")) {
                 responder.didMoveToWindow()
             }
@@ -183,7 +202,11 @@ function _identifyOutlet(owner, responder, property) {
 }
 
 function _dashed(ownerIdentifier, property) {
-    return ownerIdentifier + "-" + property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
+    return ownerIdentifier + "-" + _dash(property)
+}
+
+function _dash(property) {
+    return property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
 }
 
 const KEYBOARD_PREFIX = "keyboard:"

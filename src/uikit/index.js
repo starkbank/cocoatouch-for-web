@@ -26,6 +26,7 @@ import { UIResponder } from "./uiresponder.js"
 import { UIScrollView } from "./uiscrollview.js"
 import { IBOutlet } from "./iboutlet.js"
 import { IBAction } from "./ibaction.js"
+import { IBInspectable } from "./ibinspectable.js"
 import { UIKeyCommand, UIKeyModifierFlags } from "./uikeycommand.js"
 import { UIControlState } from "./uicontrolstate.js"
 
@@ -63,6 +64,7 @@ export {
      UIScrollView,
      IBOutlet,
      IBAction,
+     IBInspectable,
      UIKeyCommand,
      UIKeyModifierFlags,
      UIControlState,

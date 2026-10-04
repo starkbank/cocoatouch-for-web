@@ -152,6 +152,7 @@ export class UITableView extends UIScrollView {
         cell._$el = element
         this._link(cell)
         Bind.ibOutlet(cell)
+        Bind.ibInspectable(cell)
         cell.awakeFromNib()
         Bind.ibAction(cell)
         return cell
