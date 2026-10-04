@@ -7,16 +7,13 @@ export function setText($el, value) {
     $el.text(value === null || value === undefined ? "" : String(value))
 }
 
-// The opt-in markup path. It sanitises nothing and is for trusted input: the
-// browser's own Element.setHTML is used where it exists as hardening, never
-// as the boundary, and is feature-detected rather than sniffed.
+// The opt-in markup path. It sanitises nothing and is for trusted input; the
+// boundary is that a caller must construct an html-typed NSAttributedString,
+// never a filter here. The browser's Sanitizer API is not used: its default
+// configuration removes the classes, attributes and custom elements first-party
+// markup is built from, and a configuration that keeps them is an allowlist,
+// which this package does not ship.
 export function setMarkup($el, markup) {
     if (!$el) { return }
-    var html = markup === null || markup === undefined ? "" : String(markup)
-    var element = $el[0]
-    if (element && typeof element.setHTML === "function") {
-        element.setHTML(html)
-        return
-    }
-    $el.html(html)
+    $el.html(markup === null || markup === undefined ? "" : String(markup))
 }

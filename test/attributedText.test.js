@@ -106,18 +106,24 @@ test("a DOMPurify global changes nothing: there is no hook", function() {
     }
 })
 
-test("the markup path calls Element.setHTML where the browser has it and falls back to plain insertion where it does not", function() {
-    page("<p id=\"with\"></p><p id=\"without\"></p>")
+// Chrome's Element.setHTML, measured: its default sanitiser strips class, id,
+// data-*, style, target, rel and download and drops custom elements, buttons,
+// svg and img. The markup path therefore never calls it, and what a trusted
+// author wrote is what renders.
+test("the markup path inserts the markup as given and never calls Element.setHTML, even where the browser has it", function() {
+    page("<p id=\"with\"></p>")
     var withIt = document.getElementById("with")
     var calls = []
     withIt.setHTML = function(markup) { calls.push(markup); this.textContent = "set by setHTML" }
-    new UILabel("#with").attributedText = new NSAttributedString({data: "<b>x</b>", options: {documentType: NSAttributedStringDocumentType.html}})
-    assert.deepEqual(calls, ["<b>x</b>"])
-    assert.equal(withIt.innerHTML, "set by setHTML")
-    var without = document.getElementById("without")
-    assert.equal(typeof without.setHTML, "undefined")
-    new UILabel("#without").attributedText = new NSAttributedString({data: "<b>y</b>", options: {documentType: NSAttributedStringDocumentType.html}})
-    assert.equal(without.innerHTML, "<b>y</b>")
+    var markup = "<a class=\"link\" href=\"/x\" target=\"_blank\" rel=\"noopener\">x</a><space></space><b>y</b>"
+    new UILabel("#with").attributedText = new NSAttributedString({data: markup, options: {documentType: NSAttributedStringDocumentType.html}})
+    assert.deepEqual(calls, [])
+    assert.equal(withIt.innerHTML, markup)
+    var anchor = withIt.querySelector("a")
+    assert.equal(anchor.getAttribute("class"), "link")
+    assert.equal(anchor.getAttribute("target"), "_blank")
+    assert.equal(anchor.getAttribute("rel"), "noopener")
+    assert.equal(withIt.querySelectorAll("space").length, 1)
 })
 
 // The spinner saves and restores the rendered title through the markup path;
@@ -143,18 +149,19 @@ test("the string of a markup attributed string is read without executing the mar
     assert.equal(globalThis.hit, undefined)
 })
 
-// The spinner is the framework's one internal markup write, and it goes through
-// setMarkup so the setHTML hardening reaches it too.
-test("the activity indicator writes its spinner and the restored title through Element.setHTML where the browser has it", function() {
+// With no sanitiser in the path, setMarkup and $el.html are indistinguishable
+// to a test, so the chokepoint is a grep convention; what a test can pin is
+// the behaviour: the spinner is an element, the restored title is text.
+test("the activity indicator renders its spinner as an element and restores the title as text", function() {
     page("<button id=\"send\"></button>")
     var element = document.getElementById("send")
-    var calls = []
-    element.setHTML = function(markup) { calls.push(markup); this.innerHTML = markup }
     var button = new UIButton("#send")
-    button.setTitle("Send", {for: UIControlState.normal})
+    button.setTitle("Send & <go>", {for: UIControlState.normal})
     button.showsActivityIndicator = true
+    assert.equal(element.querySelectorAll("i.fa-spin, .fa-spin").length, 1)
+    assert.equal(element.textContent.indexOf("Send"), -1)
     button.showsActivityIndicator = false
-    assert.equal(calls.length, 2)
-    assert.match(calls[0], /fa-spin/)
-    assert.equal(calls[1], "Send")
+    assert.equal(element.children.length, 0)
+    assert.equal(element.textContent, "Send & <go>")
+    assert.equal(button.currentTitle, "Send & <go>")
 })
