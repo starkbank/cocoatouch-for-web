@@ -1,0 +1,8 @@
+.traits-box {
+    width: 60%;
+    height: 48px;
+    margin: 0 0 12px;
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius);
+}
