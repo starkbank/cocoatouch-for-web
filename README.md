@@ -122,7 +122,7 @@ class OnboardViewController extends UIViewController {
 }
 ```
 
-`children`, `parent`, `willMove({toParent})` and `didMove({toParent})` follow UIKit. A plain view's `removeFromSuperview()` takes its element out of the page.
+`children`, `parent`, `willMove({toParent})` and `didMove({toParent})` follow UIKit. A plain view's `removeFromSuperview()` takes its element out of the page. A container forwards the disappear pair, as UIKit's automatic forwarding does: when the root controller is swapped by `present`, or an embedded child is removed, `viewWillDisappear` goes to the container first, then to its children depth-first, then to the controllers bound as its outlets; the tree is disposed; then `viewDidDisappear` follows the same order, after which each disposed child's `parent` is `null` and the container's `children` is empty.
 
 ## Animations
 
