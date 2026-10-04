@@ -30,20 +30,42 @@ export class UITextField extends UIControl {
         this.$el.attr("placeholder", cleanedScriptText)
     }
 
+    // UITextFieldDelegate, on the events Apple sends it for: editing begins on
+    // focus and ends on blur, not on every key; Return asks
+    // textFieldShouldReturn. Only an explicit false prevents a default, so a
+    // delegate that returns nothing proceeds. focusin and focusout bubble,
+    // which keeps a field whose input is a child element, as a search field's
+    // is, covered.
     set delegate(delegate) {
         var textField = this
         this._delegate = delegate
-        this.$el.off("keyup.delegate").on("keyup.delegate", function(e) {
-            if (e.which === 13 && delegate.textFieldShouldReturn) {
-                delegate.textFieldShouldReturn(textField)
+        this.$el.off(".delegate")
+        this.$el.on("keydown.delegate", function(e) {
+            if (e.key !== "Enter" && e.which !== 13) { return }
+            if (!delegate.textFieldShouldReturn) { return }
+            if (delegate.textFieldShouldReturn(textField) === false) { e.preventDefault() }
+        })
+        this.$el.on("focusin.delegate", function() {
+            if (textField._isKeepingFocus) {
+                textField._isKeepingFocus = false
+                return
+            }
+            if (delegate.textFieldDidBeginEditing) {
+                delegate.textFieldDidBeginEditing(textField)
+            }
+        })
+        // A blur cannot be cancelled, and the element taking the focus gets it
+        // after this handler returns, so the focus is taken back on the next
+        // tick; that focusin is the same editing session, not a new one.
+        this.$el.on("focusout.delegate", function(e) {
+            if (delegate.textFieldShouldEndEditing && delegate.textFieldShouldEndEditing(textField) === false) {
+                var target = e.target
+                textField._isKeepingFocus = true
+                setTimeout(function() { target.focus() }, 0)
+                return
             }
             if (delegate.textFieldDidEndEditing) {
                 delegate.textFieldDidEndEditing(textField)
-            }
-        })
-        this.$el.off("focusin.delegate").on("focusin.delegate", function() {
-            if (delegate.textFieldDidBeginEditing) {
-                delegate.textFieldDidBeginEditing(textField)
             }
         })
     }
