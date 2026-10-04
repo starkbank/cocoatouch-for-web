@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UIView, UILabel, UIViewController } from "../src/index.js"
+import { IBOutlet, UIView, UILabel, UIViewController, UIScreen, CGRect, CGPoint } from "../src/index.js"
 
 
 function present(controller) {
@@ -184,4 +184,15 @@ test("an empty class nib and UIView.loadFromNib with several roots both still wr
     grid.addSubview(loaded)
     assert.equal(loaded.identifier, "grid-2")
     assert.equal(loaded.$el.children("p").length, 2)
+})
+
+test("a view's frame and bounds are CGRects, the bounds' origin being CGPoint.zero", function() {
+    page("<div id=\"box\"></div>")
+    var view = new UIView("#box")
+    assert.ok(view.frame instanceof CGRect)
+    assert.ok(view.bounds instanceof CGRect)
+    assert.deepEqual(view.bounds.origin, CGPoint.zero)
+    assert.equal(view.bounds.x, undefined)
+    assert.ok(UIScreen.main.bounds instanceof CGRect)
+    assert.equal(UIScreen.main.bounds.width, window.innerWidth)
 })

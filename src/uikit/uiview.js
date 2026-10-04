@@ -1,6 +1,7 @@
 import { UIResponder } from "./uiresponder.js"
 import { CALayer } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
+import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 
@@ -146,17 +147,18 @@ export class UIView extends UIResponder {
         return this.$el.css("pointer-events") !== "none"
     }
 
-    // The element's rectangle in page coordinates.
+    // The element's rectangle in page coordinates. Read-only on purpose: the
+    // stylesheet owns geometry here, and a setter would fight it.
     get frame() {
         var element = this.$el[0]
-        if (!element) { return {x: 0, y: 0, width: 0, height: 0} }
+        if (!element) { return CGRect.zero }
         var rect = element.getBoundingClientRect()
-        return {x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height}
+        return new CGRect({x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height})
     }
 
     get bounds() {
         var frame = this.frame
-        return {x: 0, y: 0, width: frame.width, height: frame.height}
+        return new CGRect({width: frame.width, height: frame.height})
     }
 
     get isHidden() {
