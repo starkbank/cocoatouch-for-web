@@ -23,7 +23,7 @@ export class TableViewViewController extends UIViewController {
 
     viewDidLoad() {
         this.tableView.register(ContactTableViewCell, {forCellReuseIdentifier: "contact"})
-        this.tableView.setEditing(true)
+        this.tableView.setEditing(true, {animated: false})
         this.tableView.delegate = this
         // Assigning the data source triggers the first reloadData.
         this.tableView.dataSource = this
@@ -45,7 +45,7 @@ export class TableViewViewController extends UIViewController {
     // UITableViewDelegate
 
     tableViewDidSelectRowAtIndexPath(tableView, indexPath) {
-        tableView.selectRow({at: indexPath})
+        tableView.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
         var contact = this.contacts[indexPath.row]
         this.selectedLabel.text = `Selected row ${indexPath.row}: ${contact.name} (${contact.role})`
     }

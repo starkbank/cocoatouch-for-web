@@ -6,7 +6,7 @@
 
     <section class="demo">
         <h2>dataSource and delegate</h2>
-        <p>Rows come from <code>tableViewNumberOfRowsInSection</code> and <code>tableViewCellForRowAtIndexPath</code>, which dequeues with <code>dequeueReusableCell({withIdentifier, for})</code>. Tapping a row calls <code>tableViewDidSelectRowAtIndexPath</code>; with <code>setEditing(true)</code> the delete button calls <code>tableViewCommitEditingStyleForRowAt</code>.</p>
+        <p>Rows come from <code>tableViewNumberOfRowsInSection</code> and <code>tableViewCellForRowAtIndexPath</code>, which dequeues with <code>dequeueReusableCell({withIdentifier, for})</code>. Tapping a row calls <code>tableViewDidSelectRowAtIndexPath</code>; with <code>setEditing(true, {animated: false})</code> the delete button calls <code>tableViewCommitEditingStyleForRowAt</code>.</p>
         <div class="row">
             <button id="table-view-add" class="button">Add contact</button>
             <button id="table-view-clear" class="button button-secondary">Remove all</button>

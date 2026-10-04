@@ -60,7 +60,10 @@ export class UIPickerView extends UIView {
         if (selected >= 0 && selected < rows) { this.$el.prop("selectedIndex", selected) }
     }
 
-    selectRow(row, {inComponent, animated} = {}) {
+    // selectRow(_:inComponent:animated:): both labels required; one component, no animation.
+    selectRow(row, options) {
+        _required(options, "inComponent", "UIPickerView.selectRow", "selectRow(row, {inComponent: 0, animated: false}). Apple's is selectRow(_:inComponent:animated:)")
+        _required(options, "animated", "UIPickerView.selectRow", "selectRow(row, {inComponent: 0, animated: false}). Apple's is selectRow(_:inComponent:animated:)")
         this.$el.prop("selectedIndex", row)
     }
 

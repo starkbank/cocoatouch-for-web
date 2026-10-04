@@ -52,7 +52,7 @@ test("UIScrollView reads and sets its content offset through the element", funct
     var element = {scrollLeft: 0, scrollTop: 0, scrollWidth: 300, scrollHeight: 1200}
     scrollView.$el[0] = element
     assert.equal(scrollView.contentSize.height, 1200)
-    scrollView.setContentOffset(new CGPoint({x: 0, y: 1200}))
+    scrollView.setContentOffset(new CGPoint({x: 0, y: 1200}), {animated: false})
     assert.equal(element.scrollTop, 1200)
     scrollView.contentOffset = new CGPoint({x: 10, y: 40})
     assert.deepEqual({x: scrollView.contentOffset.x, y: scrollView.contentOffset.y}, {x: 10, y: 40})

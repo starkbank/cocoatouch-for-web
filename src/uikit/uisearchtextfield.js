@@ -51,8 +51,8 @@ export class UISearchTextField extends UITextField {
         return this._allowsDeletingTokens
     }
 
-    insertToken(token, {at} = {}) {
-        var index = at === undefined ? this._tokens.length : at
+    insertToken(token, options) {
+        var index = _required(options, "at", "UISearchTextField.insertToken", "insertToken(token, {at: index}). Apple's is insertToken(_:at:)")
         var $tag = $("<div class=\"tag\"><div class=\"tag-text\">" + NSString.cleanScript(token.text) + "</div></div>")
         if (token.icon) { $tag.prepend(token.icon) }
         var tags = this.$el.children(".tag")
@@ -65,4 +65,14 @@ export class UISearchTextField extends UITextField {
         this.$el.children(".tag").eq(at).remove()
         this._tokens.splice(at, 1)
     }
+}
+
+
+// Apple requires the label; JavaScript cannot refuse at compile time, so the
+// call refuses instead and names what to write.
+function _required(options, label, method, signature) {
+    if (!options || options[label] === undefined) {
+        throw new TypeError(`${method} requires a ${label}: ${signature}`)
+    }
+    return options[label]
 }

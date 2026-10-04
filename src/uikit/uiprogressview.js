@@ -18,7 +18,8 @@ export class UIProgressView extends UIView {
         this.$el.css("background", color.cgColor)
     }
 
-    setProgress(progress, {animated} = {}) {
+    setProgress(progress, options) {
+        var animated = _required(options, "animated", "UIProgressView.setProgress", "setProgress(progress, {animated: false}). Apple's is setProgress(_:animated:)")
         this._progress = progress
         var offset = progress * this.$el.width()
         var bar = this.$el.children().stop()
@@ -28,4 +29,14 @@ export class UIProgressView extends UIView {
         }
         bar.css("left", offset)
     }
+}
+
+
+// Apple requires the label; JavaScript cannot refuse at compile time, so the
+// call refuses instead and names what to write.
+function _required(options, label, method, signature) {
+    if (!options || options[label] === undefined) {
+        throw new TypeError(`${method} requires a ${label}: ${signature}`)
+    }
+    return options[label]
 }
