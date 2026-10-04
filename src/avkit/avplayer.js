@@ -22,11 +22,11 @@ const ActionAtItemEnd = Object.freeze({
     none: "none",
 })
 
-const HAVE_FUTURE_DATA = 3
+const haveFutureData = 3
 
 // Media elements report seconds as floats; AVFoundation keeps them as ticks.
 // 600 is the timescale Apple's samples use: it divides 24, 25, 30 and 60 fps evenly.
-const PREFERRED_TIMESCALE = 600
+const preferredTimescale = 600
 
 
 // Plays one item at a time and reports on it, as AVFoundation's player does.
@@ -122,7 +122,7 @@ export class AVPlayer extends NSObject {
         if (!this._item) { return CMTime.invalid }
         var element = this._elements()[0]
         if (!element) { return CMTime.zero }
-        return new CMTime({seconds: element.currentTime, preferredTimescale: PREFERRED_TIMESCALE})
+        return new CMTime({seconds: element.currentTime, preferredTimescale: preferredTimescale})
     }
 
     // seek(to:) or seek(to:completionHandler:); the handler hears whether the seek finished.
@@ -158,7 +158,7 @@ export class AVPlayer extends NSObject {
     get timeControlStatus() {
         var element = this._elements()[0]
         if (!element || element.paused) { return TimeControlStatus.paused }
-        if (element.readyState < HAVE_FUTURE_DATA) { return TimeControlStatus.waitingToPlayAtSpecifiedRate }
+        if (element.readyState < haveFutureData) { return TimeControlStatus.waitingToPlayAtSpecifiedRate }
         return TimeControlStatus.playing
     }
 
@@ -246,7 +246,7 @@ export class AVPlayer extends NSObject {
 function _duration(seconds) {
     if (Number.isNaN(seconds)) { return CMTime.indefinite }
     if (seconds === Infinity) { return CMTime.positiveInfinity }
-    return new CMTime({seconds: seconds, preferredTimescale: PREFERRED_TIMESCALE})
+    return new CMTime({seconds: seconds, preferredTimescale: preferredTimescale})
 }
 
 function _applyRate(element, rate) {

@@ -1,11 +1,11 @@
 // jQuery UI datepicker formats and strings per locale identifier.
-const DATE_FORMATS = {
+const dateFormats = {
     "en": "mm/dd/yy",
     "en-US": "mm/dd/yy",
     "pt-BR": "dd/mm/yy"
 }
 
-const REGIONAL = {
+const regional = {
     "pt-BR": {
         closeText: "Fechar",
         prevText: "Anterior",
@@ -34,9 +34,9 @@ const REGIONAL = {
 
 
 export function datePickerDateFormat(locale) {
-    return DATE_FORMATS[locale.identifier] || DATE_FORMATS["en"]
+    return dateFormats[locale.identifier] || dateFormats["en"]
 }
 
 export function datePickerRegional(locale) {
-    return REGIONAL[locale.identifier] || {}
+    return regional[locale.identifier] || {}
 }

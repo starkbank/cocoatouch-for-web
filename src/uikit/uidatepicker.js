@@ -72,25 +72,15 @@ export class UIDatePicker extends UIControl {
         return this._monthOnly ? "yearAndMonth" : "date"
     }
 
-    addTarget(target, {action, for: controlEvent}) {
-        if (controlEvent !== UIControlEvent.valueChanged) { return }
-        this.$input.datepicker("option", "onSelect", (date) => action(target, date))
-        if (!this._monthOnly) { return }
-        this.$input.datepicker("option", "onClose", () => {
-            var month = $("#ui-datepicker-div .ui-datepicker-month :selected").val()
-            var year = $("#ui-datepicker-div .ui-datepicker-year :selected").val()
-            var date = new Date(year, month, 1)
-            this.date = date
-            action(target, date)
-            setTimeout(() => { this.$input.datepicker("widget").removeClass("hide-calendar") }, 200)
-        })
-    }
-
+    // A selection is a valueChanged control event, so addTarget, removeTarget
+    // and sendActions work as on every other control: the action runs on its
+    // target with the picker as the sender, and reads the date from picker.date.
     _configure() {
         var regional = datePickerRegional(this._locale)
+        var onSelect = () => this.sendActions({for: UIControlEvent.valueChanged})
         this.$input.datepicker("destroy")
         if (!this._monthOnly) {
-            this.$input.datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true})
+            this.$input.datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true, onSelect: onSelect})
             return
         }
         this.$input.datepicker({
@@ -100,7 +90,15 @@ export class UIDatePicker extends UIControl {
             changeYear: true,
             dateFormat: "MM yy",
             closeText: this._locale.identifier === "pt-BR" ? "Selecionar" : "Select",
-            beforeShow: () => { this.$input.datepicker("widget").addClass("hide-calendar") }
+            beforeShow: () => { this.$input.datepicker("widget").addClass("hide-calendar") },
+            onSelect: onSelect,
+            onClose: () => {
+                var month = $("#ui-datepicker-div .ui-datepicker-month :selected").val()
+                var year = $("#ui-datepicker-div .ui-datepicker-year :selected").val()
+                this.date = new Date(year, month, 1)
+                this.sendActions({for: UIControlEvent.valueChanged})
+                setTimeout(() => { this.$input.datepicker("widget").removeClass("hide-calendar") }, 200)
+            },
         })
     }
 }

@@ -1,8 +1,10 @@
 import { UIResponder } from "./uiresponder.js"
 import { CALayer } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
+import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
+import { currentTraitCollection } from "./uitraitcollection.js"
 
 
 export class UIView extends UIResponder {
@@ -24,8 +26,20 @@ export class UIView extends UIResponder {
 
     }
 
-    // Runs when a pre-rendered page is restored and the view is bound to its element.
+    // Sent once the view's element is in the page: by addSubview after the
+    // insertion, and by restore() when a pre-rendered page is rebound. Apple
+    // also sends it on removal, when the window becomes nil; this does not.
     didMoveToWindow() {
+
+    }
+
+    // willMove(toSuperview:) and didMoveToSuperview(), around addSubview's
+    // insertion and removeFromSuperview's removal.
+    willMove({toSuperview}) {
+
+    }
+
+    didMoveToSuperview() {
 
     }
 
@@ -75,6 +89,22 @@ export class UIView extends UIResponder {
         this.$el.attr("id", identifier)
         this.selector = "#" + identifier
         this._identifier = identifier
+    }
+
+    // The label assistive technology reads: aria-label, or alt on an image,
+    // which is the attribute a screen reader reads for one.
+    get accessibilityLabel() {
+        var label = this.$el.attr(_labelAttribute(this.$el))
+        return label === undefined || label === "" ? null : label
+    }
+
+    set accessibilityLabel(label) {
+        var attribute = _labelAttribute(this.$el)
+        if (label === null || label === undefined) {
+            this.$el.removeAttr(attribute)
+            return
+        }
+        this.$el.attr(attribute, label)
     }
 
     get superview() {
@@ -146,17 +176,18 @@ export class UIView extends UIResponder {
         return this.$el.css("pointer-events") !== "none"
     }
 
-    // The element's rectangle in page coordinates.
+    // The element's rectangle in page coordinates. Read-only on purpose: the
+    // stylesheet owns geometry here, and a setter would fight it.
     get frame() {
         var element = this.$el[0]
-        if (!element) { return {x: 0, y: 0, width: 0, height: 0} }
+        if (!element) { return CGRect.zero }
         var rect = element.getBoundingClientRect()
-        return {x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height}
+        return new CGRect({x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height})
     }
 
     get bounds() {
         var frame = this.frame
-        return {x: 0, y: 0, width: frame.width, height: frame.height}
+        return new CGRect({width: frame.width, height: frame.height})
     }
 
     get isHidden() {
@@ -201,11 +232,14 @@ export class UIView extends UIResponder {
         return {hex: token || "#0070E0"}
     }
 
+    // Each recognizer listens under its own namespace, so adding one never
+    // removes another, nor a target or an @IBAction bound to the same element.
     addGestureRecognizer(recognizer) {
         recognizer.view = this
         var events = recognizer.events
+        var namespace = ".gesture" + (++_recognizerCount)
         for (const event of Object.keys(events)) {
-            this.$el.off(event).on(event, (domEvent) => {
+            this.$el.on(event + namespace, (domEvent) => {
                 if (!recognizer._recognizes(domEvent)) { return }
                 recognizer.state = events[event]
                 return recognizer.action.call(recognizer.target, recognizer)
@@ -214,6 +248,15 @@ export class UIView extends UIResponder {
     }
 
     layoutSubviews() {
+
+    }
+
+    // UITraitEnvironment: the page's traits, and the hook sent after they change.
+    get traitCollection() {
+        return currentTraitCollection()
+    }
+
+    traitCollectionDidChange(previousTraitCollection) {
 
     }
 
@@ -231,8 +274,13 @@ export class UIView extends UIResponder {
         this._attach(view, {at})
     }
 
+    // The move hooks surround the insertion, the superview pair before the
+    // window one, which is this package's order where Apple documents each
+    // hook's trigger but not their interleaving. awakeFromNib follows the
+    // insertion, unlike UIKit, so a body may measure or style the element;
+    // layoutSubviews comes last, once there is an element to lay out.
     _attach(view, {at}) {
-        view.layoutSubviews()
+        view.willMove({toSuperview: this})
         var $viewEl = _elementFor(view, this)
         var siblings = this.$el.children()
         if (at !== undefined && at < siblings.length) {
@@ -243,9 +291,13 @@ export class UIView extends UIResponder {
         }
         view._$el = $viewEl
         this._link(view)
+        view.didMoveToSuperview()
+        view.didMoveToWindow()
         Bind.ibOutlet(view)
+        Bind.ibInspectable(view)
         view.awakeFromNib()
         Bind.ibAction(view)
+        view.layoutSubviews()
     }
 
     // A controller's root view leaves its container empty and tears the
@@ -255,12 +307,17 @@ export class UIView extends UIResponder {
             this.next._unembed()
             return
         }
+        this.willMove({toSuperview: null})
         this.$el.remove()
         var superview = this._superview
-        if (!superview) { return }
+        if (!superview) {
+            this.didMoveToSuperview()
+            return
+        }
         var index = superview.subviews.indexOf(this)
         if (index !== -1) { superview.subviews.splice(index, 1) }
         this._superview = null
+        this.didMoveToSuperview()
         this._dispose()
     }
 
@@ -307,13 +364,17 @@ export class UIView extends UIResponder {
 
     // A view class designed in a .xib fills an empty element it is created
     // on, so `new SecureTextField("#password")` renders like the outlet would.
+    // A view the framework is constructing is bound by its creator instead,
+    // once `new` has returned and the subclass's fields are initialised.
     _loadNibIfNeeded() {
         var nib = this.constructor.nib
         if (!nib) { return }
         var $el = this.$el
         if ($el.length === 0 || $el.children().length > 0 || $el.html().trim() !== "") { return }
         $el.html(nib)
+        if (Bind.isConstructing(this)) { return }
         Bind.ibOutlet(this)
+        Bind.ibInspectable(this)
         this.awakeFromNib()
         Bind.ibAction(this)
     }
@@ -335,6 +396,13 @@ export class UIView extends UIResponder {
 }
 
 
+function _labelAttribute($el) {
+    var element = $el[0]
+    var isImage = !!element && typeof element.tagName === "string" && element.tagName.toLowerCase() === "img"
+    return isImage ? "alt" : "aria-label"
+}
+
+
 function _isControllerRootView(view) {
     var controller = view.next
     return !!controller && typeof controller._embed === "function" && controller._view === view
@@ -342,6 +410,7 @@ function _isControllerRootView(view) {
 
 
 var _animation = null
+var _recognizerCount = 0
 
 const AnimationOptions = Object.freeze({
     transitionFlipFromLeft: "transitionFlipFromLeft",
@@ -357,7 +426,11 @@ function _slideDirection(options) {
 
 
 // A subview whose nib has no id is numbered after its superview, so views
-// added in code are addressable without the app naming them.
+// added in code are addressable without the app naming them. A class nib
+// with several roots is refused rather than wrapped: the wrapper would be a
+// bare <div> the stylesheet cannot address, and the app would only notice
+// when the layout broke. The class name is read for the message alone; under
+// a minifier it is mangled, which is why the nib excerpt is there too.
 function _elementFor(view, superview) {
     var $nib = $("<div></div>").html(view.nib)
     var roots = $nib.children()
@@ -371,6 +444,11 @@ function _elementFor(view, superview) {
             $root.attr("id", _identify(view, superview))
         }
         return $root
+    }
+    if (view.nib !== "" && view.nib === view.constructor.nib) {
+        var strayText = $nib.contents().filter(function() { return this.nodeType === 3 && this.nodeValue.trim() !== "" })
+        var count = roots.length + strayText.length
+        throw new Error(`${view.constructor.name}: a view placed with addSubview takes its nib's single root as its element, but this nib has ${count} top-level nodes — ${view.nib.trim().slice(0, 80)}`)
     }
     return $(`<div id="${_identify(view, superview)}">${view.nib}</div>`)
 }
