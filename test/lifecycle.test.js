@@ -67,14 +67,23 @@ test("addSubview links the child into the responder chain", function() {
 })
 
 
-test("parentViewController walks the chain up to the controller", function() {
+// The responder chain is Apple's mechanism for reaching the enclosing
+// controller; the package carries no parentViewController() convenience.
+function enclosingController(view) {
+    var responder = view.next
+    while (responder && !(responder instanceof UIViewController)) { responder = responder.next }
+    return responder || null
+}
+
+test("next walks the chain up to the controller", function() {
     var controller = new UIViewController()
     var outer = new UIView("#outer")
     var inner = new UIView("#inner")
     controller.view.addSubview(outer)
     outer.addSubview(inner)
-    assert.equal(inner.parentViewController(), controller)
-    assert.equal(new UIView("#orphan").parentViewController(), null)
+    assert.equal(enclosingController(inner), controller)
+    assert.equal(enclosingController(new UIView("#orphan")), null)
+    assert.equal(UIView.prototype.parentViewController, undefined)
 })
 
 test("a controller has one root view whose next responder is the controller", function() {
@@ -229,7 +238,7 @@ test("restored views join the owning controller's view tree", function() {
     var owner = new UIViewController()
     Bind.restoreRegisteredViews(scopeMatching([".present"]), owner)
     assert.equal(owner.view.subviews.length, 1)
-    assert.equal(owner.view.subviews[0].parentViewController(), owner)
+    assert.equal(enclosingController(owner.view.subviews[0]), owner)
 })
 
 test("a keyboard-only view is not revived by selector scan", function() {
@@ -278,7 +287,7 @@ test("a child controller fills its container view and runs its lifecycle", funct
     assert.deepEqual(log, ["child.viewDidLoad", "child.viewWillAppear", "child.viewDidAppear"])
     assert.equal(child.selector, "#content")
     assert.ok(container._$el.html().indexOf("<div id=\"child\"></div>") !== -1)
-    assert.equal(child.view.parentViewController(), child)
+    assert.equal(enclosingController(child.view), child)
 })
 
 test("removing a child empties its container, tears it down and releases its observers", function() {
