@@ -1,6 +1,7 @@
 import { UIControl } from "./uicontrol.js"
 import { NSString } from "../utils/nsstring.js"
 import { NSRange } from "../foundation/nsrange.js"
+import { NotificationCenter } from "../foundation/notificationcenter.js"
 
 export class UITextField extends UIControl {
 
@@ -87,12 +88,17 @@ export class UITextField extends UIControl {
         })
         // textFieldDidChangeSelection: selectionchange fires on the document in
         // every browser the fleet supports, and on the element in few, so it is
-        // observed there while the field is the active element.
+        // observed there while the field is the active element. It goes through
+        // NotificationCenter, as the document keydown does, so dismissing the
+        // controller releases it with everything else the field observes.
+        if (typeof document !== "undefined") {
+            NotificationCenter.default.removeObserver(this, {name: "selectionchange", object: document})
+        }
         if (delegate.textFieldDidChangeSelection && typeof document !== "undefined") {
-            $(document).off("selectionchange.delegate" + this.identifier).on("selectionchange.delegate" + this.identifier, function() {
+            NotificationCenter.default.addObserver(this, {name: "selectionchange", object: document, selector: function() {
                 if (!textField.isEditing) { return }
                 delegate.textFieldDidChangeSelection(textField)
-            })
+            }})
         }
         // A blur cannot be cancelled, and the element taking the focus gets it
         // after this handler returns, so the focus is taken back on the next

@@ -121,3 +121,23 @@ test("binding an @IBAction twice over one element leaves one handler: a replaced
     $("#t").find("#tap").trigger("click")
     assert.deepEqual(taps, ["B"])
 })
+
+// A control created in code has no element until addSubview places it, so
+// the highlight tracking must bind then, and only once.
+test("a control created without a selector and added with addSubview tracks the pointer in isHighlighted, with one binding", function() {
+    class Go extends UIButton {}
+    Go.nib = "<button class=\"go\">Go</button>"
+    page("<div id=\"host\"></div>")
+    var host = new UIView("#host")
+    var button = new Go()
+    host.addSubview(button)
+    assert.equal(button.isHighlighted, false)
+    button.$el.trigger("pointerdown")
+    assert.equal(button.isHighlighted, true)
+    assert.deepEqual(button.state, ["highlighted"])
+    button.$el.trigger("pointerup")
+    assert.equal(button.isHighlighted, false)
+    var events = $._data(button.$el[0], "events")
+    assert.equal(events.pointerdown.length, 1)
+    assert.equal(events.pointerup.length, 1)
+})

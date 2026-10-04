@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UITextField, NSRange } from "../src/index.js"
+import { UITextField, NSRange, IBOutlet, UIViewController, NotificationCenter } from "../src/index.js"
 
 
 function key(element, name) {
@@ -143,6 +143,34 @@ test("a document selectionchange sends textFieldDidChangeSelection only while th
     document.dispatchEvent(new window.Event("selectionchange"))
     assert.equal(changes, 1)
     field.$el[0].blur()
+    document.dispatchEvent(new window.Event("selectionchange"))
+    assert.equal(changes, 1)
+})
+
+// Whatever a field observes on the document is released when its controller
+// is dismissed, as README §Notifications promises for every view.
+test("the selectionchange observer goes through NotificationCenter and does not survive a root swap", async function() {
+    var changes = 0
+    class Form extends UIViewController {
+        viewDidLoad() { this.nameField.delegate = {textFieldDidChangeSelection() { changes += 1 }} }
+    }
+    Form.nib = "<input id=\"name\">"
+    IBOutlet("#name", UITextField)(Form.prototype, "nameField", {})
+    page("<cocoatouch></cocoatouch>")
+    var form = new Form()
+    await new Promise((resolve) => form.present(form, {completion: resolve}))
+    var field = form.nameField
+    field.$el[0].focus()
+    document.dispatchEvent(new window.Event("selectionchange"))
+    assert.equal(changes, 1)
+    assert.ok(NotificationCenter.default._observers.has(field), "the field observes through NotificationCenter")
+    class Next extends UIViewController {}
+    Next.nib = "<p></p>"
+    var next = new Next()
+    await new Promise((resolve) => next.present(next, {completion: resolve}))
+    var documentEvents = $._data(document, "events") || {}
+    assert.equal(documentEvents.selectionchange, undefined, "no jQuery handler left on the document")
+    assert.equal(NotificationCenter.default._observers.has(field), false, "the observer was released on dismiss")
     document.dispatchEvent(new window.Event("selectionchange"))
     assert.equal(changes, 1)
 })
