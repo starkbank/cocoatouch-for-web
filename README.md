@@ -72,6 +72,26 @@ A `.xib` without a sibling `.js`, or whose sibling does not export a class of th
 
 A view owns one element, and its nib fills that element. For a view declared as an `@IBOutlet`, the element is the one the outlet names in the owner's nib, so its own nib may have any number of top-level elements: they become the view's children, the way a xib's objects become a view's subviews. For a view created in code and placed with `addSubview`, there is no element yet: a nib with one root makes that root the view's element, so the classes the superview lays out by go on it; a nib with several roots gets a plain `<div>` the stylesheet cannot address. Give a view you create in code a single root.
 
+A nib configures the view it draws through `@IBInspectable`, Interface Builder's user-defined runtime attributes: `@IBInspectable title` reads `data-title` off the view's own element into `title`, `@IBInspectable(UIColor) titleColor` reads `data-title-color` and converts it, and the value lands after the outlets are connected and before `awakeFromNib`, so `awakeFromNib` sees the configured view. The name maps lowerCamelCase to dashes. The types are the ones Interface Builder inspects: `String` (the default), `Number`, `Boolean` (`"true"` or `"false"`, anything else throws), `UIColor` (`#…` is a hex color, any other value a token resolved like `UIColor(named:)`), `UIImage` (`UIImage(named:)`), `CGPoint` and `CGSize` (two comma-separated numbers) and `CGRect` (four). A malformed number or boolean throws, naming the property; an absent attribute leaves the field's declared default standing.
+
+```js
+export class BannerView extends UIView {
+
+    @IBInspectable title = "Untitled"
+    @IBInspectable(UIColor) titleColor = UIColor.black
+    @IBInspectable(Boolean) isWide = false
+
+    awakeFromNib() {
+        this.titleLabel.text = this.title
+        this.titleLabel.textColor = this.titleColor
+    }
+}
+```
+
+```html
+<div id="hero-banner" data-title="Pix" data-title-color="accent-color" data-is-wide="true"></div>
+```
+
 ## Lifecycle
 
 ```
@@ -233,14 +253,14 @@ One element has one owner. A registered view class is revived only for an action
 
 | Foundation | UIKit | Other |
 |---|---|---|
-| NSObject | UIResponder, UIView, UIViewController | CALayer, CAGradientLayer, CMTime, CGPoint, CGSize, CGAffineTransform |
+| NSObject | UIResponder, UIView, UIViewController | CALayer, CAGradientLayer, CMTime, CGPoint, CGSize, CGRect, CGAffineTransform |
 | NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer, AVPlayerViewController |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
 | | UIScrollView, UITableView, UITableViewCell | |
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
 | DispatchGroup, IndexPath, Locale | UIDevice, UIDatePicker, UICollectionView | AVPlayerItem, AVURLAsset, AVPlayerLayer |
-| NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, UIKeyCommand, UIKeyModifierFlags | |
+| NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, IBInspectable, UIKeyCommand, UIKeyModifierFlags | |
 
 ## Sample
 
