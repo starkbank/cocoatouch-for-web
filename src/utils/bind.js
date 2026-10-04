@@ -145,6 +145,8 @@ export class Bind {
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
                 Bind.ibAction(responder)
             }
+
+            _appear(responder)
         }
     }
 
@@ -180,8 +182,23 @@ export class Bind {
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
                 Bind.ibAction(responder)
             }
+
+            _appear(responder)
         }
     }
+}
+
+
+// A controller bound as an outlet is a container view in all but name, so
+// once its own bindings are in place it appears, as an embedded child does.
+// It is not added to children: _layoutTree already reaches it through the
+// view tree, and a child entry would send viewWillTransition twice.
+function _appear(responder) {
+    if (!(responder instanceof UIViewController)) { return }
+    responder._isViewLoaded = true
+    responder.viewDidLoad()
+    responder.viewWillAppear(false)
+    responder.viewDidAppear(false)
 }
 
 
