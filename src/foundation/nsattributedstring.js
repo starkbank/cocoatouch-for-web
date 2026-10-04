@@ -36,12 +36,12 @@ export class NSAttributedString extends NSObject {
     }
 
     // The plain-text content: the text as given, or an html document's text.
+    // The markup is parsed into a DOMParser document, which runs no script and
+    // loads no subresource, so reading the text can never execute the markup.
     get string() {
         if (this._markup === null) { return this._string }
-        if (typeof document === "undefined") { return this._markup }
-        var scratch = document.createElement("div")
-        scratch.innerHTML = this._markup
-        return scratch.textContent
+        if (typeof window === "undefined") { return this._markup }
+        return new window.DOMParser().parseFromString(this._markup, "text/html").body.textContent
     }
 
     get _isMarkup() {

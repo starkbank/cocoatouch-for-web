@@ -114,6 +114,32 @@ test("webpageURL refuses a scheme a browser would execute, naming the member", f
     assert.equal(activity.webpageURL, null)
 })
 
+// Apple's webpageURL is URL?, and a contact link executes nothing: mailto:
+// and tel: are addresses a browser hands to another app, so they pass, and
+// the navigation stack's same-origin test keeps them out of history.
+test("webpageURL accepts a mailto: url and writes it as the href", function() {
+    var button = new UIButton("#contact")
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    activity.webpageURL = "mailto:help@starkbank.com"
+    assert.equal(activity.webpageURL, "mailto:help@starkbank.com")
+    button.userActivity = activity
+    assert.equal(button.$el.attr("href"), "mailto:help@starkbank.com")
+})
+
+test("userActivity read off an anchor with a tel: href is a browsing activity for that number", function() {
+    var link = new UIButton("#phone")
+    link.$el.attr("href", "tel:+5511999999999")
+    assert.equal(link.userActivity.activityType, NSUserActivityTypeBrowsingWeb)
+    assert.equal(link.userActivity.webpageURL, "tel:+5511999999999")
+})
+
+test("widening to mailto: and tel: refuses javascript: as before", function() {
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    assert.throws(() => { activity.webpageURL = "javascript:alert(1)" }, TypeError)
+    assert.throws(() => { activity.webpageURL = "JavaScript:alert(1)" }, TypeError)
+    assert.equal(activity.webpageURL, null)
+})
+
 test("webpageURL keeps a relative url relative, accepts an absolute http(s) one and a URL instance, and null removes the href", function() {
     var view = new UIView("#link")
     var attrs = {}
