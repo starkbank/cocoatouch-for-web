@@ -66,8 +66,10 @@ export class Bind {
     }
 
     // An action binds under its own namespace, beside any target the app adds
-    // to the same element. A matched element without an id is given one, as an
-    // outlet is, so the sender's selector resolves again when its node is replaced.
+    // to the same element; binding twice over one element leaves one handler,
+    // since a row element outlives the cell bound to it on the previous reload.
+    // A matched element without an id is given one, as an outlet is, so the
+    // sender's selector resolves again when its node is replaced.
     static ibAction(control) {
         if (!control) { return }
         var actions = control["ibactions"] || []
@@ -86,7 +88,7 @@ export class Bind {
                 }
                 var sender = new action.cls(`${control.selector} #${$target.attr("id")}`)
                 sender._$el = $target
-                $target.on("click.ibaction", (e) => {
+                $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
                     if (control[method]) {
                         e.preventDefault()
