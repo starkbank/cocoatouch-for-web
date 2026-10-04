@@ -75,7 +75,7 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc -p tsconfig.types.json && node scripts/globals.cjs",
+        "build": "rm -rf types && tsc -p tsconfig.types.json && node scripts/globals.cjs",
         "pretest": "npm run build",
         "test": "node --test test/*.test.js",
         "prepack": "npm run build"
