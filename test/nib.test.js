@@ -196,3 +196,44 @@ test("a view's frame and bounds are CGRects, the bounds' origin being CGPoint.ze
     assert.ok(UIScreen.main.bounds instanceof CGRect)
     assert.equal(UIScreen.main.bounds.width, window.innerWidth)
 })
+
+// Item 2.9: the hooks addSubview and removeFromSuperview send, in order. The
+// superview/window interleaving is this package's choice, pinned here.
+function movingClass(log) {
+    class Moving extends UIView {
+        willMove({toSuperview}) { log.push("willMove(toSuperview: " + (toSuperview === null ? "null" : toSuperview.identifier) + ")") }
+        didMoveToSuperview() { log.push("didMoveToSuperview") }
+        didMoveToWindow() { log.push("didMoveToWindow") }
+        awakeFromNib() { log.push("awakeFromNib") }
+        layoutSubviews() { log.push("layoutSubviews" + ($el(this) ? "" : " without element")) }
+    }
+    Moving.nib = "<p class=\"moving\"></p>"
+    return Moving
+}
+
+function $el(view) {
+    return view.$el.length === 1 && view.$el[0].isConnected
+}
+
+test("addSubview sends willMove(toSuperview:), didMoveToSuperview, didMoveToWindow, awakeFromNib, then layoutSubviews with the element in place", function() {
+    var log = []
+    page("<div id=\"stage\"></div>")
+    var stage = new UIView("#stage")
+    var moving = new (movingClass(log))()
+    stage.addSubview(moving)
+    assert.deepEqual(log, ["willMove(toSuperview: stage)", "didMoveToSuperview", "didMoveToWindow", "awakeFromNib", "layoutSubviews"])
+    assert.ok(moving.bounds.width >= 0)
+})
+
+test("removeFromSuperview sends willMove(toSuperview: nil) and didMoveToSuperview, and no didMoveToWindow", function() {
+    var log = []
+    page("<div id=\"stage\"></div>")
+    var stage = new UIView("#stage")
+    var moving = new (movingClass(log))()
+    stage.addSubview(moving)
+    log.length = 0
+    moving.removeFromSuperview()
+    assert.deepEqual(log, ["willMove(toSuperview: null)", "didMoveToSuperview"])
+    assert.equal(moving.superview, null)
+    assert.equal($("#stage .moving").length, 0)
+})

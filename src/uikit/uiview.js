@@ -26,8 +26,20 @@ export class UIView extends UIResponder {
 
     }
 
-    // Runs when a pre-rendered page is restored and the view is bound to its element.
+    // Sent once the view's element is in the page: by addSubview after the
+    // insertion, and by restore() when a pre-rendered page is rebound. Apple
+    // also sends it on removal, when the window becomes nil; this does not.
     didMoveToWindow() {
+
+    }
+
+    // willMove(toSuperview:) and didMoveToSuperview(), around addSubview's
+    // insertion and removeFromSuperview's removal.
+    willMove({toSuperview}) {
+
+    }
+
+    didMoveToSuperview() {
 
     }
 
@@ -262,8 +274,13 @@ export class UIView extends UIResponder {
         this._attach(view, {at})
     }
 
+    // The move hooks surround the insertion, the superview pair before the
+    // window one, which is this package's order where Apple documents each
+    // hook's trigger but not their interleaving. awakeFromNib follows the
+    // insertion, unlike UIKit, so a body may measure or style the element;
+    // layoutSubviews comes last, once there is an element to lay out.
     _attach(view, {at}) {
-        view.layoutSubviews()
+        view.willMove({toSuperview: this})
         var $viewEl = _elementFor(view, this)
         var siblings = this.$el.children()
         if (at !== undefined && at < siblings.length) {
@@ -274,10 +291,13 @@ export class UIView extends UIResponder {
         }
         view._$el = $viewEl
         this._link(view)
+        view.didMoveToSuperview()
+        view.didMoveToWindow()
         Bind.ibOutlet(view)
         Bind.ibInspectable(view)
         view.awakeFromNib()
         Bind.ibAction(view)
+        view.layoutSubviews()
     }
 
     // A controller's root view leaves its container empty and tears the
@@ -287,12 +307,17 @@ export class UIView extends UIResponder {
             this.next._unembed()
             return
         }
+        this.willMove({toSuperview: null})
         this.$el.remove()
         var superview = this._superview
-        if (!superview) { return }
+        if (!superview) {
+            this.didMoveToSuperview()
+            return
+        }
         var index = superview.subviews.indexOf(this)
         if (index !== -1) { superview.subviews.splice(index, 1) }
         this._superview = null
+        this.didMoveToSuperview()
         this._dispose()
     }
 
