@@ -14,6 +14,10 @@ export class NSUserActivity extends NSObject {
     userInfo = {}
     webpageURL = null
 
+    /**
+     * @param {object} options
+     * @param {string} options.activityType
+     */
     constructor({activityType}) {
         super()
         this.activityType = activityType

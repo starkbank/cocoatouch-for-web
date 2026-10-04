@@ -621,3 +621,66 @@ test("the eleven still behave when the labels are given", function() {
     assert.equal(UITableView.ScrollPosition, UITableViewScrollPosition)
     assert.deepEqual(Object.keys(UITableViewScrollPosition).sort(), ["bottom", "middle", "none", "top"])
 })
+
+
+// The type in a declaration is enforced: a member refuses a value of the wrong
+// type as Swift would at compile time, naming the method, the Swift signature,
+// the expected type and what it received.
+var isTypeMessage = (error, ...parts) => error instanceof TypeError && parts.every((part) => error.message.indexOf(part) !== -1)
+
+test("a wrong enum case is refused, naming the type and the value", function() {
+    var button = stubbed(new UIButton("#typed-button"))
+    assert.throws(() => button.setTitle("Save", {for: "nomral"}), (error) => isTypeMessage(error, "UIButton.setTitle", "UIControl.State", '"nomral"', "setTitle(_:for:)"))
+    assert.throws(() => button.title({for: "normal "}), (error) => isTypeMessage(error, "UIControl.State"))
+    var control = stubbed(new UIControl("#typed-control"))
+    assert.throws(() => control.sendActions({for: "tap"}), (error) => isTypeMessage(error, "UIControl.Event", '"tap"'))
+    assert.throws(() => control.addTarget({}, {action: function() {}, for: "tap"}), (error) => isTypeMessage(error, "UIControl.Event"))
+    assert.throws(() => control.addTarget({}, {action: "notAFunction", for: UIControlEvent.touchUpInside}), (error) => isTypeMessage(error, "UIControl.addTarget"))
+    assert.throws(() => control.addTarget({}), (error) => isTypeMessage(error, "UIControl.addTarget requires a action"))
+})
+
+test("a wrong class or shape is refused, by shape for a value type", function() {
+    var scroll = stubbed(new UIScrollView("#typed-scroll"))
+    assert.throws(() => scroll.setContentOffset({x: "0", y: 0}, {animated: false}), (error) => isTypeMessage(error, "UIScrollView.setContentOffset", "CGPoint"))
+    assert.throws(() => scroll.setContentOffset("top", {animated: false}), (error) => isTypeMessage(error, "CGPoint", '"top"'))
+    var button = stubbed(new UIButton("#typed-color"))
+    assert.throws(() => button.setTitleColor("#fff", {for: UIControlState.normal}), (error) => isTypeMessage(error, "UIButton.setTitleColor", "UIColor", '"#fff"'))
+    var css = {}
+    button._$el.css = function(name, value) { if (value === undefined) { return css[name] || "" } css[name] = value; return this }
+    button.setTitleColor(UIColor.black, {for: UIControlState.normal})
+    assert.equal(css.color, "#000000")
+    button.setTitleColor(null, {for: UIControlState.normal})
+    assert.equal(css.color, "")
+    assert.equal(button.titleColor({for: UIControlState.selected}), null)
+    withDatepickerStub(function() {
+        var picker = new UIDatePicker("#typed-date")
+        assert.throws(() => picker.setDate("2026-10-04", {animated: false}), (error) => isTypeMessage(error, "UIDatePicker.setDate", "Date"))
+    })
+})
+
+test("a non-boolean flag and a non-integer index are refused", function() {
+    var toggle = stubbed(new UISwitch("#typed-switch"))
+    assert.throws(() => toggle.setOn(true, {animated: "yes"}), (error) => isTypeMessage(error, "UISwitch.setOn", "Bool", '"yes"'))
+    assert.throws(() => toggle.setOn("on", {animated: false}), (error) => isTypeMessage(error, "Bool", '"on"'))
+    var progress = stubbed(new UIProgressView("#typed-progress"))
+    assert.throws(() => progress.setProgress("half", {animated: false}), (error) => isTypeMessage(error, "UIProgressView.setProgress", "Float"))
+    var table = stubbed(new UITableView("#typed-table"))
+    assert.throws(() => table.numberOfRows({inSection: 1.5}), (error) => isTypeMessage(error, "UITableView.numberOfRows", "Int", "1.5"))
+    var picker = stubbed(new UIPickerView("#typed-picker"))
+    assert.throws(() => picker.selectedRow({inComponent: "0"}), (error) => isTypeMessage(error, "UIPickerView.selectedRow", "Int", '"0"'))
+    var view = new UIView("#typed-view")
+    assert.throws(() => view.insertSubview(new UIView(), {at: "0"}), (error) => isTypeMessage(error, "UIView.insertSubview", "Int"))
+})
+
+test("null is accepted where Apple's type is optional and refused where it is not", function() {
+    var setup = tableWithRows(2)
+    setup.table.selectRow({at: 1, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    setup.table.selectRow({at: null, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.equal(setup.table.indexPathForSelectedRow, null)
+    assert.throws(() => setup.table.deselectRow({at: null, animated: false}), (error) => isTypeMessage(error, "UITableView.deselectRow", "IndexPath"))
+    assert.throws(() => setup.table.selectRow({animated: false, scrollPosition: UITableViewScrollPosition.none}), (error) => isTypeMessage(error, "requires a at"))
+    var control = stubbed(new UIControl("#typed-remove"))
+    control.removeTarget({}, {action: null, for: UIControlEvent.touchUpInside})
+    control.removeTarget({}, {for: UIControlEvent.touchUpInside})
+    assert.throws(() => control.removeTarget({}, {action: 3, for: UIControlEvent.touchUpInside}), (error) => isTypeMessage(error, "UIControl.removeTarget"))
+})

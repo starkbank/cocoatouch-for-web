@@ -43,11 +43,21 @@ export class UIViewController extends UIResponder {
 
     // Runs when the window changes size, before the page lays out for it; the
     // coordinator runs work alongside the change and after it, as UIKit's does.
+    /**
+     * @param {object} options
+     * @param {CGSize} options.to
+     * @param {object} options.with
+     */
     viewWillTransition({to: size, with: coordinator}) {
 
     }
 
     // UIContentContainer: the size classes are about to change, before they do.
+    /**
+     * @param {object} options
+     * @param {UITraitCollection} options.to
+     * @param {object} options.with
+     */
     willTransition({to: newCollection, with: coordinator}) {
 
     }
@@ -78,6 +88,12 @@ export class UIViewController extends UIResponder {
 
     }
 
+    /**
+     * @param {UIViewController} viewController
+     * @param {object} [options]
+     * @param {boolean} [options.animated]
+     * @param {Function} [options.completion]
+     */
     present(viewController, {animated = false, completion} = {}) {
         _dismissRootViewController(animated)
         var nib = Build.html(viewController)
@@ -168,10 +184,18 @@ export class UIViewController extends UIResponder {
         this.didMove({toParent: null})
     }
 
+    /**
+     * @param {object} options
+     * @param {UIViewController|null} options.toParent
+     */
     willMove({toParent}) {
 
     }
 
+    /**
+     * @param {object} options
+     * @param {UIViewController|null} options.toParent
+     */
     didMove({toParent}) {
 
     }

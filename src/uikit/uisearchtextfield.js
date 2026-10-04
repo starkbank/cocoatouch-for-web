@@ -1,10 +1,15 @@
 import { NSString } from "../utils/nsstring.js"
 import { UITextField } from "./uitextfield.js"
-import { required } from "../utils/required.js"
+import { required, Int } from "../utils/required.js"
 
 
 export class UISearchToken {
 
+    /**
+     * @param {object} options
+     * @param {string|null} [options.icon]
+     * @param {string} options.text
+     */
     constructor({icon = null, text}) {
         this.icon = icon
         this.text = text
@@ -56,8 +61,13 @@ export class UISearchTextField extends UITextField {
         return this._allowsDeletingTokens
     }
 
-    insertToken(token, options) {
-        var index = required(options, "at", "UISearchTextField.insertToken", "insertToken(token, {at: index}). Apple's is insertToken(_:at:)")
+    /**
+     * @param {UISearchToken} token
+     * @param {object} options
+     * @param {number} options.at
+     */
+    insertToken(token, {at} = {}) {
+        var index = required(at, "at", Int, "UISearchTextField.insertToken", "Apple's is insertToken(_:at:); write insertToken(token, {at: index}).")
         var $tag = $("<div class=\"tag\"><div class=\"tag-text\">" + NSString.cleanScript(token.text) + "</div></div>")
         if (token.icon) { $tag.prepend(token.icon) }
         var tags = this.$el.children(".tag")
@@ -66,6 +76,10 @@ export class UISearchTextField extends UITextField {
         this._tokens.splice(index, 0, token)
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.at
+     */
     removeToken({at}) {
         this.$el.children(".tag").eq(at).remove()
         this._tokens.splice(at, 1)

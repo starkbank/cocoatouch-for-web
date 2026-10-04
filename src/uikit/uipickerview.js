@@ -1,7 +1,7 @@
 import { UIView } from "./uiview.js"
 import { NSString } from "../utils/nsstring.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
-import { required } from "../utils/required.js"
+import { required, Int, Bool } from "../utils/required.js"
 
 
 const retiredDelegateNames = {pickerViewTitleForRow: "pickerViewTitleForRowForComponent", pickerViewDidSelectRow: "pickerViewDidSelectRowInComponent"}
@@ -43,8 +43,12 @@ export class UIPickerView extends UIView {
         return 1
     }
 
-    numberOfRows(options) {
-        var inComponent = required(options, "inComponent", "UIPickerView.numberOfRows", "numberOfRows({inComponent: 0}). Apple's is numberOfRows(inComponent:)")
+    /**
+     * @param {object} options
+     * @param {number} options.inComponent
+     */
+    numberOfRows({inComponent} = {}) {
+        required(inComponent, "inComponent", Int, "UIPickerView.numberOfRows", "Apple's is numberOfRows(inComponent:); write numberOfRows({inComponent: 0}).")
         var dataSource = this.dataSource
         if (!dataSource) { return 0 }
         return dataSource.pickerViewNumberOfRowsInComponent(this, inComponent)
@@ -67,14 +71,25 @@ export class UIPickerView extends UIView {
     }
 
     // selectRow(_:inComponent:animated:): both labels required; one component, no animation.
-    selectRow(row, options) {
-        required(options, "inComponent", "UIPickerView.selectRow", "selectRow(row, {inComponent: 0, animated: false}). Apple's is selectRow(_:inComponent:animated:)")
-        required(options, "animated", "UIPickerView.selectRow", "selectRow(row, {inComponent: 0, animated: false}). Apple's is selectRow(_:inComponent:animated:)")
+    /**
+     * @param {number} row
+     * @param {object} options
+     * @param {number} options.inComponent
+     * @param {boolean} options.animated
+     */
+    selectRow(row, {inComponent, animated} = {}) {
+        var signature = "Apple's is selectRow(_:inComponent:animated:); write selectRow(row, {inComponent: 0, animated: false})."
+        required(inComponent, "inComponent", Int, "UIPickerView.selectRow", signature)
+        required(animated, "animated", Bool, "UIPickerView.selectRow", signature)
         this.$el.prop("selectedIndex", row)
     }
 
-    selectedRow(options) {
-        required(options, "inComponent", "UIPickerView.selectedRow", "selectedRow({inComponent: 0}). Apple's is selectedRow(inComponent:)")
+    /**
+     * @param {object} options
+     * @param {number} options.inComponent
+     */
+    selectedRow({inComponent} = {}) {
+        required(inComponent, "inComponent", Int, "UIPickerView.selectedRow", "Apple's is selectedRow(inComponent:); write selectedRow({inComponent: 0}).")
         var index = this.$el.prop("selectedIndex")
         return index === undefined || index === null ? -1 : index
     }

@@ -6,6 +6,13 @@ import { CGSize } from "./cgsize.js"
 // derived from them. There is no x or y, as there is none on Apple's.
 export class CGRect {
 
+    /**
+     * @param {object} [options]
+     * @param {number} [options.x]
+     * @param {number} [options.y]
+     * @param {number} [options.width]
+     * @param {number} [options.height]
+     */
     constructor({x = 0, y = 0, width = 0, height = 0} = {}) {
         this.origin = new CGPoint({x: x, y: y})
         this.size = new CGSize({width: width, height: height})
@@ -56,10 +63,20 @@ export class CGRect {
         return point.x >= this.minX && point.x < this.maxX && point.y >= this.minY && point.y < this.maxY
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.dx
+     * @param {number} options.dy
+     */
     insetBy({dx, dy}) {
         return new CGRect({x: this.minX + dx, y: this.minY + dy, width: this.width - 2 * dx, height: this.height - 2 * dy})
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.dx
+     * @param {number} options.dy
+     */
     offsetBy({dx, dy}) {
         return new CGRect({x: this.minX + dx, y: this.minY + dy, width: this.width, height: this.height})
     }

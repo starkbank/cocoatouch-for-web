@@ -5,6 +5,11 @@ import { UIUserInterfaceSizeClass } from "./uiuserinterfacesizeclass.js"
 // UIKit's UITraitCollection, reduced to the size classes a page can report.
 export class UITraitCollection extends NSObject {
 
+    /**
+     * @param {object} [options]
+     * @param {"unspecified"|"compact"|"regular"} [options.horizontalSizeClass]
+     * @param {"unspecified"|"compact"|"regular"} [options.verticalSizeClass]
+     */
     constructor({horizontalSizeClass = UIUserInterfaceSizeClass.unspecified, verticalSizeClass = UIUserInterfaceSizeClass.unspecified} = {}) {
         super()
         this._horizontalSizeClass = horizontalSizeClass

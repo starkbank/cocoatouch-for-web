@@ -2,7 +2,7 @@ import { Locale } from "../foundation/locale.js"
 import { datePickerDateFormat, datePickerRegional } from "./datepickerlocale.js"
 import { UIControl } from "./uicontrol.js"
 import { UIControlEvent } from "./uicontrolevent.js"
-import { required } from "../utils/required.js"
+import { required, typed, Bool, DateType } from "../utils/required.js"
 
 
 // Wraps a jQuery UI datepicker (jquery-ui must be on the page) in an input the
@@ -34,8 +34,15 @@ export class UIDatePicker extends UIControl {
     }
 
     // setDate(_:animated:): animated is required and recorded; the picker does not animate.
-    setDate(date, options) {
-        required(options, "animated", "UIDatePicker.setDate", "setDate(date, {animated: false}). Apple's is setDate(_:animated:)")
+    /**
+     * @param {Date} date
+     * @param {object} options
+     * @param {boolean} options.animated
+     */
+    setDate(date, {animated} = {}) {
+        var signature = "Apple's is setDate(_:animated:); write setDate(date, {animated: false})."
+        required(animated, "animated", Bool, "UIDatePicker.setDate", signature)
+        typed(date, "date", DateType, "UIDatePicker.setDate", signature)
         this.date = date
     }
 
