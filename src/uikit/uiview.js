@@ -360,7 +360,11 @@ function _slideDirection(options) {
 
 
 // A subview whose nib has no id is numbered after its superview, so views
-// added in code are addressable without the app naming them.
+// added in code are addressable without the app naming them. A class nib
+// with several roots is refused rather than wrapped: the wrapper would be a
+// bare <div> the stylesheet cannot address, and the app would only notice
+// when the layout broke. The class name is read for the message alone; under
+// a minifier it is mangled, which is why the nib excerpt is there too.
 function _elementFor(view, superview) {
     var $nib = $("<div></div>").html(view.nib)
     var roots = $nib.children()
@@ -374,6 +378,11 @@ function _elementFor(view, superview) {
             $root.attr("id", _identify(view, superview))
         }
         return $root
+    }
+    if (view.nib !== "" && view.nib === view.constructor.nib) {
+        var strayText = $nib.contents().filter(function() { return this.nodeType === 3 && this.nodeValue.trim() !== "" })
+        var count = roots.length + strayText.length
+        throw new Error(`${view.constructor.name}: a view placed with addSubview takes its nib's single root as its element, but this nib has ${count} top-level nodes — ${view.nib.trim().slice(0, 80)}`)
     }
     return $(`<div id="${_identify(view, superview)}">${view.nib}</div>`)
 }
