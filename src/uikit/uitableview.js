@@ -3,6 +3,7 @@ import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 
 
@@ -240,7 +241,7 @@ export class UITableView extends UIScrollView {
             if (this._isEditing) {
                 deleteButton.on("click.uitableviewdelete", (event) => {
                     event.stopImmediatePropagation()
-                    this._delegateCall("tableViewCommitEditingStyleForRowAtIndexPath", "delete", indexPath)
+                    this._delegateCall("tableViewCommitEditingStyleForRowAtIndexPath", UITableViewCellEditingStyle.delete, indexPath)
                 })
             }
             var selection = $(element).find("[id^=table-cell-selected]")

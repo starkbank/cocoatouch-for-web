@@ -181,7 +181,7 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 }
 ```
 
-`selectRow({at, animated, scrollPosition})`, `deselectRow({at, animated})`, `indexPathForSelectedRow`, `indexPathsForSelectedRows`, `allowsMultipleSelection`, `setEditing(true, {animated})` and `cellForRow({at})` behave as on iOS; `scrollPosition` is a `UITableViewScrollPosition` (`none`, `top`, `middle`, `bottom`, also spelled `UITableView.ScrollPosition.top`) and scrolls the row to that edge or the middle, and `at: null` clears the selection as Apple's `nil` does. `dequeueReusableCell` hands back the cell object already bound to that row for the identifier, after sending it `prepareForReuse()`, and `reloadData` releases the cells a pass no longer uses, so a table reloaded on every filter holds one cell per row. The delegate receives `tableViewDidSelectRowAtIndexPath`, `tableViewDidDeselectRowAtIndexPath` and, in editing mode, `tableViewCommitEditingStyleForRowAtIndexPath(tableView, "delete", indexPath)`. `UICollectionView` follows the same shape with `IndexPath` sections and items.
+`selectRow({at, animated, scrollPosition})`, `deselectRow({at, animated})`, `indexPathForSelectedRow`, `indexPathsForSelectedRows`, `allowsMultipleSelection`, `setEditing(true, {animated})` and `cellForRow({at})` behave as on iOS; `scrollPosition` is a `UITableViewScrollPosition` (`none`, `top`, `middle`, `bottom`, also spelled `UITableView.ScrollPosition.top`) and scrolls the row to that edge or the middle, and `at: null` clears the selection as Apple's `nil` does. `dequeueReusableCell` hands back the cell object already bound to that row for the identifier, after sending it `prepareForReuse()`, and `reloadData` releases the cells a pass no longer uses, so a table reloaded on every filter holds one cell per row. The delegate receives `tableViewDidSelectRowAtIndexPath`, `tableViewDidDeselectRowAtIndexPath` and, in editing mode, `tableViewCommitEditingStyleForRowAtIndexPath(tableView, editingStyle, indexPath)`, where `editingStyle` is a `UITableViewCellEditingStyle` (`none`, `delete`, `insert`, also spelled `UITableViewCell.EditingStyle.delete`). `UICollectionView` follows the same shape with `IndexPath` sections and items.
 
 ## Controls
 
@@ -282,7 +282,7 @@ One element has one owner. A registered view class is revived only for an action
 | NSObject | UIResponder, UIView, UIViewController | CALayer, CAGradientLayer, CMTime, CGPoint, CGSize, CGRect, CGAffineTransform |
 | NotificationCenter | UIControl, UIButton, UILabel, UITextField, UISearchTextField | AVPlayer, AVPlayerViewController |
 | | UIImageView, UIImage, UIColor, UIControlEvent | |
-| | UIScrollView, UITableView, UITableViewCell, UITableViewScrollPosition | |
+| | UIScrollView, UITableView, UITableViewCell, UITableViewScrollPosition, UITableViewCellEditingStyle | |
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
 | DispatchGroup, IndexPath, Locale, NSRange, NSNotFound | UIDevice, UIDatePicker, UICollectionView | AVPlayerItem, AVURLAsset, AVPlayerLayer |

@@ -51,7 +51,7 @@ export class TableViewViewController extends UIViewController {
     }
 
     tableViewCommitEditingStyleForRowAtIndexPath(tableView, editingStyle, indexPath) {
-        if (editingStyle !== "delete") { return }
+        if (editingStyle !== UITableViewCell.EditingStyle.delete) { return }
         this.contacts.splice(indexPath.row, 1)
         this.reload()
     }
