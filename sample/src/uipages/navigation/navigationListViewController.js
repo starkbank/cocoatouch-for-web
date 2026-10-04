@@ -21,8 +21,11 @@ export class NavigationListViewController extends UIViewController {
 
     // UINavigationControllerDelegate
 
+    // A delegate hears about every show, including one on a deep link before
+    // its own view is loaded, so it writes to its label only once it has one.
     navigationControllerDidShowViewControllerAnimated(navigationController, viewController, animated) {
         this.shows += 1
+        if (!this.isViewLoaded) { return }
         this.logLabel.text = `didShow #${this.shows}: ${viewController.navigationItem.title} · stack depth ${navigationController.viewControllers.length} · animated ${animated}`
     }
 }
