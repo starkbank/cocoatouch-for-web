@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState, UIDatePicker } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
-import { DispatchGroup, IndexPath, Locale } from "../src/index.js"
+import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound } from "../src/index.js"
 import { NSString } from "../src/utils/nsstring.js"
 
 
@@ -435,4 +435,12 @@ test("UIControl.state is the active cases, isHighlighted round-trips, and UICont
     assert.deepEqual(control.state, [UIControlState.highlighted, UIControlState.selected, UIControlState.disabled])
     control.isHighlighted = false
     assert.ok(!classes.has("highlighted"))
+})
+
+test("NSRange carries location and length, and NSNotFound is a Foundation global", function() {
+    var range = new NSRange({location: 2, length: 3})
+    assert.equal(range.location, 2)
+    assert.equal(range.length, 3)
+    assert.equal(NSNotFound, Number.MAX_SAFE_INTEGER)
+    assert.equal(NSRange.NSNotFound, undefined)
 })
