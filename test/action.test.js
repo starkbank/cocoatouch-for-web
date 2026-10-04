@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, IBAction, UIView, UIButton, UIControlEvent, UIViewController, UITapGestureRecognizer } from "../src/index.js"
+import { IBOutlet, IBAction, UIView, UIButton, UIControlEvent, UIViewController, UITapGestureRecognizer, UITableView, UITableViewCell } from "../src/index.js"
 
 
 function present(controller) {
@@ -95,4 +95,29 @@ test("two gesture recognizers on one view both fire", function() {
     view.addGestureRecognizer(new UITapGestureRecognizer({target: {}, action: function() { log.push("two") }}))
     view.$el.trigger("click")
     assert.deepEqual(log, ["one", "two"])
+})
+
+// Row elements persist across reloads, so a cell class bound to row 0 on one
+// pass and a different one on the next must leave only the current cell's
+// action on the row's button.
+test("binding an @IBAction twice over one element leaves one handler: a replaced cell's action no longer fires", function() {
+    var taps = []
+    class CellA extends UITableViewCell { tapped() { taps.push("A") } }
+    class CellB extends UITableViewCell { tapped() { taps.push("B") } }
+    CellA.nib = CellB.nib = "<tr><td><button id=\"tap\"></button></td></tr>"
+    IBAction("#tap", UIButton)(CellA.prototype, "tapped", {})
+    IBAction("#tap", UIButton)(CellB.prototype, "tapped", {})
+    page("<table id=\"t\"><tbody></tbody></table>")
+    var table = new UITableView("#t")
+    table.register(CellA, {forCellReuseIdentifier: "a"})
+    table.register(CellB, {forCellReuseIdentifier: "b"})
+    var which = "a"
+    table.dataSource = {
+        tableViewNumberOfRowsInSection: function() { return 1 },
+        tableViewCellForRowAtIndexPath: function(tableView, indexPath) { return tableView.dequeueReusableCell({withIdentifier: which, for: indexPath}) },
+    }
+    which = "b"
+    table.reloadData()
+    $("#t").find("#tap").trigger("click")
+    assert.deepEqual(taps, ["B"])
 })
