@@ -15,6 +15,7 @@ export class HomeViewController extends UIViewController {
     @IBOutlet("#home-table-view", UIButton) tableViewOption
     @IBOutlet("#home-links", UIButton) linksOption
     @IBOutlet("#home-traits", UIButton) traitsOption
+    @IBOutlet("#home-navigation", UIButton) navigationOption
 
     viewDidLoad() {
         this.subtitleLabel.text = "Each page is a UIViewController with a .xib. Pick one to see a part of UIKit in use."
@@ -26,6 +27,7 @@ export class HomeViewController extends UIViewController {
             [this.tableViewOption, "/table-view"],
             [this.linksOption, "/links"],
             [this.traitsOption, "/traits"],
+            [this.navigationOption, "/navigation"],
         ]
         for (const [option, page] of pages) {
             const activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})

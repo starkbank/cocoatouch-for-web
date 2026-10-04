@@ -141,6 +141,25 @@ A `UIViewController` declared as an `@IBOutlet` is a container view in all but n
 
 `children`, `parent`, `willMove({toParent})` and `didMove({toParent})` follow UIKit. A plain view's `removeFromSuperview()` takes its element out of the page. A container forwards the disappear pair, as UIKit's automatic forwarding does: when the root controller is swapped by `present`, or an embedded child is removed, `viewWillDisappear` goes to the container first, then to its children depth-first, then to the controllers bound as its outlets; the tree is disposed; then `viewDidDisappear` follows the same order, after which each disposed child's `parent` is `null` and the container's `children` is empty.
 
+## Navigation
+
+`UINavigationController` is a stack of controllers bound to browser history: a navigation stack and the session history are the same data structure, so the binding is a mapping, not a simulation. The stack is the page's root — `navigationController.present(navigationController)` — and its nib is a `navigationBar` above a content container. Each entry gets a host view of its own: a push adds a fresh empty host, embeds the new controller into it and hides the previous host (`isHidden`), so the controller below keeps its element and is never reloaded; a pop removes the popped controller's host and shows the one below again.
+
+```js
+var navigation = new UINavigationController({rootViewController: new ListViewController()})
+navigation.present(navigation)
+this.navigationController.pushViewController(new DetailViewController(), {animated: true})
+this.navigationController.popViewController({animated: true})
+```
+
+`viewControllers` (get and set), `setViewControllers(_:animated:)`, `topViewController`, `visibleViewController`, `pushViewController(_:animated:)`, `popViewController(animated:)` (returns the popped controller, `null` on a one-deep stack, since Apple refuses to pop the root), `popToRootViewController(animated:)` and `popToViewController(_:animated:)` (return the popped controllers in stack order), `delegate`, `navigationBar`, `isNavigationBarHidden` and `setNavigationBarHidden(_:animated:)`; every controller has `navigationController` (`null` outside a stack) and a `navigationItem` with `title` and `hidesBackButton`. The delegate gets `navigationControllerWillShowViewControllerAnimated(nav, viewController, animated)` and `navigationControllerDidShowViewControllerAnimated(nav, viewController, animated)`.
+
+**History.** `pushViewController` calls `history.pushState({cocoatouchNavDepth: n}, "", url)`, the url being the pushed controller's `userActivity.webpageURL` or none, in which case the address does not move; `popViewController` mutates the stack synchronously, returns, then goes back one history entry, and the resulting `popstate` finds nothing left to pop. The browser's back button pops the stack. `popstate` only ever pops: the stack cannot know what a forward entry held, so **the forward button does not restore a popped controller**, and a fresh load on a pushed address has no stack — the app's own routing rebuilds one with `setViewControllers`, as the sample does. A router that presents on `popstate` must leave to the stack the addresses the current stack serves.
+
+**Order on a push of B over A**, sequential as a root swap is: `A.viewWillDisappear(animated)`, `A.viewDidDisappear(animated)`, A's host hidden, `B.willMove({toParent})`, `B.viewDidLoad`, the delegate's `willShow`, `B.viewWillAppear(animated)`, `B.viewWillLayoutSubviews`, `B.viewDidLayoutSubviews`, `B.viewDidAppear(animated)`, `B.didMove({toParent})`, the delegate's `didShow`. **On a pop of B back to A**: `B.viewWillDisappear`, `B.viewDidDisappear`, `B.willMove({toParent: null})`, `B.didMove({toParent: null})`, B's host removed, A's host shown, `willShow`, `A.viewWillAppear`, `A.viewWillLayoutSubviews`, `A.viewDidLayoutSubviews`, `A.viewDidAppear`, `didShow` — and no second `viewDidLoad` for A. `popToRootViewController` and `popToViewController` send the disappear pair to each popped controller, deepest first, then one appear pair to the destination.
+
+**What is not provided, by design**: the interactive pop gesture; UIKit's transition animation — `animated` reaches the hooks and the delegate, and the content container carries the `animated` class for the stylesheet to transition, nothing more; `hidesBottomBarWhenPushed`; custom transitions; forward-button restore after a pop; automatic deep-link stack rebuilding; `UIBarButtonItem` and bar customisation — the bar draws Apple's default back button, titled after the previous controller's `navigationItem.title` and suppressed by `hidesBackButton`, and is visible by default as on iOS. While a stack is root, `present` still means "become the page's root controller" and destroys the stack; inside a stack, push.
+
 ## Animations
 
 `UIView.animate` runs property changes over a duration: `alpha` and `isHidden` fade instead of switching. `UIView.transition` swaps two views, sliding the new one in from the side named by a flip option or dissolving it.
@@ -287,11 +306,12 @@ One element has one owner. A registered view class is revived only for an action
 | | UIProgressView, UIActivityIndicatorView | |
 | DispatchGroup, IndexPath, Locale, NSRange, NSNotFound | UIDevice, UIDatePicker, UICollectionView | AVPlayerItem, AVURLAsset, AVPlayerLayer |
 | | UITraitCollection, UIUserInterfaceSizeClass, UIUserInterfaceIdiom | |
+| | UINavigationController, UINavigationBar, UINavigationItem | |
 | NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, IBInspectable, UIKeyCommand, UIKeyModifierFlags | |
 
 ## Sample
 
-`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field, and, since 1.5.0, a Traits page with a badge configured through `@IBInspectable`, `CGRect` frames and bounds, and the size-class hooks on resize. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images.
+`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field, since 1.5.0, a Traits page with a badge configured through `@IBInspectable`, `CGRect` frames and bounds, and the size-class hooks on resize, and, since 1.6.0, a Navigation page whose root is a `UINavigationController`, pushing a detail controller and popping it from the bar, from the page and with the browser's back button. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images.
 
 ```
 cd sample

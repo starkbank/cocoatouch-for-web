@@ -8,4 +8,5 @@
     <a id="menu-table-view" class="menu-option">Table view</a>
     <a id="menu-links" class="menu-option">Links and scrolling</a>
     <a id="menu-traits" class="menu-option">Traits</a>
+    <a id="menu-navigation" class="menu-option">Navigation</a>
 </nav>

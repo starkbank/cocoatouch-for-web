@@ -33,6 +33,9 @@ import { IBAction } from "./ibaction.js"
 import { IBInspectable } from "./ibinspectable.js"
 import { UIKeyCommand, UIKeyModifierFlags } from "./uikeycommand.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { UINavigationController } from "./uinavigationcontroller.js"
+import { UINavigationBar } from "./uinavigationbar.js"
+import { UINavigationItem } from "./uinavigationitem.js"
 
 
 export {
@@ -76,4 +79,7 @@ export {
      UIKeyCommand,
      UIKeyModifierFlags,
      UIControlState,
+     UINavigationController,
+     UINavigationBar,
+     UINavigationItem,
 }
