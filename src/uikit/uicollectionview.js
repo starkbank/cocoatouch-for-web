@@ -50,7 +50,13 @@ export class UICollectionView extends UIView {
         this._bindItems()
     }
 
+    // The item's element is already in place, empty: the registered nib goes
+    // in here, before the cell is constructed, so its awakeFromNib binds to it.
     dequeueReusableCell({withReuseIdentifier, for: indexPath}) {
+        var element = this.$el.find("> #" + _cellId(indexPath))
+        if (element.length > 0 && element.html() === "") {
+            element.html(this._registeredNibs[withReuseIdentifier] || "")
+        }
         return new UICollectionViewCell(withReuseIdentifier, indexPath)
     }
 
@@ -58,14 +64,16 @@ export class UICollectionView extends UIView {
         return cell._indexPath || null
     }
 
+    // Items are appended in index-path order and the data source is asked once
+    // per item, with the element in place; a cell the data source made without
+    // dequeuing still gets the nib registered for its identifier.
     _loadItems(section, numberOfItems) {
         for (var row = 0; row < numberOfItems; row++) {
             var indexPath = new IndexPath({section: section, row: row})
+            this.$el.append("<collection-view-cell id=\"" + _cellId(indexPath) + "\"></collection-view-cell>")
             var item = this._dataSource.collectionViewCellForItemAtIndexPath(this, indexPath)
-            var nib = this._registeredNibs[item.reuseIdentifier] || ""
-            this.$el.prepend("<collection-view-cell id=\"cell-section-" + section + "-row-" + row + "\">" + nib + "</collection-view-cell>")
-            // The cell is dequeued again with its element in place, so its awakeFromNib can bind to it.
-            this._dataSource.collectionViewCellForItemAtIndexPath(this, indexPath)
+            var element = this.$el.find("> #" + _cellId(indexPath))
+            if (item && element.html() === "") { element.html(this._registeredNibs[item.reuseIdentifier] || "") }
         }
     }
 
@@ -79,6 +87,11 @@ export class UICollectionView extends UIView {
             delegate.collectionViewDidSelectItemAt(collectionView, new IndexPath({section: Number(meta[1]), row: Number(meta[2])}))
         })
     }
+}
+
+
+function _cellId(indexPath) {
+    return "cell-section-" + indexPath.section + "-row-" + indexPath.row
 }
 
 
