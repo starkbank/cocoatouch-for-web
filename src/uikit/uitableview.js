@@ -5,6 +5,7 @@ import { Bind } from "../utils/bind.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
+import { required } from "../utils/required.js"
 
 
 const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
@@ -81,7 +82,7 @@ export class UITableView extends UIScrollView {
 
     // setEditing(_:animated:): animated is required and recorded; editing does not animate here.
     setEditing(editing, options) {
-        _required(options, "animated", "UITableView.setEditing", "setEditing(editing, {animated: false}). Apple's is setEditing(_:animated:)")
+        required(options, "animated", "UITableView.setEditing", "setEditing(editing, {animated: false}). Apple's is setEditing(_:animated:)")
         this._isEditing = editing
         this._bindRows()
     }
@@ -100,7 +101,7 @@ export class UITableView extends UIScrollView {
     }
 
     numberOfRows(options) {
-        var inSection = _required(options, "inSection", "UITableView.numberOfRows", "numberOfRows({inSection: 0}). Apple's is numberOfRows(inSection:)")
+        var inSection = required(options, "inSection", "UITableView.numberOfRows", "numberOfRows({inSection: 0}). Apple's is numberOfRows(inSection:)")
         if (this._dataSource === null) { return 0 }
         return this._dataSource.tableViewNumberOfRowsInSection(this, inSection)
     }
@@ -178,8 +179,8 @@ export class UITableView extends UIScrollView {
     selectRow(options) {
         var signature = "selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none}). Apple's is selectRow(at:animated:scrollPosition:)"
         if (!options || !("at" in options)) { throw new TypeError("UITableView.selectRow requires a at: " + signature) }
-        _required(options, "animated", "UITableView.selectRow", signature)
-        var scrollPosition = _required(options, "scrollPosition", "UITableView.selectRow", signature)
+        required(options, "animated", "UITableView.selectRow", signature)
+        var scrollPosition = required(options, "scrollPosition", "UITableView.selectRow", signature)
         if (options.at === null) {
             this._selectedRows.slice().forEach((selected) => this._deselect(selected))
             return
@@ -197,8 +198,8 @@ export class UITableView extends UIScrollView {
 
     deselectRow(options) {
         var signature = "deselectRow({at: indexPath, animated: false}). Apple's is deselectRow(at:animated:)"
-        var at = _required(options, "at", "UITableView.deselectRow", signature)
-        _required(options, "animated", "UITableView.deselectRow", signature)
+        var at = required(options, "at", "UITableView.deselectRow", signature)
+        required(options, "animated", "UITableView.deselectRow", signature)
         this._deselect(_row(at))
     }
 
@@ -278,13 +279,4 @@ function _scroll(element, scrollPosition) {
     var block = _blocks[scrollPosition]
     if (!block || !element || typeof element.scrollIntoView !== "function") { return }
     element.scrollIntoView({block: block})
-}
-
-// Apple requires the label; JavaScript cannot refuse at compile time, so the
-// call refuses instead and names what to write.
-function _required(options, label, method, signature) {
-    if (!options || options[label] === undefined) {
-        throw new TypeError(`${method} requires a ${label}: ${signature}`)
-    }
-    return options[label]
 }

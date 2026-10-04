@@ -257,3 +257,21 @@ test("_embed keeps its order for existing callers after the load/appear split", 
     child.removeFromParent()
     assert.deepEqual(log, ["child.willMove(null)", "child.viewWillDisappear(false)", "child.viewDidDisappear(false)", "child.didMove(null)"])
 })
+
+// Only a same-origin script can plant history state, but a depth must reach
+// splice as an integer or not at all: a numeric string is read as its
+// number, anything that is not an integer is ignored.
+test("a popstate whose depth is not an integer is ignored, and an integer depth still pops", async function() {
+    var log = []
+    var {nav, controllers} = await stackOf(log, ["a", "b", "c", "d"])
+    window.dispatchEvent(new window.PopStateEvent("popstate", {state: {cocoatouchNavDepth: 1.5}}))
+    assert.deepEqual(nav.viewControllers, controllers)
+    window.dispatchEvent(new window.PopStateEvent("popstate", {state: {cocoatouchNavDepth: {}}}))
+    assert.deepEqual(nav.viewControllers, controllers)
+    window.dispatchEvent(new window.PopStateEvent("popstate", {state: {cocoatouchNavDepth: "x"}}))
+    assert.deepEqual(nav.viewControllers, controllers)
+    window.dispatchEvent(new window.PopStateEvent("popstate", {state: {cocoatouchNavDepth: "2"}}))
+    assert.deepEqual(nav.viewControllers, controllers.slice(0, 3))
+    window.dispatchEvent(new window.PopStateEvent("popstate", {state: {cocoatouchNavDepth: 1}}))
+    assert.deepEqual(nav.viewControllers, controllers.slice(0, 2))
+})
