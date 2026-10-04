@@ -5,7 +5,8 @@
 import { JSDOM } from "jsdom"
 import jqueryFactory from "jquery"
 
-var dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {pretendToBeVisual: true})
+// A real origin, so the History API a navigation stack binds to accepts relative urls.
+var dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {pretendToBeVisual: true, url: "http://localhost/"})
 
 globalThis.window = dom.window
 globalThis.document = dom.window.document

@@ -1,0 +1,12 @@
+<main class="page navigation-detail">
+    <h1>Detail</h1>
+    <p class="lead">Pushed onto the stack. The root controller's view is still in the document, hidden; popping shows it again without reloading it.</p>
+
+    <section class="demo">
+        <h2>popViewController</h2>
+        <p id="navigation-detail-depth" class="output"></p>
+        <div class="row">
+            <button id="navigation-pop" class="button button-secondary">Pop</button>
+        </div>
+    </section>
+</main>

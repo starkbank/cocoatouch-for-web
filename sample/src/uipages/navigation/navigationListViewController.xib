@@ -1,0 +1,15 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Navigation</h1>
+    <p class="lead">This page is a <code>UINavigationController</code>: the bar above is its <code>navigationBar</code>, this controller is its root, and a push adds a history entry, so the browser's back button pops.</p>
+
+    <section class="demo">
+        <h2>pushViewController</h2>
+        <p>The detail controller sets its <code>userActivity.webpageURL</code>, so the address becomes <code>/navigation/detail</code>. Pop with the bar's back button, the detail page's own button, or the browser's back button.</p>
+        <div class="row">
+            <button id="navigation-push" class="button">Push detail</button>
+        </div>
+        <p id="navigation-log" class="output"></p>
+    </section>
+</main>

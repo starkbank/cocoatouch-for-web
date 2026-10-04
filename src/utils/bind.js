@@ -198,7 +198,10 @@ export class Bind {
 function _appear(responder, {isRestoring}) {
     if (!(responder instanceof UIViewController)) { return }
     responder._isViewLoaded = true
-    if (!isRestoring) { responder.viewDidLoad() }
+    if (!isRestoring) {
+        responder._viewDidLoad()
+        responder.viewDidLoad()
+    }
     responder.viewWillAppear(false)
     responder.viewDidAppear(false)
 }
