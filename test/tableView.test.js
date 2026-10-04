@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UILabel, UITableView, UITableViewCell, IndexPath, UITapGestureRecognizer, UITableViewScrollPosition } from "../src/index.js"
+import { IBOutlet, UILabel, UITableView, UITableViewCell, IndexPath, UITapGestureRecognizer, UITableViewScrollPosition, UITableViewCellEditingStyle } from "../src/index.js"
 
 
 var reuses = []
@@ -121,4 +121,17 @@ test("a table view delegate carrying the retired commit name is refused, and the
     setup.table.setEditing(true, {animated: false})
     $("#delete-button-1").trigger("click")
     assert.deepEqual(committed, [["delete", 1]])
+})
+
+test("the commit hook receives UITableViewCellEditingStyle.delete, also spelled UITableViewCell.EditingStyle.delete", function() {
+    var setup = tableWithRows(1)
+    var committed = []
+    setup.table.delegate = {tableViewCommitEditingStyleForRowAtIndexPath: function(tableView, editingStyle, indexPath) { committed.push(editingStyle) }}
+    $("#cell-0").append("<button id=\"delete-button-0\"></button>")
+    setup.table.setEditing(true, {animated: false})
+    $("#delete-button-0").trigger("click")
+    assert.deepEqual(committed, [UITableViewCellEditingStyle.delete])
+    assert.equal(UITableViewCell.EditingStyle, UITableViewCellEditingStyle)
+    assert.deepEqual(Object.keys(UITableViewCellEditingStyle).sort(), ["delete", "insert", "none"])
+    assert.ok(Object.isFrozen(UITableViewCellEditingStyle))
 })
