@@ -12,6 +12,7 @@ The `cocoatouch` npm package: Apple's CocoaTouch for the browser. Every interfac
 - A view's nib describes the view's contents when the view has a host element, and the view itself when it does not. A view owns one element and its nib fills it. An outlet's element is the one the owner's nib names, so that nib may have several top-level elements; a view created in code gets its single nib root as its element, and a class nib with several roots is refused with an error naming the count; only an empty nib or `UIView.loadFromNib` html still gets a bare `<div>`. Do not reinstate copying the superview's classes onto that wrapper, and do not make it `display: contents`: both leave a view that cannot report its frame.
 - Every lifecycle hook has its order written in README §Lifecycle (`present`, `restore`, an outlet-bound controller, `addSubview`, `removeFromSuperview`, containment, a root swap, a resize); a new hook lands in the same commit as the sentence that places it, and a test asserts the whole sequence with `deepEqual`.
 - The framework never resolves its own stored state through a public method on `this` when a module-private function will do: Swift lets a subclass hold `var title` beside `title(for:)`, JavaScript has one namespace, and a subclass property sharing an Apple method's base name must not be able to break the superclass.
+- A label Apple requires is required here: an option Apple's signature makes mandatory gets no default, and its absence throws a `TypeError` naming the method and the Swift signature.
 - Comments say why, not what.
 
 ## Git

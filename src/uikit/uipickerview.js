@@ -37,7 +37,8 @@ export class UIPickerView extends UIView {
         return 1
     }
 
-    numberOfRows({inComponent} = {inComponent: 0}) {
+    numberOfRows(options) {
+        var inComponent = _required(options, "inComponent", "UIPickerView.numberOfRows", "numberOfRows({inComponent: 0}). Apple's is numberOfRows(inComponent:)")
         var dataSource = this.dataSource
         if (!dataSource) { return 0 }
         return dataSource.pickerViewNumberOfRowsInComponent(this, inComponent)
@@ -63,8 +64,18 @@ export class UIPickerView extends UIView {
         this.$el.prop("selectedIndex", row)
     }
 
-    selectedRow({inComponent} = {inComponent: 0}) {
+    selectedRow(options) {
+        _required(options, "inComponent", "UIPickerView.selectedRow", "selectedRow({inComponent: 0}). Apple's is selectedRow(inComponent:)")
         var index = this.$el.prop("selectedIndex")
         return index === undefined || index === null ? -1 : index
     }
+}
+
+// Apple requires the label; JavaScript cannot refuse at compile time, so the
+// call refuses instead and names what to write.
+function _required(options, label, method, signature) {
+    if (!options || options[label] === undefined) {
+        throw new TypeError(`${method} requires a ${label}: ${signature}`)
+    }
+    return options[label]
 }

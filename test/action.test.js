@@ -31,15 +31,15 @@ test("removeTarget with an action removes that pair only; without one it removes
     button.addTarget(target, {action: b, for: UIControlEvent.touchUpInside})
     button.addTarget(other, {action: c, for: UIControlEvent.touchUpInside})
     button.removeTarget(target, {action: a, for: UIControlEvent.touchUpInside})
-    button.sendActions()
+    button.sendActions({for: UIControlEvent.touchUpInside})
     assert.deepEqual(log, ["b", "c"])
     log.length = 0
     button.removeTarget(target, {for: UIControlEvent.touchUpInside})
-    button.sendActions()
+    button.sendActions({for: UIControlEvent.touchUpInside})
     assert.deepEqual(log, ["c"])
     log.length = 0
     button.removeTarget(other, {action: null, for: UIControlEvent.touchUpInside})
-    button.sendActions()
+    button.sendActions({for: UIControlEvent.touchUpInside})
     assert.deepEqual(log, [])
 })
 

@@ -86,7 +86,8 @@ export class UITableView extends UIScrollView {
         this._registeredCells[forCellReuseIdentifier] = cellClass
     }
 
-    numberOfRows({inSection} = {inSection: 0}) {
+    numberOfRows(options) {
+        var inSection = _required(options, "inSection", "UITableView.numberOfRows", "numberOfRows({inSection: 0}). Apple's is numberOfRows(inSection:)")
         if (this._dataSource === null) { return 0 }
         return this._dataSource.tableViewNumberOfRowsInSection(this, inSection)
     }
@@ -107,7 +108,7 @@ export class UITableView extends UIScrollView {
     // the rest are released once the pass is over.
     reloadData() {
         if (this._dataSource === null) { return }
-        var numberOfRows = this.numberOfRows()
+        var numberOfRows = this.numberOfRows({inSection: 0})
         var body = this._body()
         body.find("> tr[id^=cell-]").each(function() {
             if (Number(this.id.slice("cell-".length)) >= numberOfRows) { $(this).remove() }
@@ -240,4 +241,13 @@ export class UITableView extends UIScrollView {
 function _row(indexPath) {
     if (indexPath instanceof IndexPath) { return indexPath.row }
     return indexPath
+}
+
+// Apple requires the label; JavaScript cannot refuse at compile time, so the
+// call refuses instead and names what to write.
+function _required(options, label, method, signature) {
+    if (!options || options[label] === undefined) {
+        throw new TypeError(`${method} requires a ${label}: ${signature}`)
+    }
+    return options[label]
 }
