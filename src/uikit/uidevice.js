@@ -25,7 +25,7 @@ export class UIDevice extends NSObject {
     get userInterfaceIdiom() {
         if (PAD_BROWSERS.test(this.model)) { return UIUserInterfaceIdiom.pad }
         if (PHONE_BROWSERS.test(this.model)) { return UIUserInterfaceIdiom.phone }
-        if (this.model) { return UIUserInterfaceIdiom.web }
+        if (this.model) { return UIUserInterfaceIdiom.mac }
         return UIUserInterfaceIdiom.unspecified
     }
 }

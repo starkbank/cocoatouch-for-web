@@ -52,8 +52,13 @@ test("UIDevice.current tells the interface idiom from the user agent", function(
     assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.pad)
     Object.defineProperty(globalThis, "navigator", {value: {userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)"}, configurable: true})
     UIDevice._current = undefined
-    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.web)
+    assert.equal(UIDevice.current.userInterfaceIdiom, UIUserInterfaceIdiom.mac)
     assert.equal(UIDevice.current, UIDevice.current)
+})
+
+test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
+    assert.equal(UIUserInterfaceIdiom.web, undefined)
+    assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
 test("NSString.cleanScript defers to DOMPurify when the page loads it", function() {
@@ -326,4 +331,22 @@ test("UIControl reflects isEnabled as the disabled attribute and isSelected as t
     assert.equal(control.isSelected, true)
     control.isSelected = false
     assert.equal(classes.size, 0)
+})
+
+test("accessibilityLabel round-trips through aria-label, and through alt on an image", function() {
+    var box = new UIView("#box")
+    var attrs = {}
+    box._$el = {0: {tagName: "DIV"}, length: 1, attr: function(name, value) { if (arguments.length > 1) { attrs[name] = value; return this } return attrs[name] }, removeAttr: function(name) { delete attrs[name]; return this }}
+    assert.equal(box.accessibilityLabel, null)
+    box.accessibilityLabel = "Close"
+    assert.deepEqual(attrs, {"aria-label": "Close"})
+    assert.equal(box.accessibilityLabel, "Close")
+    box.accessibilityLabel = null
+    assert.deepEqual(attrs, {})
+    var photo = new UIImageView("#photo")
+    var photoAttrs = {}
+    photo._$el = {0: {tagName: "IMG"}, length: 1, attr: function(name, value) { if (arguments.length > 1) { photoAttrs[name] = value; return this } return photoAttrs[name] }, removeAttr: function(name) { delete photoAttrs[name]; return this }}
+    photo.accessibilityLabel = "A credit card"
+    assert.deepEqual(photoAttrs, {alt: "A credit card"})
+    assert.equal(photo.accessibilityLabel, "A credit card")
 })
