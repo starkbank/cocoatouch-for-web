@@ -19,6 +19,8 @@ import { UISearchTextField, UISearchToken } from "./uisearchtextfield.js"
 import { UIDevice } from "./uidevice.js"
 import { UIScreen } from "./uiscreen.js"
 import { UIUserInterfaceIdiom } from "./uiuserinterfaceidiom.js"
+import { UIUserInterfaceSizeClass } from "./uiuserinterfacesizeclass.js"
+import { UITraitCollection } from "./uitraitcollection.js"
 import { UIGestureRecognizer, UITapGestureRecognizer, UIHoverGestureRecognizer } from "./uigesturerecognizer.js"
 import { UISegmentedControl } from "./uisegmentedcontrol.js"
 import { UIViewController } from "./uiviewcontroller.js"
@@ -26,6 +28,7 @@ import { UIResponder } from "./uiresponder.js"
 import { UIScrollView } from "./uiscrollview.js"
 import { IBOutlet } from "./iboutlet.js"
 import { IBAction } from "./ibaction.js"
+import { IBInspectable } from "./ibinspectable.js"
 import { UIKeyCommand, UIKeyModifierFlags } from "./uikeycommand.js"
 import { UIControlState } from "./uicontrolstate.js"
 
@@ -54,6 +57,8 @@ export {
      UIDevice,
      UIScreen,
      UIUserInterfaceIdiom,
+     UIUserInterfaceSizeClass,
+     UITraitCollection,
      UIGestureRecognizer,
      UITapGestureRecognizer,
      UIHoverGestureRecognizer,
@@ -63,6 +68,7 @@ export {
      UIScrollView,
      IBOutlet,
      IBAction,
+     IBInspectable,
      UIKeyCommand,
      UIKeyModifierFlags,
      UIControlState,

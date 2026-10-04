@@ -1,0 +1,33 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Traits</h1>
+    <p class="lead">@IBInspectable configures a view from its nib, CGRect is what frame and bounds return, and size classes tell code which side of the fold it is on.</p>
+
+    <section class="demo">
+        <h2>@IBInspectable</h2>
+        <p>Two badges declared in this xib with <code>data-title</code>, <code>data-count</code>, <code>data-tint</code> and <code>data-shows-count</code>; a third kind, created in code, reads the attributes off its own nib root.</p>
+        <div id="traits-badges" class="row">
+            <div id="traits-badge-invoices" data-title="Invoices" data-count="12" data-tint="#1f9d55"></div>
+            <div id="traits-badge-plain" data-title="Plain, count hidden" data-shows-count="false"></div>
+        </div>
+        <div class="row">
+            <button id="traits-add-badge" class="button button-small">Add a badge</button>
+        </div>
+    </section>
+
+    <section class="demo">
+        <h2>CGRect</h2>
+        <p><code>frame</code>, <code>bounds</code> and <code>UIScreen.main.bounds</code> are CGRects: <code>minX</code>, <code>midX</code>, <code>maxY</code>, <code>contains</code>, <code>insetBy</code>. No <code>x</code> or <code>y</code>.</p>
+        <div id="traits-box" class="traits-box"></div>
+        <p id="traits-frame" class="output"></p>
+        <p id="traits-screen" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>Size classes</h2>
+        <p><code>traitCollection.horizontalSizeClass</code> is compact below 768px and regular from there; the hooks fire only when it changes.</p>
+        <p id="traits-size-classes" class="output"></p>
+        <p id="traits-log" class="output"></p>
+    </section>
+</main>

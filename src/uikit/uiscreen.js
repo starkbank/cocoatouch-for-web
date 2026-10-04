@@ -1,4 +1,5 @@
 import { NSObject } from "../foundation/nsobject.js"
+import { CGRect } from "../coregraphics/cgrect.js"
 
 
 // UIKit's UIScreen: the browser viewport stands in for the device screen.
@@ -10,7 +11,7 @@ export class UIScreen extends NSObject {
     }
 
     get bounds() {
-        if (typeof window === "undefined" || window.innerWidth === undefined) { return {x: 0, y: 0, width: 0, height: 0} }
-        return {x: 0, y: 0, width: window.innerWidth, height: window.innerHeight}
+        if (typeof window === "undefined" || window.innerWidth === undefined) { return CGRect.zero }
+        return new CGRect({width: window.innerWidth, height: window.innerHeight})
     }
 }

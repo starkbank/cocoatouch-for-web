@@ -20,6 +20,7 @@ export class UITableView extends UIScrollView {
         this._selectedRows = []
         this._registeredCells = {}
         this._cells = []
+        this._reusableCells = []
     }
 
     set isHidden(bool) {
@@ -100,6 +101,10 @@ export class UITableView extends UIScrollView {
         return new IndexPath({row: row})
     }
 
+    // The previous pass's cells leave the subviews before the new pass, so a
+    // table reloaded on every filter does not retain every cell it ever made;
+    // a cell the data source dequeues again for its row is handed back, and
+    // the rest are released once the pass is over.
     reloadData() {
         if (this._dataSource === null) { return }
         var numberOfRows = this.numberOfRows()
@@ -107,19 +112,34 @@ export class UITableView extends UIScrollView {
         body.find("> tr[id^=cell-]").each(function() {
             if (Number(this.id.slice("cell-".length)) >= numberOfRows) { $(this).remove() }
         })
+        this._reusableCells = this._cells
         this._cells = []
+        this._unlinkCells(this._reusableCells)
         this._selectedRows = this._selectedRows.filter(function(row) { return row < numberOfRows })
         for (var row = 0; row < numberOfRows; row++) {
             this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row: row}))
         }
+        for (var cell of this._reusableCells) {
+            if (cell && this._cells.indexOf(cell) === -1) { cell._dispose() }
+        }
+        this._reusableCells = []
         this._bindRows()
     }
 
-    // Reuses the row element when it exists and creates it from the registered
-    // cell's nib otherwise; the cell class is bound to that element.
+    // Hands back the cell already bound to that row for the identifier, after
+    // prepareForReuse(); otherwise reuses the row element when it exists,
+    // creates it from the registered cell's nib when not, and binds the cell
+    // class to it.
     dequeueReusableCell({withIdentifier, for: indexPath}) {
         var cellClass = this._registeredCells[withIdentifier] || UITableViewCell
         var row = _row(indexPath)
+        var reusable = this._reusableCells[row]
+        if (reusable && reusable.reuseIdentifier === withIdentifier && reusable.constructor === cellClass) {
+            this._reusableCells[row] = null
+            reusable.prepareForReuse()
+            this._link(reusable)
+            return reusable
+        }
         var id = "cell-" + row
         var element = this._body().find("> #" + id)
         if (element.length === 0) {
@@ -127,11 +147,12 @@ export class UITableView extends UIScrollView {
             element.attr("id", id)
             this._body().append(element)
         }
-        var cell = new cellClass(this.selector + " #" + id, indexPath)
+        var cell = Bind.construct(cellClass, this.selector + " #" + id, indexPath)
         cell.reuseIdentifier = withIdentifier
         cell._$el = element
         this._link(cell)
         Bind.ibOutlet(cell)
+        Bind.ibInspectable(cell)
         cell.awakeFromNib()
         Bind.ibAction(cell)
         return cell
@@ -158,6 +179,11 @@ export class UITableView extends UIScrollView {
         this._rowElement(row).removeClass("selected").find("[id^=table-cell-selected] :input").prop("checked", false)
     }
 
+    _unlinkCells(cells) {
+        var gone = new Set(cells)
+        this._subviews = this.subviews.filter(function(view) { return !gone.has(view) })
+    }
+
     _body() {
         var body = this.$el.find("tbody")
         if (body.length === 0) { return this.$el }
@@ -168,10 +194,12 @@ export class UITableView extends UIScrollView {
         return this._body().find("> #cell-" + row)
     }
 
+    // Each purpose binds under its own namespace and removes only that, so a
+    // reload or an editing change leaves a cell's recognizers and targets alone.
     _bindRows() {
         var tableView = this
         var rows = this._body().find("> tr[id^=cell-]")
-        rows.off("click").on("click", function(event) {
+        rows.off("click.uitableview").on("click.uitableview", function(event) {
             event.stopImmediatePropagation()
             if (!tableView._allowsSelection) { return }
             var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
@@ -179,16 +207,16 @@ export class UITableView extends UIScrollView {
         })
         rows.each((index, element) => {
             var indexPath = new IndexPath({row: index})
-            var deleteButton = $(element).find("[id^=delete-button]").off("click")
+            var deleteButton = $(element).find("[id^=delete-button]").off("click.uitableviewdelete")
             if (this._isEditing) {
-                deleteButton.on("click", (event) => {
+                deleteButton.on("click.uitableviewdelete", (event) => {
                     event.stopImmediatePropagation()
                     this._delegateCall("tableViewCommitEditingStyleForRowAt", "delete", indexPath)
                 })
             }
             var selection = $(element).find("[id^=table-cell-selected]")
-            selection.off("click").on("click", function(event) { event.stopImmediatePropagation() })
-            selection.find(":checkbox").off("change").on("change", (event) => {
+            selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
+            selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
                 if (event.target.checked) {
                     this.selectRow({at: indexPath})
                     this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)

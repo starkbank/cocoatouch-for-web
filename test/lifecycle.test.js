@@ -2,7 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { keydown } from "./setup.js"
-import { UIResponder, UIView, UIViewController, UIScreen, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
+import { UIResponder, UIView, UIViewController, UIScreen, IBOutlet, IBAction, UIKeyCommand, NotificationCenter } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -181,12 +181,12 @@ test("keyboard actions stop firing once their controller is dismissed", function
     assert.equal(pressed, 1)
 })
 
-test("restore runs viewWillAppear and viewDidAppear but not viewDidLoad", function() {
+test("restore runs viewDidLoad, viewWillAppear and viewDidAppear", function() {
     var log = []
     var Controller = recordingController("restored", log)
     var controller = new Controller()
     controller.restore(controller)
-    assert.deepEqual(log, ["restored.viewWillAppear", "restored.viewDidAppear"])
+    assert.deepEqual(log, ["restored.viewDidLoad", "restored.viewWillAppear", "restored.viewDidAppear"])
 })
 
 function scopeMatching(selectors) {
@@ -355,4 +355,144 @@ test("key commands go to the deepest responder holding focus and climb only when
     assert.deepEqual(log, ["field", "field", "page", "page", "field"])
     page._dispose()
     field._dispose()
+})
+
+// A container forwards the disappear pair to its children and to the
+// controllers bound as its outlets, parent first, as UIKit's automatic
+// forwarding does; a root swap must therefore tell the whole tree.
+test("a root swap forwards the disappear pair to children and outlet controllers, then clears containment", function() {
+    var log = []
+    var hooks = ["viewWillDisappear", "viewDidDisappear"]
+    function disappearing(name, Base) {
+        class Controller extends (Base || UIViewController) {}
+        hooks.forEach(function(hook) { Controller.prototype[hook] = function() { log.push(name + "." + hook) } })
+        Controller.nib = "<div id=\"" + name + "\"></div>"
+        return Controller
+    }
+    var Host = disappearing("host")
+    var OutletController = disappearing("outletVC")
+    IBOutlet("#host", OutletController)(Host.prototype, "outletController", {})
+    var Child = disappearing("child")
+    var host = new Host()
+    host.present(host, {})
+    var child = new Child()
+    host.addChild(child)
+    host.view.addSubview(child.view)
+    var Next = recordingController("next", log)
+    var next = new Next()
+    log.length = 0
+    next.present(next, {})
+    assert.deepEqual(log, [
+        "host.viewWillDisappear", "child.viewWillDisappear", "outletVC.viewWillDisappear",
+        "host.viewDidDisappear", "child.viewDidDisappear", "outletVC.viewDidDisappear",
+        "next.viewDidLoad", "next.viewWillAppear", "next.viewDidAppear",
+    ])
+    assert.equal(child.parent, null)
+    assert.deepEqual(host.children, [])
+})
+
+test("removing an embedded child forwards the disappear pair to its own children", function() {
+    var log = []
+    function disappearing(name) {
+        class Controller extends UIViewController {}
+        ;["viewWillDisappear", "viewDidDisappear"].forEach(function(hook) { Controller.prototype[hook] = function() { log.push(name + "." + hook) } })
+        Controller.nib = "<div id=\"" + name + "\"></div>"
+        return Controller
+    }
+    var host = new (recordingController("host", []))()
+    host.present(host, {})
+    var child = new (disappearing("child"))()
+    host.addChild(child)
+    host.view.addSubview(child.view)
+    var grandchild = new (disappearing("grandchild"))()
+    child.addChild(grandchild)
+    child.view.addSubview(grandchild.view)
+    log.length = 0
+    child.removeFromParent()
+    assert.deepEqual(log, ["child.viewWillDisappear", "grandchild.viewWillDisappear", "child.viewDidDisappear", "grandchild.viewDidDisappear"])
+    assert.equal(grandchild.parent, null)
+    assert.deepEqual(child.children, [])
+    assert.deepEqual(host.children, [])
+})
+
+// A controller bound as an @IBOutlet is a container view in all but name, so
+// it receives the appearance lifecycle after its own bindings, and the
+// disappear pair when its host goes; it is not a child and has no parent.
+function outletControllerClass(log) {
+    class OutletController extends UIViewController {}
+    ;["awakeFromNib", "didMoveToWindow", "viewDidLoad", "viewWillAppear", "viewDidAppear", "viewWillDisappear", "viewDidDisappear"].forEach(function(hook) {
+        OutletController.prototype[hook] = function() { log.push("outletVC." + hook) }
+    })
+    OutletController.prototype.viewWillTransition = function() { log.push("outletVC.viewWillTransition") }
+    OutletController.nib = "<div id=\"inner\"></div>"
+    return OutletController
+}
+
+test("a controller bound as an outlet receives awakeFromNib, viewDidLoad, viewWillAppear and viewDidAppear, and later its disappear pair", function() {
+    var log = []
+    var Host = recordingController("host", [])
+    IBOutlet("#panel", outletControllerClass(log))(Host.prototype, "panel", {})
+    var host = new Host()
+    host.present(host, {})
+    assert.deepEqual(log, ["outletVC.awakeFromNib", "outletVC.viewDidLoad", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
+    assert.equal(host.panel.isViewLoaded, true)
+    assert.deepEqual(host.children, [])
+    assert.equal(host.panel.parent, null)
+    log.length = 0
+    window.innerWidth = 900; window.innerHeight = 700
+    window.dispatchEvent(new Event("resize"))
+    assert.deepEqual(log.filter((entry) => entry === "outletVC.viewWillTransition"), ["outletVC.viewWillTransition"])
+    log.length = 0
+    var next = new (recordingController("next", []))()
+    next.present(next, {})
+    assert.deepEqual(log, ["outletVC.viewWillDisappear", "outletVC.viewDidDisappear"])
+})
+
+test("a controller bound as an outlet of a restored controller receives didMoveToWindow, viewDidLoad, viewWillAppear and viewDidAppear", function() {
+    var log = []
+    var Host = recordingController("host", [])
+    IBOutlet("#panel", outletControllerClass(log))(Host.prototype, "panel", {})
+    var host = new Host()
+    host.restore(host)
+    assert.deepEqual(log, ["outletVC.didMoveToWindow", "outletVC.viewDidLoad", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
+    assert.equal(host.panel.isViewLoaded, true)
+})
+
+// The controller's full first appearance, with the animated flag present()
+// was given and the layout pair around the layout pass, in Apple's order.
+function appearingController(log) {
+    class Controller extends UIViewController {}
+    ;["viewDidLoad", "viewWillLayoutSubviews", "viewDidLayoutSubviews"].forEach(function(hook) {
+        Controller.prototype[hook] = function() { log.push(hook) }
+    })
+    ;["viewWillAppear", "viewDidAppear"].forEach(function(hook) {
+        Controller.prototype[hook] = function(animated) { log.push(hook + "(" + animated + ")") }
+    })
+    Controller.prototype.viewWillTransition = function() { log.push("viewWillTransition") }
+    Controller.nib = "<div id=\"appearing\"></div>"
+    return Controller
+}
+
+test("present(_, {animated: true}) sends viewDidLoad, viewWillAppear(true), the layout pair and viewDidAppear(true)", function() {
+    var log = []
+    var controller = new (appearingController(log))()
+    controller.present(controller, {animated: true})
+    assert.deepEqual(log, ["viewDidLoad", "viewWillAppear(true)", "viewWillLayoutSubviews", "viewDidLayoutSubviews", "viewDidAppear(true)"])
+    log.length = 0
+    var plain = new (appearingController(log))()
+    plain.present(plain, {})
+    assert.deepEqual(log, ["viewDidLoad", "viewWillAppear(false)", "viewWillLayoutSubviews", "viewDidLayoutSubviews", "viewDidAppear(false)"])
+})
+
+test("a resize sends the layout pair around the layout pass", function() {
+    var log = []
+    var controller = new (appearingController(log))()
+    controller.present(controller, {})
+    var outlet = new UIView("#outlet")
+    outlet.layoutSubviews = function() { log.push("outlet.layoutSubviews") }
+    controller._link(outlet)
+    log.length = 0
+    window.innerWidth = 1100; window.innerHeight = 700
+    window.dispatchEvent(new Event("resize"))
+    assert.deepEqual(log, ["viewWillTransition", "viewWillLayoutSubviews", "outlet.layoutSubviews", "viewDidLayoutSubviews"])
 })

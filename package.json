@@ -1,6 +1,6 @@
 {
     "name": "cocoatouch",
-    "version": "1.4.1",
+    "version": "1.5.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
@@ -112,6 +112,8 @@
         "access": "public"
     },
     "devDependencies": {
+        "jquery": "^3.7.1",
+        "jsdom": "^29.1.1",
         "typescript": "^5.9.3"
     },
     "peerDependenciesMeta": {

@@ -29,5 +29,9 @@
             <h3>Links and scrolling</h3>
             <p>userActivity as a link, UIImage(systemName:), UIScrollView offsets, key commands and text input</p>
         </a>
+        <a id="home-traits" class="home-option">
+            <h3>Traits</h3>
+            <p>@IBInspectable from the nib, CGRect frames and bounds, size classes on resize</p>
+        </a>
     </div>
 </main>

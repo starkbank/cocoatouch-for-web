@@ -1,7 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { CGAffineTransform, CGPoint, UIView, UIColor, UILabel, UIButton, UIControlState, CAGradientLayer, CALayer } from "../src/index.js"
+import { CGAffineTransform, CGPoint, CGSize, CGRect, UIView, UIColor, UILabel, UIButton, UIControlState, CAGradientLayer, CALayer } from "../src/index.js"
 
 
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} ≠ ${expected}`)
@@ -79,4 +79,32 @@ test("CAGradientLayer paints a linear-gradient along its points into an element 
     layer.startPoint = new CGPoint({x: 0, y: 0})
     assert.ok(created.style.background.startsWith("linear-gradient(135deg"))
     delete globalThis.document.createElement
+})
+
+test("CGRect carries origin and size and derives its edges and midpoints", function() {
+    var rect = new CGRect({x: 10, y: 20, width: 100, height: 50})
+    assert.ok(rect.origin instanceof CGPoint)
+    assert.ok(rect.size instanceof CGSize)
+    assert.deepEqual([rect.origin.x, rect.origin.y, rect.size.width, rect.size.height], [10, 20, 100, 50])
+    assert.deepEqual([rect.width, rect.height], [100, 50])
+    assert.deepEqual([rect.minX, rect.minY, rect.maxX, rect.maxY, rect.midX, rect.midY], [10, 20, 110, 70, 60, 45])
+    assert.equal(rect.x, undefined)
+    assert.equal(rect.y, undefined)
+    assert.equal(rect.isEmpty, false)
+    assert.equal(CGRect.zero.isEmpty, true)
+    assert.deepEqual([CGRect.zero.minX, CGRect.zero.maxY], [0, 0])
+    assert.equal(new CGRect({width: 10}).isEmpty, true)
+})
+
+test("CGRect contains, insets and offsets the way Core Graphics does", function() {
+    var rect = new CGRect({x: 10, y: 20, width: 100, height: 50})
+    assert.equal(rect.contains(new CGPoint({x: 10, y: 20})), true)
+    assert.equal(rect.contains(new CGPoint({x: 110, y: 20})), false)
+    assert.equal(rect.contains(new CGPoint({x: 50, y: 69.9})), true)
+    assert.equal(rect.contains(new CGPoint({x: 9, y: 30})), false)
+    var inset = rect.insetBy({dx: 5, dy: 10})
+    assert.deepEqual([inset.minX, inset.minY, inset.width, inset.height], [15, 30, 90, 30])
+    var moved = rect.offsetBy({dx: -10, dy: 5})
+    assert.deepEqual([moved.minX, moved.minY, moved.width, moved.height], [0, 25, 100, 50])
+    assert.deepEqual([rect.minX, rect.minY], [10, 20])
 })
