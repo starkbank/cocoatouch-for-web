@@ -15,6 +15,11 @@ export class UITableViewCell extends UIView {
         this._indexPath = indexPath
     }
 
+    // Sent when the table view hands the cell out again for a row.
+    prepareForReuse() {
+
+    }
+
     get isSelected() {
         return this.$el.hasClass("selected")
     }

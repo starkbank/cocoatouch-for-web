@@ -144,7 +144,7 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 }
 ```
 
-`selectRow({at})`, `deselectRow({at})`, `indexPathForSelectedRow`, `indexPathsForSelectedRows`, `allowsMultipleSelection`, `setEditing(true)` and `cellForRow({at})` behave as on iOS. The delegate receives `tableViewDidSelectRowAtIndexPath`, `tableViewDidDeselectRowAtIndexPath` and, in editing mode, `tableViewCommitEditingStyleForRowAt(tableView, "delete", indexPath)`. `UICollectionView` follows the same shape with `IndexPath` sections and items.
+`selectRow({at})`, `deselectRow({at})`, `indexPathForSelectedRow`, `indexPathsForSelectedRows`, `allowsMultipleSelection`, `setEditing(true)` and `cellForRow({at})` behave as on iOS. `dequeueReusableCell` hands back the cell object already bound to that row for the identifier, after sending it `prepareForReuse()`, and `reloadData` releases the cells a pass no longer uses, so a table reloaded on every filter holds one cell per row. The delegate receives `tableViewDidSelectRowAtIndexPath`, `tableViewDidDeselectRowAtIndexPath` and, in editing mode, `tableViewCommitEditingStyleForRowAt(tableView, "delete", indexPath)`. `UICollectionView` follows the same shape with `IndexPath` sections and items.
 
 ## Controls
 
