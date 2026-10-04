@@ -79,12 +79,13 @@ export class UINavigationController extends UIViewController {
      */
     pushViewController(viewController, {animated} = {}) {
         required(animated, "animated", Bool, "UINavigationController.pushViewController", "pushViewController(viewController, {animated: true}). Apple's is pushViewController(_:animated:)")
+        var url = _historyURL(viewController)
         var outgoing = this._top()
         var entry = _entry(viewController)
         this._entries.push(entry)
         if (!this.isViewLoaded) { return }
         this._hide(outgoing, animated)
-        _pushHistory(this._entries.length - 1, viewController)
+        _pushHistory(this._entries.length - 1, url)
         this._show(entry, animated)
     }
 
@@ -264,11 +265,23 @@ function _entry(viewController) {
 }
 
 // A controller's address is its browsing activity; one without keeps the url.
-function _pushHistory(depth, viewController) {
-    if (typeof window === "undefined" || !window.history) { return }
+// The address is resolved before the stack mutates, so a push cannot throw
+// between the stack and the screen: an address on another origin cannot be
+// pushed into this document's history and folds into the no-address case.
+function _historyURL(viewController) {
+    if (typeof window === "undefined" || !window.history) { return null }
     var activity = viewController.userActivity
     var url = activity && activity.webpageURL
-    window.history.pushState({cocoatouchNavDepth: depth}, "", url === null || url === undefined ? null : String(url))
+    if (url === null || url === undefined) { return null }
+    var resolved
+    try { resolved = new URL(String(url), window.location.href) } catch (error) { return null }
+    if (resolved.origin !== window.location.origin) { return null }
+    return String(url)
+}
+
+function _pushHistory(depth, url) {
+    if (typeof window === "undefined" || !window.history) { return }
+    window.history.pushState({cocoatouchNavDepth: depth}, "", url)
 }
 
 function _replaceDepth(depth) {

@@ -12,7 +12,7 @@ export class NSUserActivity extends NSObject {
 
     title = null
     userInfo = {}
-    webpageURL = null
+    _webpageURL = null
 
     /**
      * @param {object} options
@@ -22,4 +22,31 @@ export class NSUserActivity extends NSObject {
         super()
         this.activityType = activityType
     }
+
+    // webpageURL is URL?, as Apple's: a string or a URL, kept as set. It becomes
+    // an element's href, so it must be an address a browser may navigate to; a
+    // scheme a browser would execute is refused here, at the boundary.
+    get webpageURL() {
+        return this._webpageURL
+    }
+
+    set webpageURL(value) {
+        this._webpageURL = _validatedWebpageURL(value)
+    }
+}
+
+
+function _validatedWebpageURL(value) {
+    if (value === null || value === undefined) { return null }
+    var text = String(value)
+    var resolved
+    try {
+        resolved = new URL(text, typeof window !== "undefined" && window.location ? window.location.href : "http://localhost/")
+    } catch (error) {
+        throw new TypeError(`NSUserActivity.webpageURL must be a relative or http(s) url, got ${JSON.stringify(text)}`)
+    }
+    if (resolved.protocol !== "http:" && resolved.protocol !== "https:") {
+        throw new TypeError(`NSUserActivity.webpageURL must be a relative or http(s) url, got ${JSON.stringify(text)}`)
+    }
+    return value
 }
