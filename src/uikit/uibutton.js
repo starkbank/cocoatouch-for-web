@@ -2,6 +2,7 @@ import { NSString } from "../utils/nsstring.js"
 import { UIControl } from "./uicontrol.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { required } from "../utils/required.js"
 
 
 const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
@@ -13,14 +14,14 @@ export class UIButton extends UIControl {
     // title(for:) and currentTitle fall back to the normal title when none was
     // set for the state asked about, as Apple's do.
     setTitle(title, options) {
-        var state = _required(options, "for", "UIButton.setTitle", "setTitle(title, {for: UIControlState.normal}). Apple's is setTitle(_:for:)")
+        var state = required(options, "for", "UIButton.setTitle", "setTitle(title, {for: UIControlState.normal}). Apple's is setTitle(_:for:)")
         if (!this._titles) { this._titles = {} }
         this._titles[state] = title
         this._drawTitle()
     }
 
     title(options) {
-        return _title(this, _required(options, "for", "UIButton.title", "title({for: UIControlState.normal}). Apple's is title(for:)"))
+        return _title(this, required(options, "for", "UIButton.title", "title({for: UIControlState.normal}). Apple's is title(for:)"))
     }
 
     get currentTitle() {
@@ -43,14 +44,14 @@ export class UIButton extends UIControl {
 
     // setTitleColor(_:for:): the normal state's color is drawn; others are kept for titleColor(for:).
     setTitleColor(color, options) {
-        var state = _required(options, "for", "UIButton.setTitleColor", "setTitleColor(color, {for: UIControlState.normal}). Apple's is setTitleColor(_:for:)")
+        var state = required(options, "for", "UIButton.setTitleColor", "setTitleColor(color, {for: UIControlState.normal}). Apple's is setTitleColor(_:for:)")
         if (!this._titleColors) { this._titleColors = {} }
         this._titleColors[state] = color
         if (state === UIControlState.normal) { this.$el.css("color", color.cgColor) }
     }
 
     titleColor(options) {
-        var state = _required(options, "for", "UIButton.titleColor", "titleColor({for: UIControlState.normal}). Apple's is titleColor(for:)")
+        var state = required(options, "for", "UIButton.titleColor", "titleColor({for: UIControlState.normal}). Apple's is titleColor(for:)")
         var kept = this._titleColors && this._titleColors[state]
         if (kept) { return kept }
         if (state !== UIControlState.normal) { return null }
@@ -94,13 +95,4 @@ function _drawnState(button) {
     if (!button.isEnabled) { return UIControlState.disabled }
     if (button.isSelected) { return UIControlState.selected }
     return UIControlState.normal
-}
-
-// Apple requires the label; JavaScript cannot refuse at compile time, so the
-// call refuses instead and names what to write.
-function _required(options, label, method, signature) {
-    if (!options || options[label] === undefined) {
-        throw new TypeError(`${method} requires a ${label}: ${signature}`)
-    }
-    return options[label]
 }

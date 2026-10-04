@@ -1,5 +1,6 @@
 import { NSString } from "../utils/nsstring.js"
 import { UITextField } from "./uitextfield.js"
+import { required } from "../utils/required.js"
 
 
 export class UISearchToken {
@@ -18,10 +19,14 @@ export class UISearchTextField extends UITextField {
     _tokens = []
     _allowsDeletingTokens = true
 
+    // Handlers bind under the view's namespace and are removed first, so a
+    // second instance on the same element does not stack a second pair.
     init() {
-        this.$el.append("<input class=\"search-input-tag\" autocomplete=\"off\" />")
-        this.$el.on("click", () => this.textField.trigger("focus"))
-        this.textField.on("keydown", (e) => {
+        if (this.$el.children("input").length === 0) {
+            this.$el.append("<input class=\"search-input-tag\" autocomplete=\"off\" />")
+        }
+        this.$el.off("click.uisearchtextfield").on("click.uisearchtextfield", () => this.textField.trigger("focus"))
+        this.textField.off("keydown.uisearchtextfield").on("keydown.uisearchtextfield", (e) => {
             if (e.key !== "Backspace" || this.textField.val() !== "" || !this._allowsDeletingTokens) { return }
             if (this._tokens.length === 0) { return }
             e.preventDefault()
@@ -52,7 +57,7 @@ export class UISearchTextField extends UITextField {
     }
 
     insertToken(token, options) {
-        var index = _required(options, "at", "UISearchTextField.insertToken", "insertToken(token, {at: index}). Apple's is insertToken(_:at:)")
+        var index = required(options, "at", "UISearchTextField.insertToken", "insertToken(token, {at: index}). Apple's is insertToken(_:at:)")
         var $tag = $("<div class=\"tag\"><div class=\"tag-text\">" + NSString.cleanScript(token.text) + "</div></div>")
         if (token.icon) { $tag.prepend(token.icon) }
         var tags = this.$el.children(".tag")
@@ -65,14 +70,4 @@ export class UISearchTextField extends UITextField {
         this.$el.children(".tag").eq(at).remove()
         this._tokens.splice(at, 1)
     }
-}
-
-
-// Apple requires the label; JavaScript cannot refuse at compile time, so the
-// call refuses instead and names what to write.
-function _required(options, label, method, signature) {
-    if (!options || options[label] === undefined) {
-        throw new TypeError(`${method} requires a ${label}: ${signature}`)
-    }
-    return options[label]
 }

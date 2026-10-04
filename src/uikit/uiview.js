@@ -5,6 +5,7 @@ import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
+import { required } from "../utils/required.js"
 
 
 export class UIView extends UIResponder {
@@ -271,7 +272,7 @@ export class UIView extends UIResponder {
     }
 
     insertSubview(view, options) {
-        var at = _required(options, "at", "UIView.insertSubview", "insertSubview(view, {at: index}). Apple's is insertSubview(_:at:)")
+        var at = required(options, "at", "UIView.insertSubview", "insertSubview(view, {at: index}). Apple's is insertSubview(_:at:)")
         this._attach(view, {at})
     }
 
@@ -461,14 +462,4 @@ function _identify(view, superview) {
     view.selector = "#" + id
     view._identifier = id
     return id
-}
-
-
-// Apple requires the label; JavaScript cannot refuse at compile time, so the
-// call refuses instead and names what to write.
-function _required(options, label, method, signature) {
-    if (!options || options[label] === undefined) {
-        throw new TypeError(`${method} requires a ${label}: ${signature}`)
-    }
-    return options[label]
 }

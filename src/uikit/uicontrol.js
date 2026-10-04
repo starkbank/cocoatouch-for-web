@@ -1,6 +1,7 @@
 import { UIView } from "./uiview.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { required } from "../utils/required.js"
 
 
 const events = {
@@ -112,7 +113,7 @@ export class UIControl extends UIView {
     // removeTarget(_:action:for:): a null or omitted action removes every
     // action that target registered for the event, as Apple's Selector? does.
     removeTarget(target, options) {
-        var controlEvent = _required(options, "for", "UIControl.removeTarget", "removeTarget(target, {action, for: UIControlEvent.touchUpInside}). Apple's is removeTarget(_:action:for:)")
+        var controlEvent = required(options, "for", "UIControl.removeTarget", "removeTarget(target, {action, for: UIControlEvent.touchUpInside}). Apple's is removeTarget(_:action:for:)")
         var action = options.action === undefined ? null : options.action
         var event = events[controlEvent] || "click"
         var remaining = []
@@ -131,16 +132,7 @@ export class UIControl extends UIView {
 
     // Fires the event the control would fire for that control event.
     sendActions(options) {
-        var controlEvent = _required(options, "for", "UIControl.sendActions", "sendActions({for: UIControlEvent.touchUpInside}). Apple's is sendActions(for:)")
+        var controlEvent = required(options, "for", "UIControl.sendActions", "sendActions({for: UIControlEvent.touchUpInside}). Apple's is sendActions(for:)")
         this.$el.trigger(events[controlEvent] || "click")
     }
-}
-
-// Apple requires the label; JavaScript cannot refuse at compile time, so the
-// call refuses instead and names what to write.
-function _required(options, label, method, signature) {
-    if (!options || options[label] === undefined) {
-        throw new TypeError(`${method} requires a ${label}: ${signature}`)
-    }
-    return options[label]
 }

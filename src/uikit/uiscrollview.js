@@ -1,6 +1,7 @@
 import { UIView } from "./uiview.js"
 import { CGPoint } from "../coregraphics/cgpoint.js"
 import { CGSize } from "../coregraphics/cgsize.js"
+import { required } from "../utils/required.js"
 
 
 // UIKit's UIScrollView: an element that scrolls its overflowing content.
@@ -26,7 +27,7 @@ export class UIScrollView extends UIView {
 
     // setContentOffset(_:animated:)
     setContentOffset(point, options) {
-        var animated = _required(options, "animated", "UIScrollView.setContentOffset", "setContentOffset(point, {animated: false}). Apple's is setContentOffset(_:animated:)")
+        var animated = required(options, "animated", "UIScrollView.setContentOffset", "setContentOffset(point, {animated: false}). Apple's is setContentOffset(_:animated:)")
         var element = this.$el[0]
         if (!element) { return }
         if (typeof element.scrollTo === "function") {
@@ -36,14 +37,4 @@ export class UIScrollView extends UIView {
         element.scrollLeft = point.x
         element.scrollTop = point.y
     }
-}
-
-
-// Apple requires the label; JavaScript cannot refuse at compile time, so the
-// call refuses instead and names what to write.
-function _required(options, label, method, signature) {
-    if (!options || options[label] === undefined) {
-        throw new TypeError(`${method} requires a ${label}: ${signature}`)
-    }
-    return options[label]
 }
