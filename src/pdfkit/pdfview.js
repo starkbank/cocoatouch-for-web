@@ -122,6 +122,14 @@ export class PDFView extends UIView {
         doc._loadingTask.promise.then(
             () => {
                 if (this._documentGeneration !== generation) { return }
+                // Both, not just the viewer: PDFViewer.setDocument propagates
+                // to its own findController but never to its linkService, and
+                // PDFFindController reads linkService.pagesCount (real pdf.js
+                // source, verified directly) to iterate every page during
+                // extraction — left unset, pagesCount stays 0, the extraction
+                // loop never runs, and a search silently returns nothing ever,
+                // for every document, with no error anywhere.
+                this._linkService.setDocument(doc._proxy)
                 this._pdfViewer.setDocument(doc._proxy)
                 NotificationCenter.default.post({name: PDFView.documentChangedNotification, object: this})
             },
@@ -330,10 +338,13 @@ export class PDFView extends UIView {
         // and the end-of-find path, rather than resolving late and posting
         // with the replaced document as its subject.
         this._findGeneration++
-        // Public; pdf.js propagates it to the find controller too. Without
-        // this, the viewer keeps the old pages, canvases and text layers
-        // alive against a worker port the next line destroys, and a scroll
-        // after replacement renders from a document that is already gone.
+        // Public; pdf.js propagates document(null) to the find controller on
+        // its own, but never to the link service (see the document setter),
+        // so that one is cleared here explicitly too. Without the viewer
+        // call, it keeps the old pages, canvases and text layers alive
+        // against a worker port the next line destroys, and a scroll after
+        // replacement renders from a document that is already gone.
+        this._linkService.setDocument(null)
         this._pdfViewer.setDocument(null)
         previous._destroy()
     }
