@@ -34,7 +34,7 @@ test("CoreAnimation and AVKit follow the same shape", async function() {
 
 test("the webpack aliases point every framework name at an existing entry", function() {
     const aliases = require("../webpack/aliases.cjs")
-    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "UIKit"])
+    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "PDFKit", "UIKit"])
     for (const file of Object.values(aliases)) {
         assert.ok(fs.existsSync(file), file + " does not exist")
         assert.equal(path.basename(path.dirname(file)), "src")
