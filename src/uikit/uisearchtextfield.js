@@ -43,6 +43,19 @@ export class UISearchTextField extends UITextField {
         return this.$el.children("input")
     }
 
+    // UITextField's text reads this.$el itself, which is correct for a plain
+    // input or textarea; this.$el is the tokens-and-input wrapper here, whose
+    // own tagName is never "input", so that getter would read the wrapper's
+    // text nodes (the tokens, never what was typed) instead of the field's
+    // value. The typed value is always on this.textField, the inner input.
+    get text() {
+        return this.textField.val()
+    }
+
+    set text(text) {
+        this.textField.val(text === null || text === undefined ? "" : String(text))
+    }
+
     get tokens() {
         return this._tokens.slice()
     }
