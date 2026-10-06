@@ -3,6 +3,8 @@ import { UIButton } from "./uibutton.js"
 import { UILabel } from "./uilabel.js"
 import { UITableView } from "./uitableview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
+import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { UITextField } from "./uitextfield.js"
 import { UIView } from "./uiview.js"
 import { UIControl } from "./uicontrol.js"
@@ -31,6 +33,9 @@ import { IBAction } from "./ibaction.js"
 import { IBInspectable } from "./ibinspectable.js"
 import { UIKeyCommand, UIKeyModifierFlags } from "./uikeycommand.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { UINavigationController } from "./uinavigationcontroller.js"
+import { UINavigationBar } from "./uinavigationbar.js"
+import { UINavigationItem } from "./uinavigationitem.js"
 
 
 export {
@@ -39,6 +44,8 @@ export {
      UILabel,
      UITableView,
      UITableViewCell,
+     UITableViewScrollPosition,
+     UITableViewCellEditingStyle,
      UITextField,
      UIView,
      UIControl,
@@ -72,17 +79,7 @@ export {
      UIKeyCommand,
      UIKeyModifierFlags,
      UIControlState,
-}
-
-// Default Extensions
-
-UIView.prototype.parentViewController = function() {
-    var parentResponder = this.next
-    while (parentResponder) {
-        if (parentResponder instanceof UIViewController) {
-            return parentResponder
-        }
-        parentResponder = parentResponder.next
-    }
-    return null
+     UINavigationController,
+     UINavigationBar,
+     UINavigationItem,
 }

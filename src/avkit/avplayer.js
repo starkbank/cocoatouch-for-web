@@ -49,6 +49,11 @@ export class AVPlayer extends NSObject {
     }
 
     // AVPlayer(), AVPlayer(url:) or AVPlayer(playerItem:)
+    /**
+     * @param {object} options
+     * @param {*} [options.url]
+     * @param {*} [options.playerItem}]
+     */
     constructor({url, playerItem} = {}) {
         super()
         this._item = playerItem || (url ? new AVPlayerItem({url}) : null)
@@ -64,6 +69,10 @@ export class AVPlayer extends NSObject {
         return this._item
     }
 
+    /**
+     * @param {object} options
+     * @param {AVPlayerItem|null} options.with
+     */
     replaceCurrentItem({with: item}) {
         this._item = item || null
         for (var element of this._elements()) {
@@ -126,6 +135,11 @@ export class AVPlayer extends NSObject {
     }
 
     // seek(to:) or seek(to:completionHandler:); the handler hears whether the seek finished.
+    /**
+     * @param {object} options
+     * @param {CMTime} options.to
+     * @param {Function} [options.completionHandler]
+     */
     seek({to, completionHandler}) {
         if (!to.isNumeric) {
             if (completionHandler) { completionHandler(false) }

@@ -1,6 +1,6 @@
 {
     "name": "cocoatouch",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
@@ -75,7 +75,7 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc -p tsconfig.types.json && node scripts/globals.cjs",
+        "build": "rm -rf types && tsc -p tsconfig.types.json && node scripts/globals.cjs",
         "pretest": "npm run build",
         "test": "node --test test/*.test.js",
         "prepack": "npm run build"

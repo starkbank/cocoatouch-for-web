@@ -4,6 +4,7 @@ import { Bind } from "../utils/bind.js"
 import { UIView } from "./uiview.js"
 import { CGSize } from "../coregraphics/cgsize.js"
 import { traitCollectionForSize, sameTraits, currentTraitCollection, setCurrentTraitCollection } from "./uitraitcollection.js"
+import { UINavigationItem } from "./uinavigationitem.js"
 
 
 export class UIViewController extends UIResponder {
@@ -42,11 +43,21 @@ export class UIViewController extends UIResponder {
 
     // Runs when the window changes size, before the page lays out for it; the
     // coordinator runs work alongside the change and after it, as UIKit's does.
+    /**
+     * @param {object} options
+     * @param {CGSize} options.to
+     * @param {object} options.with
+     */
     viewWillTransition({to: size, with: coordinator}) {
 
     }
 
     // UIContentContainer: the size classes are about to change, before they do.
+    /**
+     * @param {object} options
+     * @param {UITraitCollection} options.to
+     * @param {object} options.with
+     */
     willTransition({to: newCollection, with: coordinator}) {
 
     }
@@ -60,6 +71,29 @@ export class UIViewController extends UIResponder {
 
     }
 
+    // The nearest enclosing navigation controller, nil outside a stack.
+    get navigationController() {
+        var parent = this._parent
+        while (parent && !parent._isNavigationStack) { parent = parent._parent }
+        return parent || null
+    }
+
+    get navigationItem() {
+        if (!this._navigationItem) { this._navigationItem = new UINavigationItem() }
+        return this._navigationItem
+    }
+
+    // The framework's own load step, before the public viewDidLoad.
+    _viewDidLoad() {
+
+    }
+
+    /**
+     * @param {UIViewController} viewController
+     * @param {object} [options]
+     * @param {boolean} [options.animated]
+     * @param {Function} [options.completion]
+     */
     present(viewController, {animated = false, completion} = {}) {
         _dismissRootViewController(animated)
         var nib = Build.html(viewController)
@@ -79,6 +113,7 @@ export class UIViewController extends UIResponder {
             Bind.ibAction(viewController)
             body.css("display", display)
             viewController._isViewLoaded = true
+            viewController._viewDidLoad()
             viewController.viewDidLoad()
             viewController.viewWillAppear(animated)
             viewController.viewWillLayoutSubviews()
@@ -88,8 +123,9 @@ export class UIViewController extends UIResponder {
         })
     }
 
-    // The hydration entry: the html is already there, so no layout pass, but
-    // the controller is loaded and appears like any other.
+    // The hydration entry. The prerenderer loaded the page, so restore sends
+    // the did-move and appear hooks and never the load hooks: a viewDidLoad
+    // that builds content would duplicate the html it is restoring into.
     restore(viewController) {
         _dismissRootViewController(false)
         var body = $("cocoatouch")
@@ -100,7 +136,6 @@ export class UIViewController extends UIResponder {
         Bind.restoreRegisteredViews(body, viewController)
         _rootViewController = viewController
         viewController._isViewLoaded = true
-        viewController.viewDidLoad()
         viewController.viewWillAppear(false)
         viewController.viewDidAppear(false)
     }
@@ -149,18 +184,34 @@ export class UIViewController extends UIResponder {
         this.didMove({toParent: null})
     }
 
+    /**
+     * @param {object} options
+     * @param {UIViewController|null} options.toParent
+     */
     willMove({toParent}) {
 
     }
 
+    /**
+     * @param {object} options
+     * @param {UIViewController|null} options.toParent
+     */
     didMove({toParent}) {
 
     }
 
     // The container view hands its element to the child, like present() hands
     // <cocoatouch> to the root controller: the child's nib fills the container
-    // and its outlets and actions are bound inside it.
-    _embed(containerView) {
+    // and its outlets and actions are bound inside it. Loading and appearing
+    // are separable because a navigation stack appears a controller it loaded
+    // earlier, and sends its delegate willShow between the two.
+    _embed(containerView, {animated = false} = {}) {
+        this._load(containerView)
+        this._appearEmbedded({animated: animated})
+        if (this._parent) { this.didMove({toParent: this._parent}) }
+    }
+
+    _load(containerView) {
         var body = containerView.$el
         var id = body.attr("id")
         if (id) {
@@ -176,23 +227,37 @@ export class UIViewController extends UIResponder {
         Bind.ibOutlet(this)
         Bind.ibAction(this)
         this._isEmbedded = true
+        this._isViewLoaded = true
+        this._viewDidLoad()
         this.viewDidLoad()
-        this.viewWillAppear(false)
-        this.viewWillLayoutSubviews()
-        this.viewDidLayoutSubviews()
-        this.viewDidAppear(false)
-        if (this._parent) { this.didMove({toParent: this._parent}) }
     }
 
-    _unembed() {
+    _appearEmbedded({animated}) {
+        this.viewWillAppear(animated)
+        this.viewWillLayoutSubviews()
+        this.viewDidLayoutSubviews()
+        this.viewDidAppear(animated)
+    }
+
+    _unembed({animated = false} = {}) {
         if (!this._isEmbedded) { return }
         this._isEmbedded = false
         var controllers = _controllersUnder(this)
-        for (var controller of controllers) { controller.viewWillDisappear(false) }
+        for (var controller of controllers) { controller.viewWillDisappear(animated) }
         this._$el.empty()
         this._dispose()
         _clearContainment(this)
-        for (var disposed of controllers) { disposed.viewDidDisappear(false) }
+        for (var disposed of controllers) { disposed.viewDidDisappear(animated) }
+    }
+
+    // The disappear pair forwarded to the whole tree without disposing it, for
+    // a controller a navigation stack hides rather than removes.
+    _sendWillDisappear(animated) {
+        for (var controller of _controllersUnder(this)) { controller.viewWillDisappear(animated) }
+    }
+
+    _sendDidDisappear(animated) {
+        for (var controller of _controllersUnder(this)) { controller.viewDidDisappear(animated) }
     }
 
     _link(view) {

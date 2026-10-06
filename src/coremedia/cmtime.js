@@ -13,6 +13,13 @@ const Flags = Object.freeze({
 export class CMTime {
 
     // CMTime(value:timescale:) or CMTime(seconds:preferredTimescale:)
+    /**
+     * @param {object} options
+     * @param {*} [options.value]
+     * @param {*} [options.timescale]
+     * @param {*} [options.seconds]
+     * @param {*} [options.preferredTimescale}]
+     */
     constructor({value, timescale, seconds, preferredTimescale} = {}) {
         this.epoch = 0
         if (seconds === undefined) {

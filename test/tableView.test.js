@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, UILabel, UITableView, UITableViewCell, IndexPath, UITapGestureRecognizer } from "../src/index.js"
+import { IBOutlet, UILabel, UITableView, UITableViewCell, IndexPath, UITapGestureRecognizer, UITableViewScrollPosition, UITableViewCellEditingStyle } from "../src/index.js"
 
 
 var reuses = []
@@ -86,4 +86,52 @@ test("a tap recognizer added to a cell in cellForRowAt fires, and still fires af
     $("#cell-1").trigger("click")
     $("#cell-0").trigger("click")
     assert.deepEqual(taps, [1, 1, 0])
+})
+
+// jsdom lays nothing out and has no scrollIntoView, so the row is given one
+// that records how it was asked to scroll: Apple's position maps to the block.
+test("scrollPosition scrolls the selected row into view, and .none does not", function() {
+    var setup = tableWithRows(5)
+    var asked = []
+    for (var row of $("#table tbody > tr").get()) { row.scrollIntoView = function(options) { asked.push([this.id, options.block]) } }
+    setup.table.selectRow({at: new IndexPath({row: 3}), animated: false, scrollPosition: UITableViewScrollPosition.top})
+    assert.deepEqual(asked, [["cell-3", "start"]])
+    setup.table.selectRow({at: new IndexPath({row: 4}), animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.deepEqual(asked, [["cell-3", "start"]])
+    setup.table.selectRow({at: new IndexPath({row: 1}), animated: false, scrollPosition: UITableViewScrollPosition.middle})
+    setup.table.selectRow({at: new IndexPath({row: 2}), animated: false, scrollPosition: UITableViewScrollPosition.bottom})
+    assert.deepEqual(asked.slice(1), [["cell-1", "center"], ["cell-2", "end"]])
+})
+
+test("selectRow(at: null) clears the selection", function() {
+    var setup = tableWithRows(3)
+    setup.table.selectRow({at: new IndexPath({row: 2}), animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.equal(setup.table.indexPathForSelectedRow.row, 2)
+    setup.table.selectRow({at: null, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.equal(setup.table.indexPathForSelectedRow, null)
+    assert.equal($("#table tbody > tr.selected").length, 0)
+})
+
+test("a table view delegate carrying the retired commit name is refused, and the new name receives the editing style", function() {
+    var setup = tableWithRows(2)
+    assert.throws(() => { setup.table.delegate = {tableViewCommitEditingStyleForRowAt: function() {}} }, (error) => error instanceof TypeError && /tableViewCommitEditingStyleForRowAtIndexPath/.test(error.message))
+    var committed = []
+    setup.table.delegate = {tableViewCommitEditingStyleForRowAtIndexPath: function(tableView, editingStyle, indexPath) { committed.push([editingStyle, indexPath.row]) }}
+    $("#cell-1").append("<button id=\"delete-button-1\"></button>")
+    setup.table.setEditing(true, {animated: false})
+    $("#delete-button-1").trigger("click")
+    assert.deepEqual(committed, [["delete", 1]])
+})
+
+test("the commit hook receives UITableViewCellEditingStyle.delete, also spelled UITableViewCell.EditingStyle.delete", function() {
+    var setup = tableWithRows(1)
+    var committed = []
+    setup.table.delegate = {tableViewCommitEditingStyleForRowAtIndexPath: function(tableView, editingStyle, indexPath) { committed.push(editingStyle) }}
+    $("#cell-0").append("<button id=\"delete-button-0\"></button>")
+    setup.table.setEditing(true, {animated: false})
+    $("#delete-button-0").trigger("click")
+    assert.deepEqual(committed, [UITableViewCellEditingStyle.delete])
+    assert.equal(UITableViewCell.EditingStyle, UITableViewCellEditingStyle)
+    assert.deepEqual(Object.keys(UITableViewCellEditingStyle).sort(), ["delete", "insert", "none"])
+    assert.ok(Object.isFrozen(UITableViewCellEditingStyle))
 })

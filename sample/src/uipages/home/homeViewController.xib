@@ -33,5 +33,9 @@
             <h3>Traits</h3>
             <p>@IBInspectable from the nib, CGRect frames and bounds, size classes on resize</p>
         </a>
+        <a id="home-navigation" class="home-option">
+            <h3>Navigation</h3>
+            <p>A UINavigationController: push and pop bound to browser history, with a navigation bar</p>
+        </a>
     </div>
 </main>

@@ -4,6 +4,12 @@
     display: none;
 }
 
+/* UINavigationBar lays its back button and title out in a row; the stylesheet draws the rest. */
+.navigation-bar {
+    display: flex;
+    align-items: center;
+}
+
 /* UIButton.showsActivityIndicator keeps the button's height while it spins. */
 .uibutton-activity-indicator {
     min-height: 24px;

@@ -146,7 +146,7 @@ export class Bind {
                 Bind.ibAction(responder)
             }
 
-            _appear(responder)
+            _appear(responder, {isRestoring: false})
         }
     }
 
@@ -183,7 +183,7 @@ export class Bind {
                 Bind.ibAction(responder)
             }
 
-            _appear(responder)
+            _appear(responder, {isRestoring: true})
         }
     }
 }
@@ -191,12 +191,17 @@ export class Bind {
 
 // A controller bound as an outlet is a container view in all but name, so
 // once its own bindings are in place it appears, as an embedded child does.
-// It is not added to children: _layoutTree already reaches it through the
-// view tree, and a child entry would send viewWillTransition twice.
-function _appear(responder) {
+// On a restored page the prerenderer loaded it, so viewDidLoad is not sent
+// again, the one rule restore() follows for the root. It is not added to
+// children: _layoutTree already reaches it through the view tree, and a
+// child entry would send viewWillTransition twice.
+function _appear(responder, {isRestoring}) {
     if (!(responder instanceof UIViewController)) { return }
     responder._isViewLoaded = true
-    responder.viewDidLoad()
+    if (!isRestoring) {
+        responder._viewDidLoad()
+        responder.viewDidLoad()
+    }
     responder.viewWillAppear(false)
     responder.viewDidAppear(false)
 }

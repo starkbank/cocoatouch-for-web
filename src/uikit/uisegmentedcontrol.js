@@ -1,5 +1,5 @@
 import { UIControl } from "./uicontrol.js"
-import { NSString } from "../utils/nsstring.js"
+import { setText } from "../utils/text.js"
 
 
 // The element's children are the segments; the selected one carries "active".
@@ -19,13 +19,23 @@ export class UISegmentedControl extends UIControl {
         this.$el.children().removeClass("active").eq(index).addClass("active")
     }
 
+    /**
+     * @param {string} title
+     * @param {object} options
+     * @param {number} options.forSegmentAt
+     */
     setTitle(title, {forSegmentAt}) {
         var segment = this.$el.children().eq(forSegmentAt)
         var label = segment.children().first()
         var target = label.length ? label : segment
-        target.html(NSString.cleanScript(title))
+        setText(target, title)
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.at
+     * @returns {string}
+     */
     titleForSegment({at}) {
         var segment = this.$el.children().eq(at)
         var label = segment.children().first()

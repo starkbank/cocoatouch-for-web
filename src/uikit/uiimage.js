@@ -6,6 +6,11 @@ import { NSObject } from "../foundation/nsobject.js"
 // such as "fas fa-credit-card".
 export class UIImage extends NSObject {
 
+    /**
+     * @param {object} options
+     * @param {string} [options.named]
+     * @param {string} [options.systemName]
+     */
     constructor({named, systemName}) {
         super()
         this.named = named

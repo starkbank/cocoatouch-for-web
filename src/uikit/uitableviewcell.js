@@ -1,9 +1,14 @@
 import { UIView } from "./uiview.js"
+import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 
 
 // A cell subclass keeps its row html in the .xib of the same name and binds
 // its @IBOutlets to the row the table view dequeues it for.
 export class UITableViewCell extends UIView {
+
+    static get EditingStyle() {
+        return UITableViewCellEditingStyle
+    }
 
     constructor(selector, indexPath) {
         if (typeof selector === "object" && selector !== null) {
