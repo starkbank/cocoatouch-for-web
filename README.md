@@ -248,6 +248,26 @@ viewDidLoad() {
 
 `play()`, `pause()`, `rate`, `isMuted`, `volume`, `currentTime()`, `seek({to, completionHandler})`, `status`, `error`, `timeControlStatus`, `actionAtItemEnd` and `replaceCurrentItem({with})` follow AVFoundation. Times are Core Media `CMTime` values, as in Swift: `player.currentTime().seconds` reads one, `player.seek({to: new CMTime({seconds: 10, preferredTimescale: 600})})` makes one, and an item's `duration` is `CMTime.indefinite` until the media reports it. `import "AVKit"` brings `CMTime` along, the way AVFoundation re-exports Core Media. The player writes only what the app sets, so a `<video muted autoplay loop>` keeps its own attributes. `AVPlayerLayer({player})` makes a layer with its own element for `view.layer.addSublayer(layer)`.
 
+## PDF
+
+`import "PDFKit"` brings Apple's PDFKit, since 1.7.0. A `PDFView` outlet shows a `PDFDocument`; it builds its own `.pdfViewer` element inside whatever it is bound to, the way an `AVPlayerViewController` builds its own `<video>`.
+
+```js
+@IBOutlet("#pdf-preview", PDFView) pdfView
+
+viewDidLoad() {
+    this.pdfView.document = new PDFDocument({url: "/static/legal-privacy.pdf"})
+    this.pdfView.backgroundColor = new UIColor({named: "border-color"})
+    NotificationCenter.default.addObserver(this, {name: PDFView.documentChangedNotification, object: this.pdfView, selector: "documentDidChange"})
+}
+```
+
+`currentPage` (read-only; `go({to: page})` is how it changes, as in PDFKit), `scaleFactor`, `minScaleFactor`, `maxScaleFactor`, `autoScales`, `displayMode` (a `PDFDisplayMode`), `currentSelection`, `setCurrentSelection(selection, {animate})`, `clearSelection()` and `highlightedSelections` follow PDFKit. Selection is always on — PDFKit has no switch for it, so there is none to expose. `PDFDocument(url:)` accepts a relative path, a protocol-relative `//host/…` url (the origin policy there belongs to the host's CSP `connect-src`, not this check) or an `http(s):` url, judged the way a browser itself resolves the string, not by reading it as written; `pageCount`, `page({at: index})` and `documentURL` read it, `page({at:})` 0-based like Apple's own `PDFPage` position. Find is asynchronous, as pdf.js extracts text through a worker: `document.beginFindString(query, {withOptions: [PDFDocument.FindOptions.caseInsensitive]})` posts `PDFDocument.didBeginFindNotification`, one `didFindMatchNotification` per match with a `PDFSelection` in `userInfo`, and `didEndFindNotification` once pdf.js has searched the whole document, which it does without rendering a single page's canvas. `cancelFindString()` clears the field; a new `beginFindString` call supersedes whichever search is still running. Notifications follow the package's existing `AVPlayerItem.didPlayToEndTimeNotification` shape — a static getter per class, Apple's semantic name plus `Notification` — rather than PDFKit's own top-level constants.
+
+Two limitations, both deliberate. `beginFindString` requires the document to already be set on a `PDFView`; Apple's own `PDFDocument` can search a document no view is showing, PDFKit's cannot, because the search is driven by the view's `EventBus` and `PDFFindController`. And `highlightedSelections` only reports what pdf.js's own find just produced — assigning it a selection list of your own choosing has no effect beyond bookkeeping, since pdf.js has no API to highlight an arbitrary selection outside of a find. Setting it to `[]` does clear what is on screen, the one direction pdf.js supports.
+
+PDFKit never ships its own pdf.js: the host page loads it (`pdfjs-dist`'s `build/pdf.min.mjs` and `web/pdf_viewer.mjs`, plus its `web/pdf_viewer.css`) and publishes `globalThis.pdfjsLib` and `globalThis.pdfjsViewer` from its own bundle before any `PDFView` or `PDFDocument` is constructed; PDFKit reads them synchronously at first use and throws, naming what is missing, rather than waiting for them to appear. Three more globals are the only way to set paths `PDFDocument(url:)` has no parameter for, because Apple's has none either: `pdfjsCMapUrl` and `pdfjsStandardFontDataUrl` for correct glyph metrics on a non-Latin script, and `pdfjsWasmUrl` for pdf.js's wasm image codecs, which also needs `'wasm-unsafe-eval'` added to the host's `script-src` — a CSP change this package does not make for you. All three are read the same way, at call time, and simply omitted when unset.
+
 ## Delegates
 
 A delegate or data-source method is the Objective-C selector with the colons removed and each following piece capitalised, and its arguments are positional in Apple's order, the sender first: `tableView(_:numberOfRowsInSection:)` is `tableViewNumberOfRowsInSection(tableView, section)`, `textField(_:shouldChangeCharactersIn:replacementString:)` is `textFieldShouldChangeCharactersInRangeReplacementString(textField, range, string)`. This is the one exception to labels-as-object-keys. Optional methods are optional: absence is never an error, and the framework supplies Apple's default (one section, a blank picker row). A `Bool` return is honoured only when it is exactly `false`; `undefined`, `null` and anything else mean "proceed". Five names predated the convention and were renamed in 1.6.0: `tableViewCommitEditingStyleForRowAt` → `tableViewCommitEditingStyleForRowAtIndexPath`, `collectionViewDidSelectItemAt` → `collectionViewDidSelectItemAtIndexPath`, `numberOfItemsInSection` → `collectionViewNumberOfItemsInSection`, `pickerViewTitleForRow` → `pickerViewTitleForRowForComponent` and `pickerViewDidSelectRow` → `pickerViewDidSelectRowInComponent`. Because an optional method under a retired name would simply never be called, assigning a `delegate` or `dataSource` that still carries one throws a `TypeError` naming the replacement. That check is a migration diagnostic at the framework's boundary, not a UIKit behaviour, and it is removed in the next major.
@@ -313,6 +333,7 @@ One element has one owner. A registered view class is revived only for an action
 | | UITraitCollection, UIUserInterfaceSizeClass, UIUserInterfaceIdiom | |
 | | UINavigationController, UINavigationBar, UINavigationItem | |
 | NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, IBInspectable, UIKeyCommand, UIKeyModifierFlags | |
+| | | PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode |
 
 ## Sample
 
