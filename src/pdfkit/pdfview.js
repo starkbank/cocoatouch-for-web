@@ -48,9 +48,11 @@ export class PDFView extends UIView {
         this._viewerElement = viewerElement
 
         this._eventBus = new pdfjsViewer.EventBus()
+        // LinkTarget is pdfjsViewer's export, not pdfjsLib's — pdfjsLib has no
+        // member by that name at all.
         this._linkService = new pdfjsViewer.PDFLinkService({
             eventBus: this._eventBus,
-            externalLinkTarget: pdfjsLib.LinkTarget.BLANK,
+            externalLinkTarget: pdfjsViewer.LinkTarget.BLANK,
             externalLinkRel: "noopener noreferrer nofollow",
         })
         // updateMatchesCountOnProgress: false — without it pdf.js fires

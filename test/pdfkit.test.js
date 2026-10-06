@@ -98,9 +98,18 @@ class FakeViewer {
     }
 }
 
-var ScrollMode = Object.freeze({PAGE: "PAGE", VERTICAL: "VERTICAL"})
-var SpreadMode = Object.freeze({NONE: "NONE", ODD: "ODD"})
+// Real values at the pinned version (pdfjs-dist/web/pdf_viewer.mjs), not
+// placeholders: a stub that invents its own values for a real enum can hide
+// the exact class of bug a mis-sourced global does — nothing here would have
+// failed against the wrong numbers either, since nothing compared them to
+// the real pdf.js until this was checked by hand against the installed package.
+var ScrollMode = Object.freeze({UNKNOWN: -1, VERTICAL: 0, HORIZONTAL: 1, WRAPPED: 2, PAGE: 3})
+var SpreadMode = Object.freeze({UNKNOWN: -1, NONE: 0, ODD: 1, EVEN: 2})
 var FindState = Object.freeze({FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3})
+// LinkTarget is pdfjsViewer's export (pdf_viewer.mjs), not pdfjsLib's: it has
+// no member by that name at all. Values below match pdfjsViewer's real
+// LinkTarget object exactly.
+var LinkTarget = Object.freeze({NONE: 0, SELF: 1, BLANK: 2, PARENT: 3, TOP: 4})
 
 function fakePdfjsViewer() {
     return {
@@ -111,6 +120,7 @@ function fakePdfjsViewer() {
         ScrollMode: ScrollMode,
         SpreadMode: SpreadMode,
         FindState: FindState,
+        LinkTarget: LinkTarget,
     }
 }
 
@@ -141,7 +151,6 @@ function fakePdfjsLib({resolve, reject} = {}) {
         version: "6.4.299",
         GlobalWorkerOptions: {workerSrc: "/static/pdfjs/pdf.worker.min.mjs"},
         AnnotationMode: {ENABLE: 1},
-        LinkTarget: {BLANK: 2},
         getDocument: function(options) {
             _getDocumentCalls.push(options)
             var destroyed = false
@@ -335,6 +344,35 @@ test("scaleFactor clamps to minScaleFactor and maxScaleFactor", function() {
     assert.equal(view.scaleFactor, 2)
     view.scaleFactor = 0.1
     assert.equal(view.scaleFactor, 0.5)
+    uninstallPdfjs()
+})
+
+// displayMode had no test at all before this audit, which is exactly how the
+// stub's wrong ScrollMode/SpreadMode values (strings, not pdf.js's real
+// integers) went unnoticed: nothing exercised the one path that reads them.
+test("displayMode maps onto the viewer's real scrollMode/spreadMode values, default singlePageContinuous", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    assert.equal(view.displayMode, PDFDisplayMode.singlePageContinuous)
+    assert.equal(view._pdfViewer.scrollMode, undefined, "the default is never written back to the stub viewer until displayMode is set")
+
+    view.displayMode = PDFDisplayMode.singlePage
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.PAGE)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.NONE)
+
+    view.displayMode = PDFDisplayMode.singlePageContinuous
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.VERTICAL)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.NONE)
+
+    view.displayMode = PDFDisplayMode.twoUp
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.PAGE)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.ODD)
+
+    view.displayMode = PDFDisplayMode.twoUpContinuous
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.VERTICAL)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.ODD)
+
+    assert.throws(function() { view.displayMode = "not a real mode" }, /PDFView\.displayMode/)
     uninstallPdfjs()
 })
 
