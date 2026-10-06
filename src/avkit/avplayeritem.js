@@ -27,6 +27,11 @@ export class AVPlayerItem extends NSObject {
     }
 
     // AVPlayerItem(url:) or AVPlayerItem(asset:)
+    /**
+     * @param {object} options
+     * @param {*} options.url
+     * @param {*} options.asset
+     */
     constructor({url, asset}) {
         super()
         this.asset = asset || new AVURLAsset({url})

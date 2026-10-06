@@ -4,8 +4,7 @@ import assert from "node:assert/strict"
 import { IBOutlet, UIButton, UIView, UIControl, UITextField, UIImageView, UILabel, UIImage, UITapGestureRecognizer, UIHoverGestureRecognizer, UIGestureRecognizer, UITableView, UITableViewCell, UIDevice, UIUserInterfaceIdiom, UIControlEvent, UIControlState, UIDatePicker } from "../src/index.js"
 import { datePickerDateFormat, datePickerRegional } from "../src/uikit/datepickerlocale.js"
 import { Bind } from "../src/utils/bind.js"
-import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound } from "../src/index.js"
-import { NSString } from "../src/utils/nsstring.js"
+import { DispatchGroup, IndexPath, Locale, NSRange, NSNotFound, UIPickerView, UIColor, UITableViewScrollPosition, UISwitch, UIProgressView, UIScrollView, UISearchTextField, UISearchToken, CGPoint } from "../src/index.js"
 
 
 test("DispatchGroup notifies once every entered task has left, even when notify comes last", function() {
@@ -61,15 +60,12 @@ test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
     assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
-test("NSString.cleanScript defers to DOMPurify when the page loads it", function() {
-    assert.equal(NSString.cleanScript("a<script>x</script>b"), "ab")
-    globalThis.DOMPurify = {sanitize: function(text) { return "purified:" + text }}
-    assert.equal(NSString.cleanScript("hi"), "purified:hi")
-    delete globalThis.DOMPurify
-})
-
 test("UIButton.showsActivityIndicator swaps the title for a spinner and restores it", function() {
     var button = new UIButton("#send")
+    // Stores and returns the value raw: this double does not model
+    // textContent's escaping, so no test whose subject is escaping may use it.
+    var content = ""
+    button._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return content } content = value; return this }, text: function(value) { if (value === undefined) { return content } content = value; return this }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
     button.setTitle("Send", {for: UIControlState.normal})
     button.showsActivityIndicator = true
     assert.ok(button.showsActivityIndicator)
@@ -86,7 +82,7 @@ test("addTarget calls the action with the target and the control", function() {
     var seen = null
     var target = {}
     button.addTarget(target, {action: function(t, control) { seen = {t: t, control: control} }, for: UIControlEvent.touchUpInside})
-    button.sendActions()
+    button.sendActions({for: UIControlEvent.touchUpInside})
     assert.equal(seen.t, target)
     assert.equal(seen.control, button)
 })
@@ -145,22 +141,22 @@ test("reloadData dequeues one registered cell per row, bound to its row", functi
     assert.equal(setup.dequeued[1].reuseIdentifier, "row")
     assert.equal(setup.table.indexPath({for: setup.dequeued[2]}).row, 2)
     assert.equal(setup.table.cellForRow({at: new IndexPath({row: 1})}), setup.dequeued[1])
-    assert.equal(setup.table.numberOfRows(), 3)
+    assert.equal(setup.table.numberOfRows({inSection: 0}), 3)
     assert.equal(setup.dequeued[0].next, setup.table)
 })
 
 test("selection follows allowsMultipleSelection and reports through indexPathsForSelectedRows", function() {
     var table = tableWithRows(3).table
-    table.selectRow({at: 0})
-    table.selectRow({at: new IndexPath({row: 2})})
+    table.selectRow({at: 0, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    table.selectRow({at: new IndexPath({row: 2}), animated: false, scrollPosition: UITableViewScrollPosition.none})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [2])
     assert.equal(table.indexPathForSelectedRow.row, 2)
     table.allowsMultipleSelection = true
-    table.selectRow({at: 0})
+    table.selectRow({at: 0, animated: false, scrollPosition: UITableViewScrollPosition.none})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [2, 0])
-    table.deselectRow({at: 2})
+    table.deselectRow({at: 2, animated: false})
     assert.deepEqual(table.indexPathsForSelectedRows.map(function(p) { return p.row }), [0])
-    table.deselectRow({at: 0})
+    table.deselectRow({at: 0, animated: false})
     assert.equal(table.indexPathForSelectedRow, null)
 })
 
@@ -230,7 +226,7 @@ test("insertSubview places a view's nib without restyling it and links it", func
     var el = parent.$el
     el.children = function() { return {length: 0} }
     el.append = function(inserted) { appended.push(inserted.html()); return el }
-    parent.insertSubview(child)
+    parent.insertSubview(child, {at: 0})
     assert.equal(appended.length, 1)
     assert.ok(appended[0].indexOf("<span>hi</span>") !== -1)
     assert.deepEqual(parent.subviews, [child])
@@ -443,4 +439,219 @@ test("NSRange carries location and length, and NSNotFound is a Foundation global
     assert.equal(range.length, 3)
     assert.equal(NSNotFound, Number.MAX_SAFE_INTEGER)
     assert.equal(NSRange.NSNotFound, undefined)
+})
+
+// Apple requires these labels; JavaScript cannot refuse at compile time, so
+// the call refuses, naming the method and the Swift signature.
+function stubbed(control) {
+    control._$el = {0: {}, length: 1, html: function() { return this }, text: function() { return "" }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }, trigger: function() { return this }, on: function() { return this }, off: function() { return this }, prop: function() { return 0 }, empty: function() { return this }, append: function() { return this }, find: function() { return {length: 0, each: function() {}, off: function() { return this }, on: function() { return this }} }}
+    return control
+}
+
+test("setTitle, title, setTitleColor and titleColor require the state", function() {
+    var button = stubbed(new UIButton("#required"))
+    var cases = [
+        [() => button.setTitle("Save"), "UIButton.setTitle", "setTitle(_:for:)"],
+        [() => button.setTitle("Save", {}), "UIButton.setTitle", "setTitle(_:for:)"],
+        [() => button.title(), "UIButton.title", "title(for:)"],
+        [() => button.title({}), "UIButton.title", "title(for:)"],
+        [() => button.setTitleColor(UIColor.white), "UIButton.setTitleColor", "setTitleColor(_:for:)"],
+        [() => button.setTitleColor(UIColor.white, {}), "UIButton.setTitleColor", "setTitleColor(_:for:)"],
+        [() => button.titleColor(), "UIButton.titleColor", "titleColor(for:)"],
+        [() => button.titleColor({}), "UIButton.titleColor", "titleColor(for:)"],
+    ]
+    for (var [call, method, signature] of cases) {
+        assert.throws(call, (error) => error instanceof TypeError && error.message.indexOf(method) !== -1 && error.message.indexOf(signature) !== -1, method)
+    }
+})
+
+test("sendActions, removeTarget, numberOfRows and selectedRow require their label", function() {
+    var control = stubbed(new UIControl("#required-control"))
+    var isTypeError = (error) => error instanceof TypeError && /requires a/.test(error.message)
+    assert.throws(() => control.sendActions(), isTypeError)
+    assert.throws(() => control.sendActions({}), isTypeError)
+    var target = {}
+    var action = function() {}
+    assert.throws(() => control.removeTarget(target), isTypeError)
+    assert.throws(() => control.removeTarget(target, {action: action}), isTypeError)
+    var picker = stubbed(new UIPickerView("#required-picker"))
+    assert.throws(() => picker.numberOfRows(), isTypeError)
+    assert.throws(() => picker.selectedRow(), isTypeError)
+    var table = stubbed(new UITableView("#required-table"))
+    assert.throws(() => table.numberOfRows(), isTypeError)
+    assert.throws(() => table.numberOfRows({}), isTypeError)
+})
+
+test("the nine still behave when the label is given", function() {
+    var button = stubbed(new UIButton("#labelled"))
+    var html = ""
+    button._$el.html = function(value) { if (value === undefined) { return html } html = value; return this }
+    button._$el.text = function() { return html }
+    button.setTitle("Save", {for: UIControlState.normal})
+    button.setTitle("Saving", {for: UIControlState.disabled})
+    assert.equal(button.title({for: UIControlState.normal}), "Save")
+    assert.equal(button.title({for: UIControlState.selected}), "Save")
+    assert.equal(button.currentTitle, "Save")
+    button.isEnabled = false
+    assert.equal(button.currentTitle, "Saving")
+    button.setTitleColor(UIColor.black, {for: UIControlState.disabled})
+    assert.equal(button.titleColor({for: UIControlState.disabled}).cgColor, "#000000")
+    var fired = []
+    button.addTarget({}, {action: function() { fired.push("tap") }, for: UIControlEvent.touchUpInside})
+    button._$el.trigger = function(event) { fired.push(event); return this }
+    button.sendActions({for: UIControlEvent.touchUpInside})
+    assert.deepEqual(fired, ["click"])
+    button.removeTarget({}, {for: UIControlEvent.touchUpInside})
+    var picker = stubbed(new UIPickerView("#labelled-picker"))
+    assert.equal(picker.numberOfRows({inComponent: 0}), 0)
+    assert.equal(picker.selectedRow({inComponent: 0}), 0)
+    var table = stubbed(new UITableView("#labelled-table"))
+    assert.equal(table.numberOfRows({inSection: 0}), 0)
+})
+
+// The animated: and at: labels Apple requires; the guard names the method and
+// the Swift signature, as for the state labels.
+var isRequiredError = (error) => error instanceof TypeError && /requires a/.test(error.message)
+
+function datepickerStubbed(run) {
+    withDatepickerStub(run)
+}
+
+test("the animated members require animated:", function() {
+    var toggle = stubbed(new UISwitch("#req-switch"))
+    var progress = stubbed(new UIProgressView("#req-progress"))
+    var scroll = stubbed(new UIScrollView("#req-scroll"))
+    var table = stubbed(new UITableView("#req-table"))
+    var cases = [
+        [() => toggle.setOn(true), "UISwitch.setOn", "setOn(_:animated:)"],
+        [() => toggle.setOn(true, {}), "UISwitch.setOn", "setOn(_:animated:)"],
+        [() => progress.setProgress(0.5), "UIProgressView.setProgress", "setProgress(_:animated:)"],
+        [() => progress.setProgress(0.5, {}), "UIProgressView.setProgress", "setProgress(_:animated:)"],
+        [() => table.setEditing(true), "UITableView.setEditing", "setEditing(_:animated:)"],
+        [() => table.setEditing(true, {}), "UITableView.setEditing", "setEditing(_:animated:)"],
+        [() => scroll.setContentOffset(CGPoint.zero), "UIScrollView.setContentOffset", "setContentOffset(_:animated:)"],
+        [() => scroll.setContentOffset(CGPoint.zero, {}), "UIScrollView.setContentOffset", "setContentOffset(_:animated:)"],
+    ]
+    for (var [call, method, signature] of cases) {
+        assert.throws(call, (error) => isRequiredError(error) && error.message.indexOf(method) !== -1 && error.message.indexOf(signature) !== -1, method)
+    }
+    datepickerStubbed(function() {
+        var picker = new UIDatePicker("#req-date")
+        assert.throws(() => picker.setDate(new Date()), (error) => isRequiredError(error) && error.message.indexOf("UIDatePicker.setDate") !== -1 && error.message.indexOf("setDate(_:animated:)") !== -1)
+        assert.throws(() => picker.setDate(new Date(), {}), isRequiredError)
+    })
+})
+
+test("the picker and table row members require every label Apple requires", function() {
+    var picker = stubbed(new UIPickerView("#req-picker"))
+    assert.throws(() => picker.selectRow(1, {animated: false}), (error) => isRequiredError(error) && /inComponent/.test(error.message))
+    assert.throws(() => picker.selectRow(1, {inComponent: 0}), (error) => isRequiredError(error) && /animated/.test(error.message))
+    assert.throws(() => picker.selectRow(1), isRequiredError)
+    var table = stubbed(new UITableView("#req-rows"))
+    assert.throws(() => table.selectRow({animated: false, scrollPosition: UITableViewScrollPosition.none}), (error) => isRequiredError(error) && /\bat\b/.test(error.message))
+    assert.throws(() => table.selectRow({at: 0, scrollPosition: UITableViewScrollPosition.none}), (error) => isRequiredError(error) && /animated/.test(error.message))
+    assert.throws(() => table.selectRow({at: 0, animated: false}), (error) => isRequiredError(error) && /scrollPosition/.test(error.message))
+    assert.throws(() => table.deselectRow({animated: false}), (error) => isRequiredError(error) && /\bat\b/.test(error.message))
+    assert.throws(() => table.deselectRow({at: 0}), (error) => isRequiredError(error) && /animated/.test(error.message))
+})
+
+test("insertToken and insertSubview require at:", function() {
+    var field = stubbed(new UISearchTextField("#req-search"))
+    assert.throws(() => field.insertToken(new UISearchToken({text: "a"})), (error) => isRequiredError(error) && /UISearchTextField.insertToken/.test(error.message) && /insertToken\(_:at:\)/.test(error.message))
+    assert.throws(() => field.insertToken(new UISearchToken({text: "a"}), {}), isRequiredError)
+    var parent = new UIView("#req-parent")
+    assert.throws(() => parent.insertSubview(new UIView()), (error) => isRequiredError(error) && /UIView.insertSubview/.test(error.message) && /insertSubview\(_:at:\)/.test(error.message))
+    assert.throws(() => parent.insertSubview(new UIView(), {}), isRequiredError)
+})
+
+test("the eleven still behave when the labels are given", function() {
+    var toggle = stubbed(new UISwitch("#ok-switch"))
+    var checked = false
+    toggle._$el.prop = function(name, value) { if (value === undefined) { return checked } checked = value; return this }
+    toggle.setOn(true, {animated: false})
+    assert.equal(toggle.isOn, true)
+    var progress = stubbed(new UIProgressView("#ok-progress"))
+    var css = {}
+    var bar = {stop: function() { return bar }, css: function(name, value) { css[name] = value; return bar }, animate: function() { css.animated = true; return bar }}
+    progress._$el.width = function() { return 200 }
+    progress._$el.children = function() { return bar }
+    progress.setProgress(0.5, {animated: false})
+    assert.equal(css.left, 100)
+    var picker = stubbed(new UIPickerView("#ok-picker"))
+    var selectedIndex = 0
+    picker._$el.prop = function(name, value) { if (value === undefined) { return selectedIndex } selectedIndex = value; return this }
+    picker.selectRow(2, {inComponent: 0, animated: false})
+    assert.equal(picker.selectedRow({inComponent: 0}), 2)
+    var setup = tableWithRows(3)
+    setup.table.selectRow({at: 1, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.equal(setup.table.indexPathForSelectedRow.row, 1)
+    setup.table.deselectRow({at: 1, animated: false})
+    assert.equal(setup.table.indexPathForSelectedRow, null)
+    setup.table.setEditing(true, {animated: false})
+    assert.equal(setup.table.isEditing, true)
+    assert.equal(UITableView.ScrollPosition, UITableViewScrollPosition)
+    assert.deepEqual(Object.keys(UITableViewScrollPosition).sort(), ["bottom", "middle", "none", "top"])
+})
+
+
+// The type in a declaration is enforced: a member refuses a value of the wrong
+// type as Swift would at compile time, naming the method, the Swift signature,
+// the expected type and what it received.
+var isTypeMessage = (error, ...parts) => error instanceof TypeError && parts.every((part) => error.message.indexOf(part) !== -1)
+
+test("a wrong enum case is refused, naming the type and the value", function() {
+    var button = stubbed(new UIButton("#typed-button"))
+    assert.throws(() => button.setTitle("Save", {for: "nomral"}), (error) => isTypeMessage(error, "UIButton.setTitle", "UIControl.State", '"nomral"', "setTitle(_:for:)"))
+    assert.throws(() => button.title({for: "normal "}), (error) => isTypeMessage(error, "UIControl.State"))
+    var control = stubbed(new UIControl("#typed-control"))
+    assert.throws(() => control.sendActions({for: "tap"}), (error) => isTypeMessage(error, "UIControl.Event", '"tap"'))
+    assert.throws(() => control.addTarget({}, {action: function() {}, for: "tap"}), (error) => isTypeMessage(error, "UIControl.Event"))
+    assert.throws(() => control.addTarget({}, {action: "notAFunction", for: UIControlEvent.touchUpInside}), (error) => isTypeMessage(error, "UIControl.addTarget"))
+    assert.throws(() => control.addTarget({}), (error) => isTypeMessage(error, "UIControl.addTarget requires a action"))
+})
+
+test("a wrong class or shape is refused, by shape for a value type", function() {
+    var scroll = stubbed(new UIScrollView("#typed-scroll"))
+    assert.throws(() => scroll.setContentOffset({x: "0", y: 0}, {animated: false}), (error) => isTypeMessage(error, "UIScrollView.setContentOffset", "CGPoint"))
+    assert.throws(() => scroll.setContentOffset("top", {animated: false}), (error) => isTypeMessage(error, "CGPoint", '"top"'))
+    var button = stubbed(new UIButton("#typed-color"))
+    assert.throws(() => button.setTitleColor("#fff", {for: UIControlState.normal}), (error) => isTypeMessage(error, "UIButton.setTitleColor", "UIColor", '"#fff"'))
+    var css = {}
+    button._$el.css = function(name, value) { if (value === undefined) { return css[name] || "" } css[name] = value; return this }
+    button.setTitleColor(UIColor.black, {for: UIControlState.normal})
+    assert.equal(css.color, "#000000")
+    button.setTitleColor(null, {for: UIControlState.normal})
+    assert.equal(css.color, "")
+    assert.equal(button.titleColor({for: UIControlState.selected}), null)
+    withDatepickerStub(function() {
+        var picker = new UIDatePicker("#typed-date")
+        assert.throws(() => picker.setDate("2026-10-04", {animated: false}), (error) => isTypeMessage(error, "UIDatePicker.setDate", "Date"))
+    })
+})
+
+test("a non-boolean flag and a non-integer index are refused", function() {
+    var toggle = stubbed(new UISwitch("#typed-switch"))
+    assert.throws(() => toggle.setOn(true, {animated: "yes"}), (error) => isTypeMessage(error, "UISwitch.setOn", "Bool", '"yes"'))
+    assert.throws(() => toggle.setOn("on", {animated: false}), (error) => isTypeMessage(error, "Bool", '"on"'))
+    var progress = stubbed(new UIProgressView("#typed-progress"))
+    assert.throws(() => progress.setProgress("half", {animated: false}), (error) => isTypeMessage(error, "UIProgressView.setProgress", "Float"))
+    var table = stubbed(new UITableView("#typed-table"))
+    assert.throws(() => table.numberOfRows({inSection: 1.5}), (error) => isTypeMessage(error, "UITableView.numberOfRows", "Int", "1.5"))
+    var picker = stubbed(new UIPickerView("#typed-picker"))
+    assert.throws(() => picker.selectedRow({inComponent: "0"}), (error) => isTypeMessage(error, "UIPickerView.selectedRow", "Int", '"0"'))
+    var view = new UIView("#typed-view")
+    assert.throws(() => view.insertSubview(new UIView(), {at: "0"}), (error) => isTypeMessage(error, "UIView.insertSubview", "Int"))
+})
+
+test("null is accepted where Apple's type is optional and refused where it is not", function() {
+    var setup = tableWithRows(2)
+    setup.table.selectRow({at: 1, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    setup.table.selectRow({at: null, animated: false, scrollPosition: UITableViewScrollPosition.none})
+    assert.equal(setup.table.indexPathForSelectedRow, null)
+    assert.throws(() => setup.table.deselectRow({at: null, animated: false}), (error) => isTypeMessage(error, "UITableView.deselectRow", "IndexPath"))
+    assert.throws(() => setup.table.selectRow({animated: false, scrollPosition: UITableViewScrollPosition.none}), (error) => isTypeMessage(error, "requires a at"))
+    var control = stubbed(new UIControl("#typed-remove"))
+    control.removeTarget({}, {action: null, for: UIControlEvent.touchUpInside})
+    control.removeTarget({}, {for: UIControlEvent.touchUpInside})
+    assert.throws(() => control.removeTarget({}, {action: 3, for: UIControlEvent.touchUpInside}), (error) => isTypeMessage(error, "UIControl.removeTarget"))
 })

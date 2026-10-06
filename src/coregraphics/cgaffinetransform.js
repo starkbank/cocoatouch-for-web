@@ -3,6 +3,20 @@
 export class CGAffineTransform {
 
     // CGAffineTransform(a:b:c:d:tx:ty:), (scaleX:y:), (translationX:y:) or (rotationAngle:)
+    /**
+     * @param {object} [options]
+     * @param {number} [options.a]
+     * @param {number} [options.b]
+     * @param {number} [options.c]
+     * @param {number} [options.d]
+     * @param {number} [options.tx]
+     * @param {number} [options.ty]
+     * @param {number} [options.scaleX]
+     * @param {number} [options.translationX]
+     * @param {number} [options.rotationAngle]
+     * @param {number} [options.x]
+     * @param {number} [options.y]
+     */
     constructor({a, b, c, d, tx, ty, scaleX, y, translationX, rotationAngle} = {}) {
         if (rotationAngle !== undefined) {
             var cos = Math.cos(rotationAngle), sin = Math.sin(rotationAngle)
@@ -40,14 +54,28 @@ export class CGAffineTransform {
         })
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.x
+     * @param {number} options.y
+     */
     scaledBy({x, y}) {
         return new CGAffineTransform({scaleX: x, y: y}).concatenating(this)
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.x
+     * @param {number} options.y
+     */
     translatedBy({x, y}) {
         return new CGAffineTransform({translationX: x, y: y}).concatenating(this)
     }
 
+    /**
+     * @param {object} options
+     * @param {number} options.by
+     */
     rotated({by}) {
         return new CGAffineTransform({rotationAngle: by}).concatenating(this)
     }

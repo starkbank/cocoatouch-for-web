@@ -1,8 +1,7 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIImageView, UIImage, UIScrollView, IBAction, UIViewController, UIKeyCommand, UIKeyModifierFlags } from "../src/index.js"
-import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../src/index.js"
+import { UIButton, UIImageView, UIImage, UIScrollView, IBAction, UIViewController, UIKeyCommand, UIKeyModifierFlags, NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../src/index.js"
 import { CGPoint } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 import { IBOutlet, UIView } from "../src/index.js"
@@ -52,7 +51,7 @@ test("UIScrollView reads and sets its content offset through the element", funct
     var element = {scrollLeft: 0, scrollTop: 0, scrollWidth: 300, scrollHeight: 1200}
     scrollView.$el[0] = element
     assert.equal(scrollView.contentSize.height, 1200)
-    scrollView.setContentOffset(new CGPoint({x: 0, y: 1200}))
+    scrollView.setContentOffset(new CGPoint({x: 0, y: 1200}), {animated: false})
     assert.equal(element.scrollTop, 1200)
     scrollView.contentOffset = new CGPoint({x: 10, y: 40})
     assert.deepEqual({x: scrollView.contentOffset.x, y: scrollView.contentOffset.y}, {x: 10, y: 40})
@@ -101,4 +100,63 @@ test("an outlet whose class inherits awakeFromNib from a parent view is still aw
     var page = new Page("#page")
     Bind.ibOutlet(page)
     assert.deepEqual(awakened, ["ApiMenuView"])
+})
+
+
+// webpageURL is the address of what the user is looking at and becomes the
+// element's href, so it must be one a browser may navigate to: a relative or
+// http(s) url, as a string or a URL, refused otherwise at the setter.
+test("webpageURL refuses a scheme a browser would execute, naming the member", function() {
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    for (var bad of ["javascript:alert(1)", "data:text/html,x", "vbscript:x"]) {
+        assert.throws(() => { activity.webpageURL = bad }, (error) => error instanceof TypeError && /NSUserActivity\.webpageURL/.test(error.message) && error.message.indexOf(bad) !== -1, bad)
+    }
+    assert.equal(activity.webpageURL, null)
+})
+
+// Apple's webpageURL is URL?, and a contact link executes nothing: mailto:
+// and tel: are addresses a browser hands to another app, so they pass, and
+// the navigation stack's same-origin test keeps them out of history.
+test("webpageURL accepts a mailto: url and writes it as the href", function() {
+    var button = new UIButton("#contact")
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    activity.webpageURL = "mailto:help@starkbank.com"
+    assert.equal(activity.webpageURL, "mailto:help@starkbank.com")
+    button.userActivity = activity
+    assert.equal(button.$el.attr("href"), "mailto:help@starkbank.com")
+})
+
+test("userActivity read off an anchor with a tel: href is a browsing activity for that number", function() {
+    var link = new UIButton("#phone")
+    link.$el.attr("href", "tel:+5511999999999")
+    assert.equal(link.userActivity.activityType, NSUserActivityTypeBrowsingWeb)
+    assert.equal(link.userActivity.webpageURL, "tel:+5511999999999")
+})
+
+test("widening to mailto: and tel: refuses javascript: as before", function() {
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    assert.throws(() => { activity.webpageURL = "javascript:alert(1)" }, TypeError)
+    assert.throws(() => { activity.webpageURL = "JavaScript:alert(1)" }, TypeError)
+    assert.equal(activity.webpageURL, null)
+})
+
+test("webpageURL keeps a relative url relative, accepts an absolute http(s) one and a URL instance, and null removes the href", function() {
+    var view = new UIView("#link")
+    var attrs = {}
+    view._$el = {0: {}, length: 1, attr: function(name, value) { if (arguments.length > 1) { attrs[name] = value; return this } return attrs[name] }, removeAttr: function(name) { delete attrs[name]; return this }}
+    var activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
+    activity.webpageURL = "/buttons"
+    view.userActivity = activity
+    assert.equal(attrs.href, "/buttons")
+    activity.webpageURL = "https://stark.com/x"
+    view.userActivity = activity
+    assert.equal(attrs.href, "https://stark.com/x")
+    var url = new URL("https://stark.com/y?z=1")
+    activity.webpageURL = url
+    assert.equal(activity.webpageURL, url)
+    view.userActivity = activity
+    assert.equal(attrs.href, "https://stark.com/y?z=1")
+    activity.webpageURL = null
+    view.userActivity = activity
+    assert.equal("href" in attrs, false)
 })

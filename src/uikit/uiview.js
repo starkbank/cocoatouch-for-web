@@ -5,6 +5,7 @@ import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
+import { required, Int } from "../utils/required.js"
 
 
 export class UIView extends UIResponder {
@@ -35,6 +36,10 @@ export class UIView extends UIResponder {
 
     // willMove(toSuperview:) and didMoveToSuperview(), around addSubview's
     // insertion and removeFromSuperview's removal.
+    /**
+     * @param {object} options
+     * @param {UIView|null} options.toSuperview
+     */
     willMove({toSuperview}) {
 
     }
@@ -270,7 +275,13 @@ export class UIView extends UIResponder {
         this._attach(view, {})
     }
 
+    /**
+     * @param {UIView} view
+     * @param {object} options
+     * @param {number} options.at
+     */
     insertSubview(view, {at} = {}) {
+        required(at, "at", Int, "UIView.insertSubview", "Apple's is insertSubview(_:at:); write insertSubview(view, {at: index}).")
         this._attach(view, {at})
     }
 
@@ -329,6 +340,13 @@ export class UIView extends UIResponder {
 
     // Runs the property changes made in `animations` over `withDuration`
     // seconds: alpha and isHidden fade instead of switching.
+    /**
+     * @param {object} options
+     * @param {number} options.withDuration
+     * @param {number} [options.delay]
+     * @param {Function} options.animations
+     * @param {Function} [options.completion]
+     */
     static animate({withDuration, delay = 0, animations, completion}) {
         var previous = _animation
         _animation = {duration: withDuration * 1000, delay: delay * 1000}
@@ -344,6 +362,15 @@ export class UIView extends UIResponder {
 
     // Swaps one view for another: `from` fades out, then `to` slides in
     // from the side the flip option names, or dissolves in.
+    /**
+     * transition(from:to:duration:options:completion:); `options` is Apple's own label here.
+     * @param {object} parameters
+     * @param {UIView} parameters.from
+     * @param {UIView} parameters.to
+     * @param {number} parameters.duration
+     * @param {string[]} [parameters.options]
+     * @param {Function} [parameters.completion]
+     */
     static transition({from, to, duration, options = [], completion}) {
         var milliseconds = duration * 1000
         var direction = _slideDirection(options)

@@ -23,6 +23,10 @@ const haveCurrentData = 2
 export class AVPlayerLayer extends CALayer {
 
     // AVPlayerLayer() or AVPlayerLayer(player:)
+    /**
+     * @param {object} options
+     * @param {*} [options.player}]
+     */
     constructor({player} = {}) {
         super("#" + uuid())
         this._boundElement = null

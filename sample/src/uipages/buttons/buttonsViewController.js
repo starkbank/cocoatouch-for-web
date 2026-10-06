@@ -39,7 +39,7 @@ export class ButtonsViewController extends UIViewController {
     }
 
     @IBAction("#buttons-remote", UIButton) remoteTapped() {
-        this.incrementButton.sendActions()
+        this.incrementButton.sendActions({for: UIControlEvent.touchUpInside})
     }
 
     @IBAction("#buttons-target", UIButton) targetTapped(sender) {

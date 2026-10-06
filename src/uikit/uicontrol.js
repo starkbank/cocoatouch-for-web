@@ -1,6 +1,7 @@
 import { UIView } from "./uiview.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { required, enumeration, optional, FunctionType } from "../utils/required.js"
 
 
 const events = {
@@ -14,6 +15,8 @@ const events = {
 
 
 var _pairCount = 0
+
+const eventType = enumeration(UIControlEvent, "UIControl.Event")
 
 
 export class UIControl extends UIView {
@@ -98,9 +101,17 @@ export class UIControl extends UIView {
     // at the control, as it did, but other handlers on the same element still
     // run, so stopPropagation rather than stopImmediatePropagation; the
     // test stand-in's event has only the latter, hence the guard.
-    addTarget(target, {action, for: controlEvent}) {
+    /**
+     * @param {object} target
+     * @param {object} options
+     * @param {Function} options.action
+     * @param {"touchUpInside"|"valueChanged"|"editingChanged"|"editingDidBegin"|"editingDidEnd"|"touchDown"} options.for
+     */
+    addTarget(target, {action, for: controlEvent} = {}) {
+        required(action, "action", FunctionType, "UIControl.addTarget", "Apple's is addTarget(_:action:for:); write addTarget(target, {action, for: UIControlEvent.touchUpInside}).")
+        required(controlEvent, "for", eventType, "UIControl.addTarget", "Apple's is addTarget(_:action:for:); write addTarget(target, {action, for: UIControlEvent.touchUpInside}).")
         var control = this
-        var event = events[controlEvent] || "click"
+        var event = events[controlEvent]
         var pair = {target: target, action: action, event: event, namespace: event + ".target" + (++_pairCount)}
         this._targets().push(pair)
         this.$el.on(pair.namespace, (e) => {
@@ -111,8 +122,16 @@ export class UIControl extends UIView {
 
     // removeTarget(_:action:for:): a null or omitted action removes every
     // action that target registered for the event, as Apple's Selector? does.
+    /**
+     * @param {object} target
+     * @param {object} options
+     * @param {Function|null} [options.action]
+     * @param {"touchUpInside"|"valueChanged"|"editingChanged"|"editingDidBegin"|"editingDidEnd"|"touchDown"} options.for
+     */
     removeTarget(target, {action = null, for: controlEvent} = {}) {
-        var event = events[controlEvent] || "click"
+        required(controlEvent, "for", eventType, "UIControl.removeTarget", "Apple's is removeTarget(_:action:for:); write removeTarget(target, {action, for: UIControlEvent.touchUpInside}).")
+        required(action, "action", optional(FunctionType), "UIControl.removeTarget", "Apple's is removeTarget(_:action:for:); action is a function, or null for every action of the target.")
+        var event = events[controlEvent]
         var remaining = []
         for (var pair of this._targets()) {
             var matches = pair.target === target && pair.event === event && (action === null || pair.action === action)
@@ -128,7 +147,12 @@ export class UIControl extends UIView {
     }
 
     // Fires the event the control would fire for that control event.
+    /**
+     * @param {object} options
+     * @param {"touchUpInside"|"valueChanged"|"editingChanged"|"editingDidBegin"|"editingDidEnd"|"touchDown"} options.for
+     */
     sendActions({for: controlEvent} = {}) {
-        this.$el.trigger(events[controlEvent] || "click")
+        required(controlEvent, "for", eventType, "UIControl.sendActions", "Apple's is sendActions(for:); write sendActions({for: UIControlEvent.touchUpInside}).")
+        this.$el.trigger(events[controlEvent])
     }
 }

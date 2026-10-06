@@ -16,6 +16,13 @@ export class NotificationCenter {
     // `object` is the sender to observe. When it is an event target (window,
     // document, an element) the notification is the DOM event of that name;
     // otherwise it filters in-app notifications by the object that posts them.
+    /**
+     * @param {object} observer
+     * @param {object} options
+     * @param {Function|string} options.selector
+     * @param {string} options.name
+     * @param {object|null} [options.object]
+     */
     addObserver(observer, {selector, name, object = null}) {
         var method = typeof selector === "function" ? selector : observer[selector]
         var callback = (notification) => method.call(observer, notification)
@@ -26,6 +33,12 @@ export class NotificationCenter {
         this._entriesFor(observer).push({observer, name, object, target, callback})
     }
 
+    /**
+     * @param {object} observer
+     * @param {object} [options]
+     * @param {string} [options.name]
+     * @param {object|null} [options.object]
+     */
     removeObserver(observer, {name, object} = {}) {
         var entries = this._observers.get(observer) || []
         var kept = []
@@ -52,6 +65,12 @@ export class NotificationCenter {
     // Delivery goes to the observers registered when the post starts: one
     // registered by a receiver (a controller presented in response) does not
     // get the same notification, and one removed meanwhile is skipped.
+    /**
+     * @param {object} options
+     * @param {string} options.name
+     * @param {object|null} [options.object]
+     * @param {object|null} [options.userInfo]
+     */
     post({name, object = null, userInfo = null}) {
         var notification = {name, object, userInfo}
         var recipients = []

@@ -1,6 +1,7 @@
 import { UIView } from "./uiview.js"
 import { CGPoint } from "../coregraphics/cgpoint.js"
 import { CGSize } from "../coregraphics/cgsize.js"
+import { required, typed, Bool, CGPointType } from "../utils/required.js"
 
 
 // UIKit's UIScrollView: an element that scrolls its overflowing content.
@@ -25,7 +26,15 @@ export class UIScrollView extends UIView {
     }
 
     // setContentOffset(_:animated:)
-    setContentOffset(point, {animated = false} = {}) {
+    /**
+     * @param {CGPoint} point
+     * @param {object} options
+     * @param {boolean} options.animated
+     */
+    setContentOffset(point, {animated} = {}) {
+        var signature = "Apple's is setContentOffset(_:animated:); write setContentOffset(point, {animated: false})."
+        required(animated, "animated", Bool, "UIScrollView.setContentOffset", signature)
+        typed(point, "point", CGPointType, "UIScrollView.setContentOffset", signature)
         var element = this.$el[0]
         if (!element) { return }
         if (typeof element.scrollTo === "function") {

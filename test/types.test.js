@@ -59,3 +59,61 @@ test("a misspelled framework class is caught before the build", function() {
     assert.equal(problems.length, 1)
     assert.match(problems[0], /Cannot find name 'UIViewControler'/)
 })
+
+
+// The declarations are the framework's interface for an editor: every labelled
+// argument appears by Apple's label, required ones without ?, optional ones
+// with it, and no member takes an undifferentiated options bag. UIView.transition's
+// `options` is Apple's own label and lives inside the destructured object, so the
+// walk looks at parameters, not at the word.
+function declarations() {
+    var found = []
+    var walk = function(directory) {
+        for (var entry of fs.readdirSync(directory, {withFileTypes: true})) {
+            var full = path.join(directory, entry.name)
+            if (entry.isDirectory()) { walk(full); continue }
+            if (!entry.name.endsWith(".d.ts")) { continue }
+            var source = ts.createSourceFile(full, fs.readFileSync(full, "utf8"), ts.ScriptTarget.ES2022, true)
+            var visit = function(node) {
+                if (ts.isMethodDeclaration(node) || ts.isConstructorDeclaration(node) || ts.isMethodSignature(node)) {
+                    var member = node.name ? node.name.getText(source) : "constructor"
+                    var owner = node.parent && node.parent.name ? node.parent.name.getText(source) : path.basename(entry.name, ".d.ts")
+                    found.push({file: path.relative(root, full), owner: owner, member: member, parameters: node.parameters.map(function(parameter) { return {name: parameter.name.getText(source), type: parameter.type ? parameter.type.getText(source) : ""} })})
+                }
+                ts.forEachChild(node, visit)
+            }
+            visit(source)
+        }
+    }
+    walk(path.join(root, "types"))
+    return found
+}
+
+test("no declaration takes an undifferentiated options bag", function() {
+    var bags = declarations().filter(function(d) { return d.parameters.some(function(p) { return p.name === "options" }) })
+    assert.deepEqual(bags.map(function(d) { return d.owner + "." + d.member }), [])
+})
+
+test("every labelled member names its labels and marks optionality", function() {
+    var expected = [
+        ["UIButton", "setTitle", ["for"], []], ["UIButton", "title", ["for"], []], ["UIButton", "setTitleColor", ["for"], []], ["UIButton", "titleColor", ["for"], []],
+        ["UIControl", "addTarget", ["action", "for"], []], ["UIControl", "removeTarget", ["for"], ["action"]], ["UIControl", "sendActions", ["for"], []],
+        ["UIPickerView", "numberOfRows", ["inComponent"], []], ["UIPickerView", "selectRow", ["inComponent", "animated"], []], ["UIPickerView", "selectedRow", ["inComponent"], []],
+        ["UITableView", "setEditing", ["animated"], []], ["UITableView", "numberOfRows", ["inSection"], []], ["UITableView", "selectRow", ["at", "animated", "scrollPosition"], []], ["UITableView", "deselectRow", ["at", "animated"], []],
+        ["UIDatePicker", "setDate", ["animated"], []], ["UIScrollView", "setContentOffset", ["animated"], []], ["UIProgressView", "setProgress", ["animated"], []], ["UISwitch", "setOn", ["animated"], []],
+        ["UIView", "insertSubview", ["at"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
+    ]
+    var all = declarations()
+    expected.forEach(function([owner, member, required, optional]) {
+        var declaration = all.find(function(d) { return d.owner === owner && d.member === member })
+        assert.ok(declaration, owner + "." + member + " is not declared")
+        var labelled = declaration.parameters.find(function(p) { return p.name.indexOf("{") === 0 })
+        assert.ok(labelled, owner + "." + member + " has no destructured parameter: " + JSON.stringify(declaration.parameters))
+        required.forEach(function(label) {
+            assert.match(labelled.type, new RegExp("(^|[{;\\s])" + label + "\\s*:"), owner + "." + member + " must require " + label + ": " + labelled.type)
+        })
+        optional.forEach(function(label) {
+            assert.match(labelled.type, new RegExp("(^|[{;\\s])" + label + "\\?\\s*:"), owner + "." + member + " must mark " + label + " optional: " + labelled.type)
+        })
+    })
+})

@@ -67,14 +67,23 @@ test("addSubview links the child into the responder chain", function() {
 })
 
 
-test("parentViewController walks the chain up to the controller", function() {
+// The responder chain is Apple's mechanism for reaching the enclosing
+// controller; the package carries no parentViewController() convenience.
+function enclosingController(view) {
+    var responder = view.next
+    while (responder && !(responder instanceof UIViewController)) { responder = responder.next }
+    return responder || null
+}
+
+test("next walks the chain up to the controller", function() {
     var controller = new UIViewController()
     var outer = new UIView("#outer")
     var inner = new UIView("#inner")
     controller.view.addSubview(outer)
     outer.addSubview(inner)
-    assert.equal(inner.parentViewController(), controller)
-    assert.equal(new UIView("#orphan").parentViewController(), null)
+    assert.equal(enclosingController(inner), controller)
+    assert.equal(enclosingController(new UIView("#orphan")), null)
+    assert.equal(UIView.prototype.parentViewController, undefined)
 })
 
 test("a controller has one root view whose next responder is the controller", function() {
@@ -181,12 +190,12 @@ test("keyboard actions stop firing once their controller is dismissed", function
     assert.equal(pressed, 1)
 })
 
-test("restore runs viewDidLoad, viewWillAppear and viewDidAppear", function() {
+test("restore runs viewWillAppear and viewDidAppear, not viewDidLoad", function() {
     var log = []
     var Controller = recordingController("restored", log)
     var controller = new Controller()
     controller.restore(controller)
-    assert.deepEqual(log, ["restored.viewDidLoad", "restored.viewWillAppear", "restored.viewDidAppear"])
+    assert.deepEqual(log, ["restored.viewWillAppear", "restored.viewDidAppear"])
 })
 
 function scopeMatching(selectors) {
@@ -229,7 +238,7 @@ test("restored views join the owning controller's view tree", function() {
     var owner = new UIViewController()
     Bind.restoreRegisteredViews(scopeMatching([".present"]), owner)
     assert.equal(owner.view.subviews.length, 1)
-    assert.equal(owner.view.subviews[0].parentViewController(), owner)
+    assert.equal(enclosingController(owner.view.subviews[0]), owner)
 })
 
 test("a keyboard-only view is not revived by selector scan", function() {
@@ -278,7 +287,7 @@ test("a child controller fills its container view and runs its lifecycle", funct
     assert.deepEqual(log, ["child.viewDidLoad", "child.viewWillAppear", "child.viewDidAppear"])
     assert.equal(child.selector, "#content")
     assert.ok(container._$el.html().indexOf("<div id=\"child\"></div>") !== -1)
-    assert.equal(child.view.parentViewController(), child)
+    assert.equal(enclosingController(child.view), child)
 })
 
 test("removing a child empties its container, tears it down and releases its observers", function() {
@@ -403,7 +412,9 @@ test("removing an embedded child forwards the disappear pair to its own children
     host.present(host, {})
     var child = new (disappearing("child"))()
     host.addChild(child)
+    assert.equal(child.isViewLoaded, false)
     host.view.addSubview(child.view)
+    assert.equal(child.isViewLoaded, true)
     var grandchild = new (disappearing("grandchild"))()
     child.addChild(grandchild)
     child.view.addSubview(grandchild.view)
@@ -448,13 +459,13 @@ test("a controller bound as an outlet receives awakeFromNib, viewDidLoad, viewWi
     assert.deepEqual(log, ["outletVC.viewWillDisappear", "outletVC.viewDidDisappear"])
 })
 
-test("a controller bound as an outlet of a restored controller receives didMoveToWindow, viewDidLoad, viewWillAppear and viewDidAppear", function() {
+test("a controller bound as an outlet of a restored controller receives didMoveToWindow, viewWillAppear and viewDidAppear, not viewDidLoad", function() {
     var log = []
     var Host = recordingController("host", [])
     IBOutlet("#panel", outletControllerClass(log))(Host.prototype, "panel", {})
     var host = new Host()
     host.restore(host)
-    assert.deepEqual(log, ["outletVC.didMoveToWindow", "outletVC.viewDidLoad", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
+    assert.deepEqual(log, ["outletVC.didMoveToWindow", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
     assert.equal(host.panel.isViewLoaded, true)
 })
 

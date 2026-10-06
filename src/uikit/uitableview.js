@@ -2,6 +2,13 @@ import { UIScrollView } from "./uiscrollview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
+import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
+import { required, enumeration, optional, Bool, Int, IndexPathType } from "../utils/required.js"
+
+
+const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
 
 
 // Rows are <tr id="cell-<row>"> children of the table's tbody. A cell class
@@ -9,6 +16,10 @@ import { Bind } from "../utils/bind.js"
 // the .xib of the same name, and is instantiated bound to that row so its
 // outlets work like any other view's.
 export class UITableView extends UIScrollView {
+
+    static get ScrollPosition() {
+        return UITableViewScrollPosition
+    }
 
     constructor(selector) {
         super(selector)
@@ -41,6 +52,7 @@ export class UITableView extends UIScrollView {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UITableView.delegate")
         this._delegate = delegate
     }
 
@@ -68,7 +80,14 @@ export class UITableView extends UIScrollView {
         return this._isEditing
     }
 
+    // setEditing(_:animated:): animated is required and recorded; editing does not animate here.
+    /**
+     * @param {boolean} editing
+     * @param {object} options
+     * @param {boolean} options.animated
+     */
     setEditing(editing, {animated} = {}) {
+        required(animated, "animated", Bool, "UITableView.setEditing", "Apple's is setEditing(_:animated:); write setEditing(editing, {animated: false}).")
         this._isEditing = editing
         this._bindRows()
     }
@@ -82,19 +101,39 @@ export class UITableView extends UIScrollView {
         return new IndexPath({row: this._selectedRows[0]})
     }
 
+    /**
+     * @param {Function} cellClass
+     * @param {object} options
+     * @param {string} options.forCellReuseIdentifier
+     */
     register(cellClass, {forCellReuseIdentifier}) {
         this._registeredCells[forCellReuseIdentifier] = cellClass
     }
 
-    numberOfRows({inSection} = {inSection: 0}) {
+    /**
+     * @param {object} options
+     * @param {number} options.inSection
+     */
+    numberOfRows({inSection} = {}) {
+        required(inSection, "inSection", Int, "UITableView.numberOfRows", "Apple's is numberOfRows(inSection:); write numberOfRows({inSection: 0}).")
         if (this._dataSource === null) { return 0 }
         return this._dataSource.tableViewNumberOfRowsInSection(this, inSection)
     }
 
+    /**
+     * @param {object} options
+     * @param {IndexPath|number} options.at
+     * @returns {UITableViewCell|null}
+     */
     cellForRow({at}) {
         return this._cells[_row(at)] || null
     }
 
+    /**
+     * @param {object} options
+     * @param {UITableViewCell} options.for
+     * @returns {IndexPath|null}
+     */
     indexPath({for: cell}) {
         var row = this._cells.indexOf(cell)
         if (row === -1) { return null }
@@ -107,7 +146,7 @@ export class UITableView extends UIScrollView {
     // the rest are released once the pass is over.
     reloadData() {
         if (this._dataSource === null) { return }
-        var numberOfRows = this.numberOfRows()
+        var numberOfRows = this.numberOfRows({inSection: 0})
         var body = this._body()
         body.find("> tr[id^=cell-]").each(function() {
             if (Number(this.id.slice("cell-".length)) >= numberOfRows) { $(this).remove() }
@@ -130,6 +169,12 @@ export class UITableView extends UIScrollView {
     // prepareForReuse(); otherwise reuses the row element when it exists,
     // creates it from the registered cell's nib when not, and binds the cell
     // class to it.
+    /**
+     * @param {object} options
+     * @param {string} options.withIdentifier
+     * @param {IndexPath} options.for
+     * @returns {UITableViewCell}
+     */
     dequeueReusableCell({withIdentifier, for: indexPath}) {
         var cellClass = this._registeredCells[withIdentifier] || UITableViewCell
         var row = _row(indexPath)
@@ -158,17 +203,44 @@ export class UITableView extends UIScrollView {
         return cell
     }
 
-    selectRow({at, animated}) {
+    // selectRow(at:animated:scrollPosition:): at: null clears the selection, as
+    // Apple's nil does; scrollPosition scrolls the row to the edge or middle it
+    // names, animated is recorded and not acted on.
+    /**
+     * @param {object} options
+     * @param {IndexPath|number|null} options.at
+     * @param {boolean} options.animated
+     * @param {"none"|"top"|"middle"|"bottom"} options.scrollPosition
+     */
+    selectRow({at, animated, scrollPosition} = {}) {
+        var signature = "Apple's is selectRow(at:animated:scrollPosition:); write selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})."
+        required(at, "at", optional(rowType), "UITableView.selectRow", signature)
+        required(animated, "animated", Bool, "UITableView.selectRow", signature)
+        required(scrollPosition, "scrollPosition", scrollPositionType, "UITableView.selectRow", signature)
+        if (at === null) {
+            this._selectedRows.slice().forEach((selected) => this._deselect(selected))
+            return
+        }
         var row = _row(at)
         if (this._selectedRows.indexOf(row) !== -1) { return }
         if (!this._allowsMultipleSelection) {
             this._selectedRows.slice().forEach((selected) => this._deselect(selected))
         }
         this._selectedRows.push(row)
-        this._rowElement(row).addClass("selected").find("[id^=table-cell-selected] :input").prop("checked", true)
+        var $row = this._rowElement(row)
+        $row.addClass("selected").find("[id^=table-cell-selected] :input").prop("checked", true)
+        _scroll($row[0], scrollPosition)
     }
 
-    deselectRow({at, animated}) {
+    /**
+     * @param {object} options
+     * @param {IndexPath|number} options.at
+     * @param {boolean} options.animated
+     */
+    deselectRow({at, animated} = {}) {
+        var signature = "Apple's is deselectRow(at:animated:); write deselectRow({at: indexPath, animated: false})."
+        required(at, "at", rowType, "UITableView.deselectRow", signature)
+        required(animated, "animated", Bool, "UITableView.deselectRow", signature)
         this._deselect(_row(at))
     }
 
@@ -211,18 +283,18 @@ export class UITableView extends UIScrollView {
             if (this._isEditing) {
                 deleteButton.on("click.uitableviewdelete", (event) => {
                     event.stopImmediatePropagation()
-                    this._delegateCall("tableViewCommitEditingStyleForRowAt", "delete", indexPath)
+                    this._delegateCall("tableViewCommitEditingStyleForRowAtIndexPath", UITableViewCellEditingStyle.delete, indexPath)
                 })
             }
             var selection = $(element).find("[id^=table-cell-selected]")
             selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
             selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
                 if (event.target.checked) {
-                    this.selectRow({at: indexPath})
+                    this.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
                     this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
                     return
                 }
-                this.deselectRow({at: indexPath})
+                this.deselectRow({at: indexPath, animated: false})
                 this._delegateCall("tableViewDidDeselectRowAtIndexPath", indexPath)
             })
         })
@@ -240,4 +312,16 @@ export class UITableView extends UIScrollView {
 function _row(indexPath) {
     if (indexPath instanceof IndexPath) { return indexPath.row }
     return indexPath
+}
+
+// A row is an IndexPath or, as the framework has always accepted, a bare row number.
+const rowType = Object.freeze({kind: "row", name: "IndexPath"})
+const scrollPositionType = enumeration(UITableViewScrollPosition, "UITableView.ScrollPosition")
+
+var _blocks = {top: "start", middle: "center", bottom: "end"}
+
+function _scroll(element, scrollPosition) {
+    var block = _blocks[scrollPosition]
+    if (!block || !element || typeof element.scrollIntoView !== "function") { return }
+    element.scrollIntoView({block: block})
 }

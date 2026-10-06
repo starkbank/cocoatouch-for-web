@@ -1,5 +1,10 @@
 import { UIView } from "./uiview.js"
-import { NSString } from "../utils/nsstring.js"
+import { setText } from "../utils/text.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
+import { required, Int, Bool } from "../utils/required.js"
+
+
+const retiredDelegateNames = {pickerViewTitleForRow: "pickerViewTitleForRowForComponent", pickerViewDidSelectRow: "pickerViewDidSelectRowInComponent"}
 
 
 // A <select> driven like UIPickerView: the data source counts the rows, the
@@ -16,10 +21,11 @@ export class UIPickerView extends UIView {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIPickerView.delegate")
         this._delegate = delegate
         this.$el.off("change.picker").on("change.picker", () => {
-            if (delegate && delegate.pickerViewDidSelectRow) {
-                delegate.pickerViewDidSelectRow(this, this.selectedRow({inComponent: 0}), 0)
+            if (delegate && delegate.pickerViewDidSelectRowInComponent) {
+                delegate.pickerViewDidSelectRowInComponent(this, this.selectedRow({inComponent: 0}), 0)
             }
         })
         this.reloadAllComponents()
@@ -37,7 +43,12 @@ export class UIPickerView extends UIView {
         return 1
     }
 
-    numberOfRows({inComponent} = {inComponent: 0}) {
+    /**
+     * @param {object} options
+     * @param {number} options.inComponent
+     */
+    numberOfRows({inComponent} = {}) {
+        required(inComponent, "inComponent", Int, "UIPickerView.numberOfRows", "Apple's is numberOfRows(inComponent:); write numberOfRows({inComponent: 0}).")
         var dataSource = this.dataSource
         if (!dataSource) { return 0 }
         return dataSource.pickerViewNumberOfRowsInComponent(this, inComponent)
@@ -52,18 +63,34 @@ export class UIPickerView extends UIView {
         this.$el.empty()
         var rows = this.numberOfRows({inComponent: 0})
         for (var row = 0; row < rows; row++) {
-            var title = delegate && delegate.pickerViewTitleForRow ? delegate.pickerViewTitleForRow(this, row, 0) : null
-            var text = title === null || title === undefined ? "" : NSString.cleanScript(String(title))
-            this.$el.append("<option value=\"" + row + "\">" + text + "</option>")
+            var title = delegate && delegate.pickerViewTitleForRowForComponent ? delegate.pickerViewTitleForRowForComponent(this, row, 0) : null
+            var option = $("<option></option>").attr("value", row)
+            setText(option, title === null || title === undefined ? "" : title)
+            this.$el.append(option)
         }
         if (selected >= 0 && selected < rows) { this.$el.prop("selectedIndex", selected) }
     }
 
+    // selectRow(_:inComponent:animated:): both labels required; one component, no animation.
+    /**
+     * @param {number} row
+     * @param {object} options
+     * @param {number} options.inComponent
+     * @param {boolean} options.animated
+     */
     selectRow(row, {inComponent, animated} = {}) {
+        var signature = "Apple's is selectRow(_:inComponent:animated:); write selectRow(row, {inComponent: 0, animated: false})."
+        required(inComponent, "inComponent", Int, "UIPickerView.selectRow", signature)
+        required(animated, "animated", Bool, "UIPickerView.selectRow", signature)
         this.$el.prop("selectedIndex", row)
     }
 
-    selectedRow({inComponent} = {inComponent: 0}) {
+    /**
+     * @param {object} options
+     * @param {number} options.inComponent
+     */
+    selectedRow({inComponent} = {}) {
+        required(inComponent, "inComponent", Int, "UIPickerView.selectedRow", "Apple's is selectedRow(inComponent:); write selectedRow({inComponent: 0}).")
         var index = this.$el.prop("selectedIndex")
         return index === undefined || index === null ? -1 : index
     }
