@@ -46,9 +46,17 @@ class FakeLinkService {
     constructor(options) {
         this.options = options
         this.viewer = null
+        this.pdfDocument = null
     }
     setViewer(viewer) {
         this.viewer = viewer
+    }
+    // Real PDFLinkService.setDocument(pdfDocument, baseUrl); PDFFindController
+    // reads linkService.pdfDocument through its pagesCount getter to iterate
+    // every page, so a stub without this method would have let the missing
+    // real call through just as silently as the real bug did.
+    setDocument(pdfDocument) {
+        this.pdfDocument = pdfDocument
     }
 }
 
@@ -490,6 +498,24 @@ test("setting document to null clears the viewer's own document, not only PDFKit
     assert.equal(view._pdfViewer.document, doc._proxy)
     view.document = null
     assert.equal(view._pdfViewer.document, null)
+    uninstallPdfjs()
+})
+
+// The real PDFViewer.setDocument propagates to its own findController but
+// never to its linkService (verified directly against the installed pdf.js
+// source), and PDFFindController's extraction loop iterates
+// linkService.pagesCount — left unset, it is 0, and a search silently
+// returns nothing, for every document, with no error anywhere. Found live,
+// against the real library, wiring the search field on starkbank-home.
+test("setting document sets the link service's document too, not only the viewer's; clearing does the same", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+    assert.equal(view._linkService.pdfDocument, doc._proxy)
+    view.document = null
+    assert.equal(view._linkService.pdfDocument, null)
     uninstallPdfjs()
 })
 
