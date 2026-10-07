@@ -877,6 +877,94 @@ test("setCurrentSelection(_:animate:) scrolls when animated is true, not when it
     uninstallPdfjs()
 })
 
+// Apple's real PDFView draws its own current selection; here pdf.js's
+// renderer draws .selected off its own find-controller pointer, which
+// setCurrentSelection must keep in step with through the same public "find
+// again" event pdf.js's own find bar uses — this is what the bug report
+// actually was ("the second item doesn't become blue"), so the test asserts
+// on the dispatched event, not on scrolling or on any particular method
+// existing, and fails before the fix in the same way the bug did: with the
+// bug present, stepping never dispatches a second "find" at all.
+test("stepping to another match drives the renderer's own find-again pointer, in both directions and at both wrap points", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "needle needle needle needle", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var selections = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { selections.push(n.userInfo.selection) }})
+
+    doc.beginFindString("needle")
+    view._findController.pageMatches = [[0, 7, 14, 21]]
+    view._findController.pageMatchesLength = [[6, 6, 6, 6]]
+    view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 4, current: 4}})
+    await flush()
+    assert.equal(selections.length, 4)
+
+    function findCalls() { return view._eventBus.calls.filter(function(c) { return c.name === "find" }) }
+
+    // The renderer's own "" dispatch above already auto-selects the first
+    // match once extraction completes, so jumping to it first dispatches
+    // nothing further.
+    var before = findCalls().length
+    view.setCurrentSelection(selections[0], {animate: true})
+    assert.equal(findCalls().length, before, "no again-dispatch for the very first selection")
+
+    // Forward: 0 -> 1 -> 2 -> 3.
+    view.setCurrentSelection(selections[1], {animate: true})
+    view.setCurrentSelection(selections[2], {animate: true})
+    view.setCurrentSelection(selections[3], {animate: true})
+    var forward = findCalls().slice(before)
+    assert.equal(forward.length, 3)
+    for (var call of forward) {
+        assert.equal(call.data.type, "again")
+        assert.equal(call.data.findPrevious, false)
+        assert.equal(call.data.query, "needle", "the replayed find uses the live query, not an empty or stale one")
+    }
+
+    // Wrap forward: 3 -> 0. A plain "new ordinal is smaller" test gets this
+    // backwards; it must still read as a forward step.
+    before = findCalls().length
+    view.setCurrentSelection(selections[0], {animate: true})
+    var wrapForward = findCalls().slice(before)
+    assert.equal(wrapForward.length, 1)
+    assert.equal(wrapForward[0].data.findPrevious, false, "wrapping from the last match to the first is still forward")
+
+    // Backward: 0 -> 3 wraps backward, 3 -> 2 is an ordinary backward step.
+    before = findCalls().length
+    view.setCurrentSelection(selections[3], {animate: true})
+    assert.equal(findCalls().slice(before)[0].data.findPrevious, true, "wrapping from the first match to the last is backward")
+
+    before = findCalls().length
+    view.setCurrentSelection(selections[2], {animate: true})
+    assert.equal(findCalls().slice(before)[0].data.findPrevious, true)
+
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// A manually-built selection (Apple's generic path: an app can set
+// currentSelection to any PDFSelection it constructs itself, not only a find
+// result) carries no matchOrdinal, so this must fall back to the plain
+// scroll exactly as before — the "again" path is only for find results.
+test("setCurrentSelection with a selection that carries no matchOrdinal still only scrolls, never dispatches again", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    var page = new PDFPage(doc, 0)
+
+    view.setCurrentSelection(new PDFSelection({string: "a", pages: [page]}), {animate: true})
+    var before = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
+    view.setCurrentSelection(new PDFSelection({string: "b", pages: [page]}), {animate: true})
+    var after = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
+    assert.equal(after, before)
+    assert.equal(view._pdfViewer.scrollCalls.length, 2)
+    uninstallPdfjs()
+})
+
 // 18. A search over a never-rendered page still returns matches; no getTextContent before the first beginFindString.
 test("a search over a page whose canvas was never rendered still returns matches; getTextContent is not called before the first beginFindString", async function() {
     var getTextContentCalls = 0

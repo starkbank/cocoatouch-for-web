@@ -83,6 +83,8 @@ export class PDFView extends UIView {
         this._currentSelection = null
         this._highlightedSelections = []
         this._findGeneration = 0
+        this._lastFindDispatch = null
+        this._lastFindTotalMatches = 0
         this._lastPageNumber = null
         this._pageTextCache = null
 
@@ -226,11 +228,52 @@ export class PDFView extends UIView {
         this._applyScale()
     }
 
+    // Apple's real PDFView draws its own current selection, so setting one is
+    // all its API ever has to do; here, pdf.js's own renderer draws
+    // .highlight.selected off its own find-controller pointer (_selected in
+    // pdf_viewer.mjs), which setting currentSelection never otherwise moves —
+    // confirmed by reading the real pdf.js source, not assumed: _setSelection
+    // previously only recorded the selection and scrolled the page, leaving
+    // .selected forever on whichever match the controller's own first-match
+    // auto-select had already landed on. The fix replays the stored find with
+    // type "again" and the direction worked out below — the same public
+    // event its own find bar's next/previous buttons dispatch — so this
+    // never reads or patches the controller's private state (_selected,
+    // _offset) directly. pdf.js moves the matched span into view itself once
+    // "again" lands (its own #updateMatch sets _scrollMatches and the
+    // matched span's own render calls scrollMatchIntoView), more precisely
+    // than scrolling to the top of the page, so the page-level scroll below
+    // is skipped for that case to avoid fighting it.
+    //
+    // Direction is inferred from the matchOrdinal _reportMatch tagged each
+    // selection with (its 0-based position among the current search's
+    // matches) rather than asked of the caller, so setCurrentSelection stays
+    // exactly Apple's two-label signature. A plain "is the new ordinal
+    // smaller" test gets the wrap wrong — stepping forward from the last
+    // match to the first has a smaller ordinal but is still a forward step —
+    // so wrapping at either end is checked first, against the total this
+    // view's own _findDidComplete already counted.
     _setSelection(selection, {animated}) {
         if (this._currentSelection === selection) { return }
+        var previous = this._currentSelection
         this._currentSelection = selection
         NotificationCenter.default.post({name: PDFView.selectionChangedNotification, object: this})
         if (!animated || !selection || !selection.pages || selection.pages.length === 0) { return }
+
+        if (selection._matchOrdinal !== undefined && previous && previous._matchOrdinal !== undefined && this._lastFindDispatch) {
+            var total = this._lastFindTotalMatches
+            var findPrevious
+            if (total && previous._matchOrdinal === total - 1 && selection._matchOrdinal === 0) {
+                findPrevious = false
+            } else if (total && previous._matchOrdinal === 0 && selection._matchOrdinal === total - 1) {
+                findPrevious = true
+            } else {
+                findPrevious = selection._matchOrdinal < previous._matchOrdinal
+            }
+            this._eventBus.dispatch("find", Object.assign({}, this._lastFindDispatch, {type: "again", findPrevious: findPrevious}))
+            return
+        }
+
         var pageNumber = selection.pages[0]._index + 1
         this._pdfViewer.scrollPageIntoView({pageNumber: pageNumber, destArray: null})
     }
@@ -252,10 +295,16 @@ export class PDFView extends UIView {
 
     // Driven by PDFDocument.beginFindString once this view's document is the
     // one searching. The search protocol is the same one pdf.js's own findbar
-    // uses — an eventBus dispatch, never a private method call.
+    // uses — an eventBus dispatch, never a private method call. The dispatch
+    // is kept (without its "" type) so _setSelection can replay the same
+    // query and options with type "again" when stepping between matches;
+    // the total is reset here and filled in once _findDidComplete knows it,
+    // so a stale count from a previous search can never be read for this one.
     _beginFind({query, dispatchOptions, generation}) {
         this._findGeneration = generation
-        this._eventBus.dispatch("find", Object.assign({source: this, type: "", query: query, highlightAll: true}, dispatchOptions))
+        this._lastFindDispatch = Object.assign({source: this, query: query, highlightAll: true}, dispatchOptions)
+        this._lastFindTotalMatches = 0
+        this._eventBus.dispatch("find", Object.assign({type: ""}, this._lastFindDispatch))
     }
 
     // updatefindmatchescount, with updateMatchesCountOnProgress: false set on
@@ -273,14 +322,17 @@ export class PDFView extends UIView {
         var pageMatches = this._findController.pageMatches || []
         var pageMatchesLength = this._findController.pageMatchesLength || []
         var pending = []
+        var matchOrdinal = 0
         for (var pageIndex = 0; pageIndex < pageMatches.length; pageIndex++) {
             var offsets = pageMatches[pageIndex] || []
             var lengths = pageMatchesLength[pageIndex] || []
             for (var i = 0; i < offsets.length; i++) {
-                pending.push(this._reportMatch({pageIndex: pageIndex, offset: offsets[i], length: lengths[i], generation: generation, document: doc}))
+                pending.push(this._reportMatch({pageIndex: pageIndex, offset: offsets[i], length: lengths[i], generation: generation, document: doc, matchOrdinal: matchOrdinal}))
+                matchOrdinal++
             }
         }
         var total = evt && evt.matchesCount ? evt.matchesCount.total : pending.length
+        if (generation === this._findGeneration) { this._lastFindTotalMatches = total }
         Promise.all(pending).then(() => {
             if (generation !== this._findGeneration) { return }
             doc._postEndFind(total, generation)
@@ -297,12 +349,18 @@ export class PDFView extends UIView {
     // proxy was destroyed out from under this call — yields no match rather
     // than an unhandled rejection that would otherwise strand every match
     // still pending for this search and leave DidEndFind never posted.
-    _reportMatch({pageIndex, offset, length, generation, document}) {
+    // matchOrdinal is PDFView's own bookkeeping for _setSelection's direction
+    // check, not a PDFSelection constructor label — Apple's PDFSelection has
+    // no such property, so it is set on the instance after construction, the
+    // same way PDFDocument._attachedView is, rather than added to the public
+    // shape PDFSelection's constructor accepts.
+    _reportMatch({pageIndex, offset, length, generation, document, matchOrdinal}) {
         return this._textFor(pageIndex).then(
             (text) => {
                 if (generation !== this._findGeneration) { return }
                 var page = document.page({at: pageIndex})
                 var selection = new PDFSelection({string: text.slice(offset, offset + length), pages: page ? [page] : []})
+                selection._matchOrdinal = matchOrdinal
                 document._postFindMatch(selection, generation)
             },
             (reason) => {
@@ -338,6 +396,8 @@ export class PDFView extends UIView {
         // and the end-of-find path, rather than resolving late and posting
         // with the replaced document as its subject.
         this._findGeneration++
+        this._lastFindDispatch = null
+        this._lastFindTotalMatches = 0
         // Public; pdf.js propagates document(null) to the find controller on
         // its own, but never to the link service (see the document setter),
         // so that one is cleared here explicitly too. Without the viewer
