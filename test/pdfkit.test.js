@@ -905,12 +905,17 @@ test("stepping to another match drives the renderer's own find-again pointer, in
 
     function findCalls() { return view._eventBus.calls.filter(function(c) { return c.name === "find" }) }
 
-    // The renderer's own "" dispatch above already auto-selects the first
-    // match once extraction completes, so jumping to it first dispatches
-    // nothing further.
+    // The renderer's own "" dispatch above already auto-selects and scrolls
+    // the first match once extraction completes, so jumping to it first
+    // dispatches no "again" and — just as important, and the fix this test
+    // caught missing first — must not fall through to the page-level
+    // scrollPageIntoView either: that call does not know about a site's
+    // scroll-margin-top and would overwrite the position pdf.js's own
+    // margin-aware scroll had already put it at.
     var before = findCalls().length
     view.setCurrentSelection(selections[0], {animate: true})
     assert.equal(findCalls().length, before, "no again-dispatch for the very first selection")
+    assert.equal(view._pdfViewer.scrollCalls.length, 0, "no page-level scroll for the first match either — pdf.js already scrolled it")
 
     // Forward: 0 -> 1 -> 2 -> 3.
     view.setCurrentSelection(selections[1], {animate: true})
@@ -940,6 +945,8 @@ test("stepping to another match drives the renderer's own find-again pointer, in
     before = findCalls().length
     view.setCurrentSelection(selections[2], {animate: true})
     assert.equal(findCalls().slice(before)[0].data.findPrevious, true)
+
+    assert.equal(view._pdfViewer.scrollCalls.length, 0, "no step, including the wraps, ever falls through to the page-level scroll")
 
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()

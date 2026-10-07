@@ -239,11 +239,7 @@ export class PDFView extends UIView {
     // type "again" and the direction worked out below — the same public
     // event its own find bar's next/previous buttons dispatch — so this
     // never reads or patches the controller's private state (_selected,
-    // _offset) directly. pdf.js moves the matched span into view itself once
-    // "again" lands (its own #updateMatch sets _scrollMatches and the
-    // matched span's own render calls scrollMatchIntoView), more precisely
-    // than scrolling to the top of the page, so the page-level scroll below
-    // is skipped for that case to avoid fighting it.
+    // _offset) directly.
     //
     // Direction is inferred from the matchOrdinal _reportMatch tagged each
     // selection with (its 0-based position among the current search's
@@ -252,7 +248,22 @@ export class PDFView extends UIView {
     // smaller" test gets the wrap wrong — stepping forward from the last
     // match to the first has a smaller ordinal but is still a forward step —
     // so wrapping at either end is checked first, against the total this
-    // view's own _findDidComplete already counted.
+    // view's own _findDidComplete already counted. The very first selection
+    // of a search has no previous to compare against, so "again" is skipped
+    // for it — pdf.js's own debounced first dispatch already selected and
+    // scrolled to it by the time this runs.
+    //
+    // Either way, a find result (anything with a matchOrdinal) is never
+    // followed by the page-level scroll below: pdf.js always scrolls a
+    // .selected match itself (its own #updateMatch sets _scrollMatches and
+    // the matched span's own render calls scrollMatchIntoView, honouring the
+    // span's scroll-margin — more precise than scrolling to the top of the
+    // page), for the very first match exactly as much as for a stepped-to
+    // one. The two were not treated alike here before, and the gap showed:
+    // the first match called this scrollPageIntoView unconditionally, which
+    // does not know about a site's scroll-margin-top and landed the page
+    // wherever "top of page" falls, overwriting the position pdf.js's own
+    // correct, margin-aware scroll had just put it at a moment earlier.
     _setSelection(selection, {animated}) {
         if (this._currentSelection === selection) { return }
         var previous = this._currentSelection
@@ -260,17 +271,19 @@ export class PDFView extends UIView {
         NotificationCenter.default.post({name: PDFView.selectionChangedNotification, object: this})
         if (!animated || !selection || !selection.pages || selection.pages.length === 0) { return }
 
-        if (selection._matchOrdinal !== undefined && previous && previous._matchOrdinal !== undefined && this._lastFindDispatch) {
-            var total = this._lastFindTotalMatches
-            var findPrevious
-            if (total && previous._matchOrdinal === total - 1 && selection._matchOrdinal === 0) {
-                findPrevious = false
-            } else if (total && previous._matchOrdinal === 0 && selection._matchOrdinal === total - 1) {
-                findPrevious = true
-            } else {
-                findPrevious = selection._matchOrdinal < previous._matchOrdinal
+        if (selection._matchOrdinal !== undefined && this._lastFindDispatch) {
+            if (previous && previous._matchOrdinal !== undefined) {
+                var total = this._lastFindTotalMatches
+                var findPrevious
+                if (total && previous._matchOrdinal === total - 1 && selection._matchOrdinal === 0) {
+                    findPrevious = false
+                } else if (total && previous._matchOrdinal === 0 && selection._matchOrdinal === total - 1) {
+                    findPrevious = true
+                } else {
+                    findPrevious = selection._matchOrdinal < previous._matchOrdinal
+                }
+                this._eventBus.dispatch("find", Object.assign({}, this._lastFindDispatch, {type: "again", findPrevious: findPrevious}))
             }
-            this._eventBus.dispatch("find", Object.assign({}, this._lastFindDispatch, {type: "again", findPrevious: findPrevious}))
             return
         }
 
