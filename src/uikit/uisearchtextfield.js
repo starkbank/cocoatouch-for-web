@@ -56,6 +56,24 @@ export class UISearchTextField extends UITextField {
         this.textField.val(text === null || text === undefined ? "" : String(text))
     }
 
+    // UIView's inherited becomeFirstResponder/resignFirstResponder/
+    // isFirstResponder all act on this.$el, same as the unoverridden text
+    // getter above — but this.$el is the tokens-and-input wrapper, a plain
+    // div, which a browser never gives keyboard focus; the only focusable
+    // element here is the inner input, so those three need the same override
+    // for the same reason text did.
+    becomeFirstResponder() {
+        this.textField.trigger("focus")
+    }
+
+    resignFirstResponder() {
+        this.textField.trigger("blur")
+    }
+
+    get isFirstResponder() {
+        return this.textField.is(":focus")
+    }
+
     get tokens() {
         return this._tokens.slice()
     }
