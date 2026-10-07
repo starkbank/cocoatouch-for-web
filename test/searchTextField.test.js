@@ -47,3 +47,17 @@ test("text reads and writes the inner input's value, not the wrapper's text cont
     field.text = null
     assert.equal(field.text, "")
 })
+
+// UIView's inherited becomeFirstResponder/resignFirstResponder/
+// isFirstResponder all act on this.$el, which here is the wrapper div, never
+// focusable — the same wrapper-vs-input split the text getter above has.
+test("becomeFirstResponder, resignFirstResponder and isFirstResponder act on the inner input, not the wrapper", function() {
+    page("<div id=\"search\"></div>")
+    var field = new UISearchTextField("#search")
+    assert.equal(field.isFirstResponder, false)
+    field.becomeFirstResponder()
+    assert.equal(field.isFirstResponder, true)
+    assert.equal(field.textField.is(":focus"), true)
+    field.resignFirstResponder()
+    assert.equal(field.isFirstResponder, false)
+})
