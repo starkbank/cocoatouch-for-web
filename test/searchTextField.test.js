@@ -30,3 +30,34 @@ test("constructing a search field twice on one element leaves one click and one 
     assert.ok(inputEvents.keydown.every((handler) => handler.namespace === "uisearchtextfield"))
     assert.equal(second.textField.length, 1)
 })
+
+// UITextField's inherited text getter reads this.$el's own tagName, which is
+// never "input" here — this.$el is the tokens-and-input wrapper — so without
+// an override it read the wrapper's text nodes (the tokens) and never what
+// was actually typed into the inner input.
+test("text reads and writes the inner input's value, not the wrapper's text content", function() {
+    page("<div id=\"search\"></div>")
+    var field = new UISearchTextField("#search")
+    field.tokens = [new UISearchToken({text: "a tag, not typed text"})]
+    assert.equal(field.text, "", "a token's text must never be mistaken for the field's value")
+    field.textField.val("stark")
+    assert.equal(field.text, "stark")
+    field.text = "bank"
+    assert.equal(field.textField.val(), "bank")
+    field.text = null
+    assert.equal(field.text, "")
+})
+
+// UIView's inherited becomeFirstResponder/resignFirstResponder/
+// isFirstResponder all act on this.$el, which here is the wrapper div, never
+// focusable — the same wrapper-vs-input split the text getter above has.
+test("becomeFirstResponder, resignFirstResponder and isFirstResponder act on the inner input, not the wrapper", function() {
+    page("<div id=\"search\"></div>")
+    var field = new UISearchTextField("#search")
+    assert.equal(field.isFirstResponder, false)
+    field.becomeFirstResponder()
+    assert.equal(field.isFirstResponder, true)
+    assert.equal(field.textField.is(":focus"), true)
+    field.resignFirstResponder()
+    assert.equal(field.isFirstResponder, false)
+})

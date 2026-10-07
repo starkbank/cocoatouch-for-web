@@ -31,14 +31,14 @@ function diagnose(fixture) {
 }
 
 test("the build emits a declaration for every framework entry", function() {
-    ;["index", "UIKit", "Foundation", "CoreAnimation", "AVKit", "globals", "uikit/index", "foundation/index"].forEach(function(name) {
+    ;["index", "UIKit", "Foundation", "CoreAnimation", "AVKit", "PDFKit", "globals", "uikit/index", "foundation/index", "pdfkit/index"].forEach(function(name) {
         assert.ok(fs.existsSync(path.join(root, "types", name + ".d.ts")), name + ".d.ts is missing")
     })
 })
 
-test("globals.d.ts and the eslint globals cover every export of the six frameworks", async function() {
+test("globals.d.ts and the eslint globals cover every export of the seven frameworks", async function() {
     var expected = []
-    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit"]) {
+    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit", "pdfkit"]) {
         expected = expected.concat(Object.keys(await import("../src/" + directory + "/index.js")))
     }
     var dts = fs.readFileSync(path.join(root, "types/globals.d.ts"), "utf8")

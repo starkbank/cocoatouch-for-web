@@ -24,6 +24,7 @@ export const Int = Object.freeze({kind: "int", name: "Int"})
 export const Float = Object.freeze({kind: "float", name: "Float"})
 export const DateType = Object.freeze({kind: "date", name: "Date"})
 export const FunctionType = Object.freeze({kind: "function", name: "a function"})
+export const StringType = Object.freeze({kind: "string", name: "String"})
 
 export function enumeration(cases, name) {
     return Object.freeze({kind: "enum", name: name, cases: cases})
@@ -59,6 +60,7 @@ function _conforms(value, type) {
     if (type.kind === "float") { return typeof value === "number" && Number.isFinite(value) }
     if (type.kind === "date") { return Object.prototype.toString.call(value) === "[object Date]" && !Number.isNaN(value.getTime()) }
     if (type.kind === "function") { return typeof value === "function" }
+    if (type.kind === "string") { return typeof value === "string" }
     if (type.kind === "enum") { return _cases(type.cases).indexOf(value) !== -1 }
     if (type.kind === "instance") { return value instanceof type.constructor }
     if (type.kind === "shape") { return _hasShape(value, type.fields) }
