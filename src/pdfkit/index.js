@@ -1,4 +1,4 @@
-import "./notifications.js"
+import { PDFDocumentFoundSelectionKey } from "./notifications.js"
 import { PDFView } from "./pdfview.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
@@ -12,4 +12,5 @@ export {
     PDFPage,
     PDFSelection,
     PDFDisplayMode,
+    PDFDocumentFoundSelectionKey,
 }

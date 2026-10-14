@@ -1,7 +1,7 @@
 import { required, typed, StringType } from "../utils/required.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
-import "./notifications.js"
+import { PDFDocumentFoundSelectionKey } from "./notifications.js"
 import { PDFPage } from "./pdfpage.js"
 import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
@@ -127,7 +127,7 @@ export class PDFDocument {
 
         if (string === "") {
             this._post(NSNotification.Name.PDFDocumentDidBeginFind, generation)
-            this._post(NSNotification.Name.PDFDocumentDidEndFind, generation, {matchCount: 0})
+            this._post(NSNotification.Name.PDFDocumentDidEndFind, generation)
             // Bookkeeping only, not the public highlightedSelections setter:
             // that setter dispatches an empty find to make pdf.js drop the
             // spans it drew (finding 12), and an empty query here must
@@ -165,11 +165,14 @@ export class PDFDocument {
     // search; both check the generation themselves so a superseded search's
     // late results can never surface as if they were the current one's.
     _postFindMatch(selection, generation) {
-        this._post(NSNotification.Name.PDFDocumentDidFindMatch, generation, {selection: selection})
+        this._post(NSNotification.Name.PDFDocumentDidFindMatch, generation, {[PDFDocumentFoundSelectionKey]: selection})
     }
 
+    // Apple's end-of-find carries no userInfo. The count is the view's own
+    // bookkeeping (_lastFindTotalMatches), passed here only so the call site
+    // says what the search found.
     _postEndFind(matchCount, generation) {
-        this._post(NSNotification.Name.PDFDocumentDidEndFind, generation, {matchCount: matchCount})
+        this._post(NSNotification.Name.PDFDocumentDidEndFind, generation)
     }
 
     _didLoad(proxy) {

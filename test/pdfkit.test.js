@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification } from "../src/index.js"
+import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, PDFDocumentFoundSelectionKey } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -644,7 +644,7 @@ test("a second beginFindString supersedes the first; cancelFindString clears; an
     doc.beginFindString("")
     var findDispatchesAfter = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
     assert.equal(findDispatchesAfter, findDispatchesBefore)
-    assert.equal(ends[ends.length - 1].userInfo.matchCount, 0)
+    assert.equal(ends[ends.length - 1].userInfo, null, "Apple's end-of-find carries no userInfo")
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
@@ -666,8 +666,8 @@ test("stubbed matches produce one DidFindMatch each and one DidEndFind, with PDF
     var matches = []
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo.selection) }})
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n.userInfo.matchCount) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo[PDFDocumentFoundSelectionKey]) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
 
     doc.beginFindString("bank")
     // joined text is "stark bank" + "\n" + "contract" -> "bank" is at [6, 10)
@@ -684,16 +684,19 @@ test("stubbed matches produce one DidFindMatch each and one DidEndFind, with PDF
     assert.equal(matches[0].string, "bank")
     assert.equal(matches[0].pages.length, 1)
     assert.ok(matches[0].pages[0] instanceof PDFPage)
-    assert.deepEqual(ends, [1])
+    assert.equal(ends.length, 1)
+    assert.equal(ends[0].userInfo, null)
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
 
 // The defect findings 3/4 fixed, directly: on a document where the first page
 // matches but later pages have not finished extracting, end-of-find must wait
-// for every DidFindMatch to post and must carry the final total, not the
-// count standing when the renderer selected its first match.
-test("DidFindMatch for every page is observed before the single DidEndFind, whose count is matchescount's final total, not a partial one taken on the first match", async function() {
+// for every DidFindMatch to post, and PDFKit's own bookkeeping must hold the
+// final total, not the count standing when the renderer selected its first
+// match. Apple's end-of-find carries no userInfo, so the total is read from the
+// view's own field rather than from the notification.
+test("DidFindMatch for every page is observed before the single DidEndFind; the view's total is matchescount's final one, not a partial one taken on the first match", async function() {
     installPdfjs({resolve: fakeProxy({
         numPages: 2,
         pages: [fakePage([{str: "needle A", hasEOL: false}]), fakePage([{str: "needle B", hasEOL: false}])],
@@ -705,8 +708,8 @@ test("DidFindMatch for every page is observed before the single DidEndFind, whos
 
     var order = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { order.push({kind: "match", string: n.userInfo.selection.string}) }})
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { order.push({kind: "end", matchCount: n.userInfo.matchCount}) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { order.push({kind: "match", string: n.userInfo[PDFDocumentFoundSelectionKey].string}) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { order.push({kind: "end", userInfo: n.userInfo}) }})
 
     doc.beginFindString("needle")
     view._eventBus.dispatch("updatefindcontrolstate", {state: FindState.PENDING})
@@ -727,12 +730,13 @@ test("DidFindMatch for every page is observed before the single DidEndFind, whos
     assert.equal(order.length, 3)
     assert.deepEqual(order.slice(0, 2).map(function(o) { return o.kind }), ["match", "match"], "both matches must be observed before the end")
     assert.equal(order[2].kind, "end")
-    assert.equal(order[2].matchCount, 2, "the end's count is the matchescount total, not the one standing when the first match was selected")
+    assert.equal(order[2].userInfo, null)
+    assert.equal(view._lastFindTotalMatches, 2, "the total is the matchescount total, not the one standing when the first match was selected")
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
 
-test("a search with no matches posts exactly one DidEndFind, with zero", async function() {
+test("a search with no matches posts exactly one DidEndFind, with no userInfo, and observes zero matches", async function() {
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "nothing here", hasEOL: false}])]})})
     var view = makeView()
     var doc = new PDFDocument({url: "/a.pdf"})
@@ -740,8 +744,10 @@ test("a search with no matches posts exactly one DidEndFind, with zero", async f
     await flush()
 
     var ends = []
+    var matches = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n.userInfo.matchCount) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n) }})
 
     doc.beginFindString("needle")
     view._eventBus.dispatch("updatefindcontrolstate", {state: FindState.PENDING})
@@ -751,7 +757,9 @@ test("a search with no matches posts exactly one DidEndFind, with zero", async f
     view._findController.pageMatchesLength = [[]]
     view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 0, current: 0}})
     await flush()
-    assert.deepEqual(ends, [0])
+    assert.equal(ends.length, 1)
+    assert.equal(ends[0].userInfo, null)
+    assert.equal(matches.length, 0)
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
@@ -784,8 +792,8 @@ test("a page whose text cannot be read yields no match, not a stranded search: t
     var matches = []
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo.selection) }})
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n.userInfo.matchCount) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo[PDFDocumentFoundSelectionKey]) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
 
     var errors = []
     var originalError = console.error
@@ -802,7 +810,8 @@ test("a page whose text cannot be read yields no match, not a stranded search: t
 
     assert.equal(matches.length, 1, "the readable page's match still posts")
     assert.equal(matches[0].string, "needle")
-    assert.deepEqual(ends, [2], "the end still posts, with pdf.js's own total, even though one page failed")
+    assert.equal(ends.length, 1, "the end still posts even though one page failed")
+    assert.equal(view._lastFindTotalMatches, 2, "and the view still holds pdf.js's own total")
     assert.equal(errors.length, 1)
     assert.match(errors[0], /page 2/)
     assert.deepEqual(unhandled, [], "a page's rejected text read must never reach unhandledRejection")
@@ -894,7 +903,7 @@ test("stepping to another match drives the renderer's own find-again pointer, in
 
     var selections = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { selections.push(n.userInfo.selection) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { selections.push(n.userInfo[PDFDocumentFoundSelectionKey]) }})
 
     doc.beginFindString("needle")
     view._findController.pageMatches = [[0, 7, 14, 21]]
@@ -1095,4 +1104,36 @@ test("the retired class-nested notification spellings are gone", function() {
     for (var retiredDocument of ["didBeginFindNotification", "didFindMatchNotification", "didEndFindNotification"]) {
         assert.equal(PDFDocument[retiredDocument], undefined, `PDFDocument.${retiredDocument}`)
     }
+})
+
+// Apple's userInfo key for the match is PDFDocumentFoundSelectionKey, and the
+// end of a find carries nothing.
+test("DidFindMatch's userInfo is keyed by PDFDocumentFoundSelectionKey and carries nothing else; DidEndFind carries no userInfo", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "needle", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var matches = []
+    var ends = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
+
+    doc.beginFindString("needle")
+    view._findController.pageMatches = [[0]]
+    view._findController.pageMatchesLength = [[6]]
+    view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 1, current: 1}})
+    await flush()
+
+    assert.equal(PDFDocumentFoundSelectionKey, "PDFDocumentFoundSelection")
+    assert.equal(matches.length, 1)
+    assert.deepEqual(Object.keys(matches[0].userInfo), [PDFDocumentFoundSelectionKey])
+    assert.ok(matches[0].userInfo[PDFDocumentFoundSelectionKey] instanceof PDFSelection)
+    assert.equal(matches[0].object, doc)
+    assert.equal(ends.length, 1)
+    assert.equal(ends[0].userInfo, null)
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
 })
