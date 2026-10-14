@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, NSString, PDFDocumentFoundSelectionKey } from "../src/index.js"
+import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, NSString, NSNotFound, PDFDocumentFoundSelectionKey } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
 import { pageIn } from "../src/pdfkit/pdfpage.js"
 import { selectionForMatch } from "../src/pdfkit/pdfselection.js"
@@ -1364,5 +1364,28 @@ test("isFinding: false initially; true from begin until DidEndFind; false after 
     assert.equal(doc.isFinding, false)
 
     NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// Apple's index(for:) answers NSNotFound for a page the document does not own.
+test("index(for:) round-trips with page(at:); NSNotFound for another document's page and for a bare PDFPage()", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 3, pages: [fakePage([]), fakePage([]), fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    var other = new PDFDocument({url: "/b.pdf"})
+    view.document = doc
+    await flush()
+    await other._loadingTask.promise
+    await flush()
+
+    for (var at = 0; at < 3; at++) {
+        assert.equal(doc.index({for: doc.page({at: at})}), at)
+    }
+    assert.equal(other.page({at: 0}).document, other)
+    assert.equal(doc.index({for: other.page({at: 0})}), NSNotFound)
+    assert.equal(doc.index({for: new PDFPage()}), NSNotFound)
+    assert.throws(function() { doc.index() }, /PDFDocument\.index\(for:\)/)
+    assert.throws(function() { doc.index({}) }, /PDFDocument\.index\(for:\)/)
+    assert.throws(function() { doc.index({for: 1}) }, /PDFDocument\.index\(for:\)/)
     uninstallPdfjs()
 })
