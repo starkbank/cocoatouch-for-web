@@ -9,20 +9,22 @@ import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
 const _compareOptionsType = arrayOf(enumeration(NSString.CompareOptions, "NSString.CompareOptions"))
 
-// Apple's find is case-sensitive unless .caseInsensitive is given; pdf.js
-// defaults the other way (caseSensitive: false), so the no-options case must
-// explicitly dispatch caseSensitive: true to land on Apple's default, not
-// pdf.js's. .literal means no linguistic folding, not whole-word — it maps to
-// matchDiacritics, never to entireWord, which stays false always because
-// Apple has no whole-word find option to misreport.
+// Apple's find is case-sensitive unless .caseInsensitive is given, and
+// diacritic-sensitive unless .diacriticInsensitive is; pdf.js's defaults run
+// the other way (caseSensitive: false, matchDiacritics: false), so the
+// no-options case must dispatch both explicitly to land on Apple's, not
+// pdf.js's. .literal means no linguistic folding at all, so it wins over
+// .diacriticInsensitive. It is never whole-word: entireWord stays false
+// always because Apple has no whole-word compare option to misreport.
 function _dispatchOptionsFor(options) {
     var caseInsensitive = options.indexOf(NSString.CompareOptions.caseInsensitive) !== -1
     var literal = options.indexOf(NSString.CompareOptions.literal) !== -1
+    var diacriticInsensitive = options.indexOf(NSString.CompareOptions.diacriticInsensitive) !== -1
     var backwards = options.indexOf(NSString.CompareOptions.backwards) !== -1
     return {
         caseSensitive: !caseInsensitive,
         entireWord: false,
-        matchDiacritics: literal,
+        matchDiacritics: literal || !diacriticInsensitive,
         findPrevious: backwards,
     }
 }
