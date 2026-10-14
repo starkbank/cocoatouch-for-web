@@ -34,6 +34,11 @@ module.exports = {
                 test: /\.css$/,
                 use: ["style-loader", "css-loader"],
             },
+            {
+                // PDFDocument(url:) refuses data: urls, so the sample's PDF is an emitted file.
+                test: /\.pdf$/,
+                type: "asset/resource",
+            },
         ],
     },
     resolve: {

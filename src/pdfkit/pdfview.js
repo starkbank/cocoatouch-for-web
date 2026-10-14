@@ -9,7 +9,7 @@ import { PDFSelection, selectionForMatch } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
 import { PDFDisplayDirection } from "./pdfdisplaydirection.js"
 import "./notifications.js"
-import { pdfjsLib as _pdfjsLib, pdfjsViewer as _pdfjsViewer, assertTextLayerStylesheet } from "./pdfjsGlobals.js"
+import { pdfjsLib, pdfjsViewer, pdfjsWorker, assertTextLayerStylesheet } from "./pdfjs.js"
 
 
 const _documentType = optional(instance(PDFDocument, "PDFDocument"))
@@ -28,8 +28,9 @@ export class PDFView extends UIView {
 
     awakeFromNib() {
         assertTextLayerStylesheet()
-        var pdfjsLib = _pdfjsLib()
-        var pdfjsViewer = _pdfjsViewer()
+        // Before any document exists, so the worker chunk is already loading
+        // when the first one is set.
+        pdfjsWorker()
 
         var host = this.$el[0]
         var viewerElement = document.createElement("div")
@@ -94,7 +95,13 @@ export class PDFView extends UIView {
         this.$el.on("click.pdfview", "a[href]", (event) => this._linkWasClicked(event))
 
         this._eventListeners = [
-            ["pagesinit", () => this._applyScale()],
+            ["pagesinit", () => {
+                this._applyScale()
+                // pdf.js's own pagechanging for page 1 follows and is dropped
+                // by _pageDidChange's guard, so this is the one post that
+                // tells an observer the gates and currentPage now answer.
+                this._pageDidChange({pageNumber: this._pdfViewer.currentPageNumber})
+            }],
             ["pagechanging", (evt) => this._pageDidChange(evt)],
             ["updatefindmatchescount", (evt) => this._findDidComplete(evt)],
         ]
@@ -128,7 +135,7 @@ export class PDFView extends UIView {
 
         doc._attachedView = this
         var generation = ++this._documentGeneration
-        doc._loadingTask.promise.then(
+        doc._loaded.then(
             () => {
                 if (this._documentGeneration !== generation) { return }
                 // Both, not just the viewer: PDFViewer.setDocument propagates
@@ -173,29 +180,32 @@ export class PDFView extends UIView {
     // methods: the sender is whatever control fired them, and nothing here
     // reads it. Each is a no-op when its canGoTo* is false, as Apple's are.
     goToNextPage(sender = null) {
-        if (!this.canGoToNextPage) { return }
+        if (!this.canGoToNextPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = this._pdfViewer.currentPageNumber + 1
     }
 
     goToPreviousPage(sender = null) {
-        if (!this.canGoToPreviousPage) { return }
+        if (!this.canGoToPreviousPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = this._pdfViewer.currentPageNumber - 1
     }
 
     goToFirstPage(sender = null) {
-        if (!this.canGoToFirstPage) { return }
+        if (!this.canGoToFirstPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = 1
     }
 
     goToLastPage(sender = null) {
-        if (!this.canGoToLastPage) { return }
+        if (!this.canGoToLastPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = this._pdfViewer.pagesCount
     }
 
-    // pdf.js's own pagesCount is 0 until the document has loaded into the
-    // viewer, so none of these is true before the pages exist.
+    // The gates read the document's own page count, which _didLoad fills
+    // before PDFViewDocumentChanged posts, not the viewer's pagesCount: that
+    // is 0 until pdf.js lays its pages out, after the notification. For the
+    // same reason the moves above wait for layout: a gate that is already true
+    // inside that handler must not license a move pdf.js would refuse.
     get canGoToNextPage() {
-        return !!this._document && this._pdfViewer.currentPageNumber < this._pdfViewer.pagesCount
+        return !!this._document && this._pdfViewer.currentPageNumber < this._document.pageCount
     }
 
     get canGoToPreviousPage() {
@@ -207,7 +217,7 @@ export class PDFView extends UIView {
     }
 
     get canGoToLastPage() {
-        return !!this._document && this._pdfViewer.currentPageNumber < this._pdfViewer.pagesCount
+        return !!this._document && this._pdfViewer.currentPageNumber < this._document.pageCount
     }
 
     get scaleFactor() {
@@ -250,7 +260,7 @@ export class PDFView extends UIView {
 
     // pdf.js's removePageBorders is its own public field, and
     // .pdfViewer.removePageBorders in pdf_viewer.css draws the effect, which is
-    // why the host must load that stylesheet. The class is toggled by name,
+    // why PDFKit's entry imports that stylesheet. The class is toggled by name,
     // never by assigning className: pdf.js's scrollMode setter writes
     // scrollHorizontal and scrollWrapped onto this same element, so a
     // whole-className write would undo displayDirection, and the opposite
@@ -407,7 +417,7 @@ export class PDFView extends UIView {
     // takes the axis, spreadMode the pairing, so both setters route here and
     // neither can leave the other's half stale.
     _applyDisplayMode() {
-        var mapped = _scrollAndSpreadFor(this._displayMode, this._displayDirection, _pdfjsViewer())
+        var mapped = _scrollAndSpreadFor(this._displayMode, this._displayDirection, pdfjsViewer)
         this._pdfViewer.scrollMode = mapped.scrollMode
         this._pdfViewer.spreadMode = mapped.spreadMode
     }
@@ -441,6 +451,10 @@ export class PDFView extends UIView {
             return
         }
         this._pdfViewer.currentScale = this._scaleFactor
+    }
+
+    _pagesAreLaidOut() {
+        return this._pdfViewer.pagesCount > 0
     }
 
     _pageDidChange(evt) {
@@ -497,15 +511,24 @@ export class PDFView extends UIView {
     }
 
     // PDFSelection.string is never derived from pdf.js's private per-page
-    // cache: it reproduces pdf.js's own join — items' str, plus "\n" where
-    // hasEOL — from the page's public getTextContent(), the same text the
-    // match offsets were computed against (ruling 3c). Returns the promise so
-    // _findDidComplete can wait for every match of a search to post before
-    // posting that search's end. A page whose text cannot be read — most
-    // realistically because the document was replaced mid-search and the old
-    // proxy was destroyed out from under this call — yields no match rather
-    // than an unhandled rejection that would otherwise strand every match
-    // still pending for this search and leave DidEndFind never posted.
+    // cache: it is sliced from the page's public getTextContent(), as the
+    // concatenation of the items' str with NO separator. That is not what
+    // pdf.js's extraction visibly builds, which pushes "\n" after an item with
+    // hasEOL, and the next reader will be tempted to restore the newline. Do
+    // not: measured against pdfjs-dist@6.4.299, the PDFFindController's
+    // published pageMatches offsets index the EOL-free concatenation, because
+    // normalize() consumes the EOL and getOriginalIndex maps back past it, so
+    // a join with "\n" shifts every match by one character per preceding line
+    // break (" PDFKi" for "PDFKit"). The text is read with
+    // disableNormalization, the option pdf.js extracts its own find text with,
+    // so the two strings cannot diverge on a ligature or an NFKC-normalizable
+    // character either. Returns the promise so _findDidComplete can wait for
+    // every match of a search to post before posting that search's end. A page
+    // whose text cannot be read — most realistically because the document was
+    // replaced mid-search and the old proxy was destroyed out from under this
+    // call — yields no match rather than an unhandled rejection that would
+    // otherwise strand every match still pending for this search and leave
+    // DidEndFind never posted.
     _reportMatch({pageIndex, offset, length, generation, document, matchOrdinal}) {
         return this._textFor(pageIndex).then(
             (text) => {
@@ -525,8 +548,8 @@ export class PDFView extends UIView {
         if (this._pageTextCache.has(pageIndex)) { return this._pageTextCache.get(pageIndex) }
         var cache = this._pageTextCache
         var promise = this._document._proxy.getPage(pageIndex + 1)
-            .then((pageProxy) => pageProxy.getTextContent())
-            .then((content) => content.items.map((item) => item.str + (item.hasEOL ? "\n" : "")).join(""))
+            .then((pageProxy) => pageProxy.getTextContent({disableNormalization: true}))
+            .then((content) => content.items.map((item) => item.str).join(""))
         // A rejection (the document replaced mid-flight, its proxy already
         // destroyed) must not poison every later search that touches this
         // page: drop the cache entry so the next one retries the read, rather

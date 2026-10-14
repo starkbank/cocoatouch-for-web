@@ -2,6 +2,16 @@
 // so `import "UIKit"` leaves editors and linters knowing every ambient name.
 var fs = require("fs")
 var path = require("path")
+var { register } = require("module")
+
+// PDFKit's entry imports pdfjs-dist, whose viewer needs a document at
+// evaluation; the names this script reads do not, so both specifiers resolve
+// to an empty module for the duration of the run.
+register("data:text/javascript," + encodeURIComponent(
+    'export function resolve(specifier, context, nextResolve) {' +
+    ' if (!specifier.startsWith("pdfjs-dist/")) { return nextResolve(specifier, context) }' +
+    ' return {url: "data:text/javascript,export {}", shortCircuit: true} }'
+))
 
 var root = path.join(__dirname, "..")
 var frameworks = {
