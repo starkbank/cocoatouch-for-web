@@ -177,15 +177,50 @@ function fakePage(items) {
 
 var _getDocumentCalls = []
 
+// pdf.js refuses a second PDFWorker on a port that already has one, and
+// PDFWorker.destroy() terminates the thread behind the port; the stand-in keeps
+// both rules so a PDFKit that mishandled either would fail here, not in a
+// browser.
+var _portsWithAWorker = new WeakSet()
+
+class FakePDFWorker {
+    constructor({port} = {}) {
+        if (_portsWithAWorker.has(port)) { throw new Error("Cannot use more than one PDFWorker per port.") }
+        _portsWithAWorker.add(port)
+        this.port = port
+    }
+    destroy() {
+        this.port.terminate()
+        _portsWithAWorker.delete(this.port)
+    }
+}
+
+// Module-level, not per stand-in: PDFKit creates its worker once per process,
+// during whichever test constructs the first PDFView, so a write made then
+// has to stay visible to the test that asserts there never was one.
+var _workerPort = null
+var _workerPortWrites = []
+
 function fakePdfjsLib({resolve, reject} = {}) {
     _getDocumentCalls = []
     return {
         version: "6.4.299",
-        GlobalWorkerOptions: {},
+        GlobalWorkerOptions: {
+            get workerPort() { return _workerPort },
+            set workerPort(port) { _workerPortWrites.push(port); _workerPort = port },
+        },
+        PDFWorker: FakePDFWorker,
         AnnotationMode: {ENABLE: 1},
+        // pdf.js's getDocument only creates (and so later destroys) a worker of
+        // its own when none is passed, from GlobalWorkerOptions.workerPort.
         getDocument: function(options) {
             _getDocumentCalls.push(options)
             var destroyed = false
+            var ownWorker = null
+            if (!options.worker) {
+                if (!_workerPort) { throw new Error("No GlobalWorkerOptions.workerSrc specified.") }
+                ownWorker = new FakePDFWorker({port: _workerPort})
+            }
             var promise = new Promise(function(res, rej) {
                 if (resolve !== undefined) { res(resolve) }
                 if (reject !== undefined) { rej(reject) }
@@ -193,7 +228,11 @@ function fakePdfjsLib({resolve, reject} = {}) {
             promise.catch(function() {}) // a stub must not leave this unhandled either
             return {
                 promise: promise,
-                destroy: function() { destroyed = true; return Promise.resolve() },
+                destroy: function() {
+                    destroyed = true
+                    if (ownWorker) { ownWorker.destroy() }
+                    return Promise.resolve()
+                },
                 get destroyed() { return destroyed },
             }
         },
@@ -201,8 +240,10 @@ function fakePdfjsLib({resolve, reject} = {}) {
 }
 
 function installPdfjs(options) {
-    pdfjsLibSeam.use(fakePdfjsLib(options))
+    var lib = fakePdfjsLib(options)
+    pdfjsLibSeam.use(lib)
     pdfjsViewerSeam.use(fakePdfjsViewer())
+    return lib
 }
 
 function uninstallPdfjs() {
@@ -239,6 +280,30 @@ test("an unstyled .textLayer throws naming pdf_viewer.css and pdfjsLib.version",
     }
 })
 
+// 2b. The worker is the framework's own, created at first use and shared by
+// every document. Registered before anything else constructs a PDFView or a
+// PDFDocument, because the worker is created once per process and "lazily"
+// is only observable until then.
+test("the pdf.js worker is created by the first PDFView, not at import, and the one worker serves every later PDFView and PDFDocument", function() {
+    assert.equal(Worker.instances.length, 0, "nothing at import")
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    makeView()
+    assert.equal(Worker.instances.length, 1, "a PDFView with no document yet starts the worker loading")
+    var worker = Worker.instances[0]
+    assert.match(String(worker.url), /pdfjs-dist\/build\/pdf\.worker\.min\.mjs$/)
+    assert.deepEqual(worker.options, {type: "classic"})
+
+    new PDFDocument({url: "/a.pdf"})
+    new PDFDocument({url: "/b.pdf"})
+    makeView()
+    assert.equal(Worker.instances.length, 1)
+    assert.equal(_getDocumentCalls.length, 2)
+    assert.ok(_getDocumentCalls[0].worker, "every getDocument call is handed a worker")
+    assert.equal(_getDocumentCalls[1].worker, _getDocumentCalls[0].worker)
+    assert.equal(_getDocumentCalls[0].worker.port, worker)
+    uninstallPdfjs()
+})
+
 // 3. isEvalSupported: false, unconditionally.
 test("PDFDocument always calls getDocument with isEvalSupported: false", function() {
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
@@ -272,7 +337,7 @@ test("a host that publishes none of cMapUrl, standardFontDataUrl or wasmUrl gets
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
     new PDFDocument({url: "/a.pdf"})
     var call = _getDocumentCalls[_getDocumentCalls.length - 1]
-    assert.deepEqual(Object.keys(call).sort(), ["isEvalSupported", "url"])
+    assert.deepEqual(Object.keys(call).sort(), ["isEvalSupported", "url", "worker"])
     uninstallPdfjs()
 })
 
@@ -285,7 +350,7 @@ test("an empty string or null for cMapUrl, standardFontDataUrl or wasmUrl leaves
     globalThis.pdfjsWasmUrl = 0
     new PDFDocument({url: "/a.pdf"})
     var call = _getDocumentCalls[_getDocumentCalls.length - 1]
-    assert.deepEqual(Object.keys(call).sort(), ["isEvalSupported", "url"])
+    assert.deepEqual(Object.keys(call).sort(), ["isEvalSupported", "url", "worker"])
     delete globalThis.pdfjsCMapUrl
     delete globalThis.pdfjsStandardFontDataUrl
     delete globalThis.pdfjsWasmUrl
@@ -1916,4 +1981,175 @@ test("test/register.mjs maps pdfjs-dist's entry points onto the stand-ins and in
     assert.equal(typeof Worker, "function")
     lib.use(null)
     viewer.use(null)
+})
+
+
+// 20. The shared worker survives every way a document can end. A document's
+// own destroy() terminates a worker the task owns, which is why PDFKit passes
+// one to getDocument instead of publishing it through GlobalWorkerOptions.
+test("setting a document to null and then to the next one in a single tick leaves the shared worker alive", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    view.document = new PDFDocument({url: "/a.pdf"})
+    view.document = null
+    view.document = new PDFDocument({url: "/b.pdf"})
+    assert.equal(_getDocumentCalls.length, 2)
+    assert.equal(Worker.instances[0].terminated, false)
+    uninstallPdfjs()
+})
+
+test("disposing one PDFView and constructing the next in a single tick leaves the shared worker alive", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var first = makeView()
+    first.document = new PDFDocument({url: "/a.pdf"})
+    first._dispose()
+    var second = makeView()
+    second.document = new PDFDocument({url: "/b.pdf"})
+    assert.equal(_getDocumentCalls.length, 2)
+    assert.equal(_getDocumentCalls[1].worker, _getDocumentCalls[0].worker)
+    assert.equal(Worker.instances[0].terminated, false)
+    uninstallPdfjs()
+})
+
+test("three rounds of un-awaited destroy() leave the shared worker alive and usable", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    for (var round = 0; round < 3; round++) {
+        var view = makeView()
+        var doc = new PDFDocument({url: "/round" + round + ".pdf"})
+        view.document = doc
+        doc._destroy()
+        view._dispose()
+    }
+    assert.equal(_getDocumentCalls.length, 3)
+    for (var call of _getDocumentCalls) { assert.equal(call.worker, _getDocumentCalls[0].worker) }
+    assert.equal(Worker.instances.length, 1)
+    assert.equal(Worker.instances[0].terminated, false)
+    assert.doesNotThrow(function() { new PDFDocument({url: "/after.pdf"}) })
+    uninstallPdfjs()
+})
+
+test("PDFKit has never written GlobalWorkerOptions.workerPort, because a shared global would be terminated by the first completed destroy()", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    view.document = new PDFDocument({url: "/a.pdf"})
+    await flush()
+    view.document = null
+    view._dispose()
+    assert.deepEqual(_workerPortWrites, [], "no write in this test, nor in any earlier one that created the worker")
+    assert.equal(_workerPort, null)
+    uninstallPdfjs()
+})
+
+// The framework owns its worker's port exclusively: pdf.js throws when a
+// second PDFWorker is made on a port that already has one, so anything that
+// registers one on this port breaks every later document.
+test("the framework's worker port belongs to PDFKit alone: another PDFWorker on it is refused", function() {
+    var lib = installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    new PDFDocument({url: "/a.pdf"})
+    var port = Worker.instances[0]
+    assert.throws(function() { new lib.PDFWorker({port: port}) }, /more than one PDFWorker per port/)
+    uninstallPdfjs()
+})
+
+// pdf.js never settles a load past the handshake once its transport is
+// destroyed, only one destroyed in the same tick as it started ("Loading
+// aborted"). So a document the consumer replaced must neither stay pending in
+// the worker-failure bookkeeping, where it would be retained for the life of
+// the page, nor log a failure the consumer caused.
+test("a document destroyed mid-load is not failed by a later worker error", async function() {
+    installPdfjs({})
+    var doc = new PDFDocument({url: "/replaced.pdf"})
+    doc._destroy()
+    var errors = []
+    var originalError = console.error
+    console.error = function(message) { errors.push(message) }
+    Worker.instances[Worker.instances.length - 1].emit("error", {})
+    await flush()
+    console.error = originalError
+    assert.equal(errors.length, 1, "only the worker's own message")
+    assert.match(errors[0], /^PDFKit: pdf\.js worker failed \(pdfjs-dist\/build\/pdf\.worker\.min\.mjs\)$/, "no suffix when the event carries no message")
+    uninstallPdfjs()
+})
+
+test("a load pdf.js aborts because its document was destroyed in the same tick logs nothing", async function() {
+    installPdfjs({reject: {name: "AbortException"}})
+    var errors = []
+    var originalError = console.error
+    console.error = function(message) { errors.push(message) }
+    var doc = new PDFDocument({url: "/replaced.pdf"})
+    doc._destroy()
+    await flush()
+    console.error = originalError
+    assert.deepEqual(errors, [])
+    uninstallPdfjs()
+})
+
+// A Worker's error event is a failed chunk load and also an uncaught
+// exception inside a worker that loaded fine, so a failure is never latched:
+// the worker is torn down and the next document makes a fresh one. A 404 on
+// the chunk therefore still fails every document, each one loudly, while a
+// worker that crashed on one pathological document heals on the next. Kept at
+// the end of the file because it replaces the shared worker, which the tests
+// before it index as Worker.instances[0].
+test("a worker error logs its message, fails the pending loads, tears the worker down, and the next document gets a fresh one", async function() {
+    var unhandled = []
+    var onUnhandled = function(reason) { unhandled.push(reason) }
+    process.on("unhandledRejection", onUnhandled)
+
+    installPdfjs({})
+    var view = makeView()
+    var posts = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDocumentChanged, selector: function() { posts.push(1) }})
+    var errors = []
+    var originalError = console.error
+    console.error = function(message) { errors.push(message) }
+
+    var pending = new PDFDocument({url: "/pending.pdf"})
+    view.document = pending
+    await flush()
+    assert.equal(posts.length, 0, "the load is still pending: the stand-in's promise never settles")
+
+    var first = Worker.instances[Worker.instances.length - 1]
+    first.emit("error", {message: "Uncaught Error: out of memory"})
+    await flush()
+    assert.equal(errors.length, 2)
+    assert.match(errors[0], /^PDFKit: pdf\.js worker failed \(pdfjs-dist\/build\/pdf\.worker\.min\.mjs\): Uncaught Error: out of memory$/)
+    assert.match(errors[1], /pending\.pdf/)
+    assert.equal(pending.pageCount, 0)
+    assert.equal(posts.length, 1)
+    assert.equal(first.terminated, true, "the failed worker is terminated")
+
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var healed = new PDFDocument({url: "/healed.pdf"})
+    view.document = healed
+    await flush()
+    var second = Worker.instances[Worker.instances.length - 1]
+    assert.notEqual(second, first, "a fresh worker, because the failure is not latched")
+    assert.equal(_getDocumentCalls[0].worker.port, second)
+    assert.equal(second.terminated, false)
+    assert.equal(healed.pageCount, 1)
+    assert.equal(posts.length, 2)
+
+    first.emit("error", {message: "a late event from the replaced worker"})
+    await flush()
+    assert.equal(second.terminated, false, "an event from a worker already replaced leaves the current one alone")
+    assert.equal(errors.length, 2, "and is not logged again")
+
+    // A chunk that 404s fails every document: the new worker's error arrives
+    // for the next load too, so nothing waits forever.
+    installPdfjs({})
+    var again = new PDFDocument({url: "/again.pdf"})
+    view.document = again
+    await flush()
+    Worker.instances[Worker.instances.length - 1].emit("error", {})
+    await flush()
+    assert.match(errors[errors.length - 1], /again\.pdf/)
+    assert.equal(posts.length, 3)
+
+    console.error = originalError
+    process.off("unhandledRejection", onUnhandled)
+    assert.deepEqual(unhandled, [])
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
 })
