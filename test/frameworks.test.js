@@ -61,6 +61,20 @@ test("PDFKit's entry imports pdf_viewer.css and the subpath entry does not, so o
     assert.doesNotMatch(subpath, /\.css/)
 })
 
+// pdf_viewer.css declares `:root { color-scheme: light dark }`, which hands
+// every page that imports PDFKit, PDF or not, to the OS theme. The reset only
+// wins if it loads after the vendored sheet at equal specificity, so the
+// order of the two imports is the whole fix.
+test("PDFKit's entry imports its :root color-scheme reset after pdf_viewer.css, and the reset restores the initial value", function() {
+    const entry = fs.readFileSync(path.join(here, "../src/PDFKit.js"), "utf8")
+    const vendored = entry.indexOf('import "pdfjs-dist/web/pdf_viewer.css"')
+    const reset = entry.indexOf('import "../styles/pdfkit.css"')
+    assert.ok(vendored !== -1 && reset !== -1, "both stylesheets are imported")
+    assert.ok(reset > vendored, "the reset is imported after the vendored stylesheet")
+    const css = fs.readFileSync(path.join(here, "../styles/pdfkit.css"), "utf8")
+    assert.match(css.replace(/\/\*[\s\S]*?\*\//g, ""), /:root\s*\{\s*color-scheme:\s*normal;?\s*\}/)
+})
+
 
 // PDFKit is the only framework with a third-party dependency behind it (35 MB
 // installed, about 1.9 MB bundled), so no other entry point may reach it,
