@@ -4,8 +4,10 @@ import assert from "node:assert/strict"
 import path from "node:path"
 import fs from "node:fs"
 import { createRequire } from "node:module"
+import { fileURLToPath } from "node:url"
 
 const require = createRequire(import.meta.url)
+const here = path.dirname(fileURLToPath(import.meta.url))
 
 
 test("importing UIKit makes its classes ambient, like Swift's import UIKit", async function() {
@@ -50,4 +52,11 @@ test("a framework publishes its NSNotification.Name constants by being imported:
     for (const name of ["PDFViewDocumentChanged", "PDFViewPageChanged", "PDFViewScaleChanged", "PDFViewSelectionChanged", "PDFViewDisplayModeChanged", "PDFDocumentDidBeginFind", "PDFDocumentDidFindMatch", "PDFDocumentDidEndFind"]) {
         assert.equal(Foundation.NSNotification.Name[name], name)
     }
+})
+
+test("PDFKit's entry imports pdf_viewer.css and the subpath entry does not, so only a bundler ever meets the stylesheet", function() {
+    const entry = fs.readFileSync(path.join(here, "../src/PDFKit.js"), "utf8")
+    const subpath = fs.readFileSync(path.join(here, "../src/pdfkit/index.js"), "utf8")
+    assert.match(entry, /^import "pdfjs-dist\/web\/pdf_viewer\.css"$/m)
+    assert.doesNotMatch(subpath, /\.css/)
 })

@@ -1,4 +1,10 @@
 import * as PDFKit from "./pdfkit/index.js"
+// Here and not in pdfkit/index.js: a bundler needs the stylesheet beside the
+// pdf.js the framework carries, but node cannot load a .css file, so the
+// subpath entry stays loadable by `node --test`. A consumer that imports
+// "cocoatouch/pdfkit" and skips this file fails loudly through
+// assertTextLayerStylesheet instead of rendering a misaligned text layer.
+import "pdfjs-dist/web/pdf_viewer.css"
 
 
 // Swift's `import PDFKit` makes the framework's names ambient. Importing this
