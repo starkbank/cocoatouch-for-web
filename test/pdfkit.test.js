@@ -172,7 +172,14 @@ function fakeProxy({numPages, pages, labels}) {
 }
 
 function fakePage(items) {
-    return {getTextContent: function() { return Promise.resolve({items: items}) }}
+    var page = {
+        textContentCalls: [],
+        getTextContent: function(options) {
+            page.textContentCalls.push(options)
+            return Promise.resolve({items: items})
+        },
+    }
+    return page
 }
 
 var _getDocumentCalls = []
@@ -787,7 +794,7 @@ test("stubbed matches produce one DidFindMatch each and one DidEndFind, with PDF
     NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
 
     doc.beginFindString("bank")
-    // joined text is "stark bank" + "\n" + "contract" -> "bank" is at [6, 10)
+    // the items' str joined with no separator: "stark bankcontract" -> "bank" is at [6, 10)
     view._findController.pageMatches = [[6]]
     view._findController.pageMatchesLength = [[4]]
     view._eventBus.dispatch("updatefindcontrolstate", {state: FindState.PENDING})
@@ -803,6 +810,54 @@ test("stubbed matches produce one DidFindMatch each and one DidEndFind, with PDF
     assert.ok(matches[0].pages[0] instanceof PDFPage)
     assert.equal(ends.length, 1)
     assert.equal(ends[0].userInfo, null)
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// The offsets below are a recorded observation, not an assumption: the real
+// PDFFindController of pdfjs-dist@6.4.299 was run in headless Chrome against
+// the sample's sampleGuide.pdf, and its pageMatches for "pdfkit" came back as
+// page 1 offsets 50 and 88 and page 2 offset 42, each of length 6. They index
+// the concatenation of the items' str with NO separator: normalize() consumes
+// the "\n" pdf.js appends for hasEOL, and getOriginalIndex maps back past it.
+// A fake whose offsets were derived from PDFKit's own join would pass whatever
+// that join did, so these must stay the measured values. The items are the
+// ones getTextContent() returned for that file.
+test("PDFSelection.string indexes the items' str joined with no separator, the way pdf.js's published offsets do, and reads the text unnormalized", async function() {
+    var pageOne = fakePage([
+        {str: "CocoaTouch sample guide", hasEOL: false},
+        {str: "", hasEOL: true},
+        {str: "Page one belongs to alpha. PDFKit shows this document.", hasEOL: true},
+        {str: "Search for pdfkit to match on both pages.", hasEOL: true},
+        {str: "Click the link below; the delegate decides what happens.", hasEOL: true},
+        {str: "https://starkbank.com", hasEOL: false},
+    ])
+    var pageTwo = fakePage([
+        {str: "The second page", hasEOL: false},
+        {str: "", hasEOL: true},
+        {str: "Page two belongs to omega. PDFKit finds text here too.", hasEOL: true},
+        {str: "A match on this page proves the find crosses pages.", hasEOL: false},
+    ])
+    installPdfjs({resolve: fakeProxy({numPages: 2, pages: [pageOne, pageTwo]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var matches = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo[PDFDocumentFoundSelectionKey]) }})
+    doc.beginFindString("pdfkit", {withOptions: [NSString.CompareOptions.caseInsensitive]})
+    view._findController.pageMatches = [[50, 88], [42]]
+    view._findController.pageMatchesLength = [[6, 6], [6]]
+    view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 3, current: 1}})
+    await flush()
+
+    assert.deepEqual(matches.map(function(match) { return match.string }), ["PDFKit", "pdfkit", "PDFKit"])
+    assert.deepEqual(matches.map(function(match) { return match.pages[0].label }), ["1", "1", "2"])
+    for (var page of [pageOne, pageTwo]) {
+        assert.deepEqual(page.textContentCalls, [{disableNormalization: true}], "pdf.js extracts its find text unnormalized, so PDFKit must read the same text")
+    }
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
