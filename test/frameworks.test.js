@@ -60,3 +60,95 @@ test("PDFKit's entry imports pdf_viewer.css and the subpath entry does not, so o
     assert.match(entry, /^import "pdfjs-dist\/web\/pdf_viewer\.css"$/m)
     assert.doesNotMatch(subpath, /\.css/)
 })
+
+
+// PDFKit is the only framework with a third-party dependency behind it (35 MB
+// installed, about 1.9 MB bundled), so no other entry point may reach it,
+// directly or through a chain: a site that imports UIKit must never bundle
+// pdf.js. The roots are read from the package's own exports and aliases, so a
+// new entry point is covered the day it is added rather than the day someone
+// remembers.
+const repoRoot = path.join(here, "..")
+const pdfkitEntries = ["./PDFKit", "./pdfkit"]
+const codeFile = /\.(?:js|mjs|cjs)$/
+
+function withoutComments(source) {
+    return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+}
+
+// import … from, bare import "…", export … from and export * from, plus
+// literal import("…"). `dynamic` counts every import( so a caller can tell
+// when one of them is not a literal.
+function specifiersOf(source) {
+    const code = withoutComments(source)
+    const names = []
+    const fromForm = /^\s*(?:import|export)\s+(?:[\w$*\s,]|\{[^}]*\})+?\s*from\s*["']([^"']+)["']/gm
+    const bareForm = /^\s*import\s*["']([^"']+)["']/gm
+    const dynamicForm = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g
+    for (const form of [fromForm, bareForm, dynamicForm]) {
+        for (const match of code.matchAll(form)) { names.push(match[1]) }
+    }
+    const dynamic = [...code.matchAll(/\bimport\s*\(/g)].length
+    const literalDynamic = [...code.matchAll(dynamicForm)].length
+    return {names: names, nonLiteralDynamic: dynamic - literalDynamic}
+}
+
+// Every module reachable from `root`, keyed by repo-relative path (or the bare
+// specifier for a package), each with the chain of files that led to it.
+function reachableFrom(root) {
+    const reached = new Map()
+    const problems = []
+    const queue = [{key: path.relative(repoRoot, root), file: root, chain: [path.relative(repoRoot, root)]}]
+    reached.set(queue[0].key, queue[0].chain)
+    while (queue.length > 0) {
+        const {file, chain} = queue.shift()
+        if (!codeFile.test(file)) { continue }
+        const {names, nonLiteralDynamic} = specifiersOf(fs.readFileSync(file, "utf8"))
+        if (nonLiteralDynamic > 0) {
+            problems.push(`${chain.join(" -> ")} has ${nonLiteralDynamic} dynamic import(s) with a non-literal argument, which this guard cannot follow`)
+        }
+        for (const name of names) {
+            const isRelative = name.startsWith(".")
+            const target = isRelative ? path.resolve(path.dirname(file), name) : null
+            const key = isRelative ? path.relative(repoRoot, target) : name
+            if (reached.has(key)) { continue }
+            reached.set(key, [...chain, key])
+            if (!isRelative) { continue }
+            assert.ok(fs.existsSync(target), `${chain.join(" -> ")} imports ${name}, which does not exist`)
+            queue.push({key: key, file: target, chain: [...chain, key]})
+        }
+    }
+    return {reached: reached, problems: problems}
+}
+
+function reachesPdfkit(root) {
+    const {reached, problems} = reachableFrom(root)
+    const found = [...reached].filter(([key]) => key.startsWith(`src${path.sep}pdfkit${path.sep}`) || key.startsWith("pdfjs-dist"))
+    return {problems: problems, chains: found.map(([key, chain]) => chain.join(" -> "))}
+}
+
+test("the guard can see PDFKit: walking from its own entry reaches src/pdfkit/index.js and pdfjs-dist", function() {
+    const {reached} = reachableFrom(path.join(repoRoot, "src/PDFKit.js"))
+    assert.ok(reached.has(path.join("src", "pdfkit", "index.js")), "src/pdfkit/index.js not reached: the import regexes match nothing")
+    assert.ok(reached.has("pdfjs-dist/build/pdf.min.mjs"), "pdfjs-dist not reached: the import regexes match nothing")
+})
+
+test("no entry point other than PDFKit's reaches src/pdfkit/ or pdfjs-dist", function() {
+    const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"))
+    const aliases = require("../webpack/aliases.cjs")
+    const roots = new Set()
+    for (const [key, value] of Object.entries(manifest.exports)) {
+        if (pdfkitEntries.includes(key) || typeof value !== "object" || !value.default) { continue }
+        roots.add(path.join(repoRoot, value.default))
+    }
+    for (const [name, file] of Object.entries(aliases)) {
+        if (name !== "PDFKit") { roots.add(file) }
+    }
+    assert.ok(roots.has(path.join(repoRoot, "src/index.js")), "the root entry is not among the roots")
+    assert.ok(roots.size >= 13, `only ${roots.size} roots found`)
+    for (const root of roots) {
+        const {problems, chains} = reachesPdfkit(root)
+        assert.deepEqual(problems, [], `${path.relative(repoRoot, root)}`)
+        assert.deepEqual(chains, [], `${path.relative(repoRoot, root)} reaches PDFKit`)
+    }
+})

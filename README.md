@@ -48,7 +48,7 @@ resolve: {
 }
 ```
 
-The same goes for `import "Foundation"`, `import "CoreGraphics"`, `import "CoreAnimation"`, `import "CoreMedia"` and `import "AVKit"`; `import "UIKit"` brings Core Graphics along, as it does in Swift. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"`. The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
+The same goes for `import "Foundation"`, `import "CoreGraphics"`, `import "CoreAnimation"`, `import "CoreMedia"` and `import "AVKit"`; `import "UIKit"` brings Core Graphics along, as it does in Swift. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"` (PDFKit's names come only from `"cocoatouch/PDFKit"` or `import "PDFKit"`). The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
 
 Requirements:
 
