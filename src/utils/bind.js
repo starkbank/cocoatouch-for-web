@@ -367,11 +367,34 @@ function _depth(element) {
     return depth
 }
 
+// Off Apple, Ctrl+K reaches a .command binding by substitution and a .control
+// binding natively, so a control that declares both for one chord would run
+// twice for one keystroke. The native one wins: it is what the author wrote
+// for Control. It must itself require Control, or a binding with no modifiers
+// would count as a twin and swallow the substituted command.
+function _withoutTwins(matching, kinds) {
+    var natives = matching.filter(function(binding) { return kinds.get(binding) === "native" && binding.requiresCtrl && !binding.requiresMeta })
+    if (natives.length === 0) { return matching }
+    return matching.filter(function(binding) {
+        if (kinds.get(binding) !== "substituted") { return true }
+        return !natives.some(function(twin) {
+            return twin.control === binding.control && twin.key === binding.key && twin.requiresShift === binding.requiresShift && twin.requiresAlt === binding.requiresAlt
+        })
+    })
+}
+
 function _dispatchKey(e) {
     _keyBindings = _keyBindings.filter(function(binding) { return !binding.control._disposed })
     var active = document.activeElement && document.activeElement !== document.body ? document.activeElement : null
     var usesCommandKey = _usesCommandKey()
-    var matching = _keyBindings.filter(function(binding) { return _matchKind(binding, e, usesCommandKey) !== null && !_isTypedInto(binding, active) })
+    var kinds = new Map()
+    var matching = _keyBindings.filter(function(binding) {
+        var kind = _matchKind(binding, e, usesCommandKey)
+        if (kind === null || _isTypedInto(binding, active)) { return false }
+        kinds.set(binding, kind)
+        return true
+    })
+    matching = _withoutTwins(matching, kinds)
     if (matching.length === 0) { return }
     e.preventDefault()
     var chain = [], others = []
