@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, NSString, NSNotFound, PDFDocumentFoundSelectionKey } from "../src/index.js"
+import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, NotificationCenter, NSNotification, NSString, NSNotFound, PDFDocumentFoundSelectionKey } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
 import { pageIn } from "../src/pdfkit/pdfpage.js"
 import { selectionForMatch } from "../src/pdfkit/pdfselection.js"
@@ -1447,6 +1447,50 @@ test("goToNextPage/PreviousPage/FirstPage/LastPage move currentPageNumber; the c
 
     view.goToNextPage()
     assert.equal(view.currentPage, doc.page({at: 1}), "the sender is optional, as Apple's Any? is")
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// Apple's displayDirection picks the scroll axis of the continuous modes; it
+// documents no notification, so the setter posts nothing.
+test("displayDirection defaults to vertical; horizontal maps continuous modes to ScrollMode.HORIZONTAL and leaves paged modes alone; the setter posts nothing", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    assert.equal(view.displayDirection, PDFDisplayDirection.vertical)
+
+    var posts = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDisplayModeChanged, selector: function() { posts.push(1) }})
+
+    view.displayDirection = PDFDisplayDirection.horizontal
+    assert.equal(view.displayDirection, PDFDisplayDirection.horizontal)
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.HORIZONTAL, "the default singlePageContinuous goes horizontal")
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.NONE)
+    assert.equal(posts.length, 0)
+
+    view.displayMode = PDFDisplayMode.singlePage
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.PAGE, "a paged mode has no scroll axis")
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.NONE)
+    view.displayMode = PDFDisplayMode.twoUp
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.PAGE)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.ODD)
+    view.displayMode = PDFDisplayMode.twoUpContinuous
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.HORIZONTAL)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.ODD)
+    view.displayMode = PDFDisplayMode.singlePageContinuous
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.HORIZONTAL)
+    assert.equal(view._pdfViewer.spreadMode, SpreadMode.NONE)
+    var postsAfterModes = posts.length
+    assert.equal(postsAfterModes, 4, "only displayMode posts")
+
+    view.displayDirection = PDFDisplayDirection.vertical
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.VERTICAL)
+    assert.equal(posts.length, postsAfterModes, "the direction setter posts nothing")
+    view.displayMode = PDFDisplayMode.twoUp
+    view.displayDirection = PDFDisplayDirection.horizontal
+    assert.equal(view._pdfViewer.scrollMode, ScrollMode.PAGE, "changing the direction while paged leaves the paged mapping")
+
+    assert.throws(function() { view.displayDirection = "diagonal" }, /PDFView\.displayDirection/)
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })

@@ -6,6 +6,7 @@ import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
 import { PDFSelection, selectionForMatch } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
+import { PDFDisplayDirection } from "./pdfdisplaydirection.js"
 import "./notifications.js"
 import { pdfjsLib as _pdfjsLib, pdfjsViewer as _pdfjsViewer, assertTextLayerStylesheet } from "./pdfjsGlobals.js"
 
@@ -14,6 +15,7 @@ const _documentType = optional(instance(PDFDocument, "PDFDocument"))
 const _pageType = instance(PDFPage, "PDFPage")
 const _selectionType = instance(PDFSelection, "PDFSelection")
 const _displayModeType = enumeration(PDFDisplayMode, "PDFDisplayMode")
+const _displayDirectionType = enumeration(PDFDisplayDirection, "PDFDisplayDirection")
 
 
 // PDFKit's PDFView: shows one PDFDocument, as Apple's does. It owns its
@@ -79,6 +81,7 @@ export class PDFView extends UIView {
         this.autoScales = true
         this._scaleFactor = 1
         this._displayMode = PDFDisplayMode.singlePageContinuous
+        this._displayDirection = PDFDisplayDirection.vertical
 
         this._eventListeners = [
             ["pagesinit", () => this._applyScale()],
@@ -205,10 +208,19 @@ export class PDFView extends UIView {
     set displayMode(mode) {
         typed(mode, "displayMode", _displayModeType, "PDFView.displayMode", "Apple's is displayMode: PDFDisplayMode; write pdfView.displayMode = PDFDisplayMode.singlePage.")
         this._displayMode = mode
-        var mapped = _scrollAndSpreadFor(mode, _pdfjsViewer())
-        this._pdfViewer.scrollMode = mapped.scrollMode
-        this._pdfViewer.spreadMode = mapped.spreadMode
+        this._applyDisplayMode()
         NotificationCenter.default.post({name: NSNotification.Name.PDFViewDisplayModeChanged, object: this})
+    }
+
+    get displayDirection() {
+        return this._displayDirection
+    }
+
+    // Apple documents no notification for displayDirection, so this posts none.
+    set displayDirection(direction) {
+        typed(direction, "displayDirection", _displayDirectionType, "PDFView.displayDirection", "Apple's is displayDirection: PDFDisplayDirection; write pdfView.displayDirection = PDFDisplayDirection.horizontal.")
+        this._displayDirection = direction
+        this._applyDisplayMode()
     }
 
     get currentSelection() {
@@ -318,6 +330,15 @@ export class PDFView extends UIView {
 
         var pageNumber = selection.pages[0]._index + 1
         this._pdfViewer.scrollPageIntoView({pageNumber: pageNumber, destArray: null})
+    }
+
+    // displayMode and displayDirection are one pdf.js decision: scrollMode
+    // takes the axis, spreadMode the pairing, so both setters route here and
+    // neither can leave the other's half stale.
+    _applyDisplayMode() {
+        var mapped = _scrollAndSpreadFor(this._displayMode, this._displayDirection, _pdfjsViewer())
+        this._pdfViewer.scrollMode = mapped.scrollMode
+        this._pdfViewer.spreadMode = mapped.spreadMode
     }
 
     _applyScale() {
@@ -454,13 +475,14 @@ export class PDFView extends UIView {
 }
 
 
-function _scrollAndSpreadFor(mode, pdfjsViewer) {
+function _scrollAndSpreadFor(mode, direction, pdfjsViewer) {
     var ScrollMode = pdfjsViewer.ScrollMode
     var SpreadMode = pdfjsViewer.SpreadMode
+    var continuousScroll = direction === PDFDisplayDirection.horizontal ? ScrollMode.HORIZONTAL : ScrollMode.VERTICAL
     switch (mode) {
         case PDFDisplayMode.singlePage: return {scrollMode: ScrollMode.PAGE, spreadMode: SpreadMode.NONE}
         case PDFDisplayMode.twoUp: return {scrollMode: ScrollMode.PAGE, spreadMode: SpreadMode.ODD}
-        case PDFDisplayMode.twoUpContinuous: return {scrollMode: ScrollMode.VERTICAL, spreadMode: SpreadMode.ODD}
-        default: return {scrollMode: ScrollMode.VERTICAL, spreadMode: SpreadMode.NONE}
+        case PDFDisplayMode.twoUpContinuous: return {scrollMode: continuousScroll, spreadMode: SpreadMode.ODD}
+        default: return {scrollMode: continuousScroll, spreadMode: SpreadMode.NONE}
     }
 }
