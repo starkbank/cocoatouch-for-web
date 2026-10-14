@@ -350,9 +350,10 @@ One element has one owner. A registered view class is revived only for an action
 
 ## Sample
 
-`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field, since 1.5.0, a Traits page with a badge configured through `@IBInspectable`, `CGRect` frames and bounds, and the size-class hooks on resize, and, since 1.6.0, a Navigation page whose root is a `UINavigationController`, pushing a detail controller and popping it from the bar, from the page and with the browser's back button. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images.
+`sample/` is a small app with a menu of pages, one per part of UIKit: buttons, labels, text fields, a custom view with its own nib (also bound through a subclass), a table view with a custom cell, since 1.4.0, links through `userActivity`, `UIImage(systemName:)`, `UIScrollView` offsets and key commands next to a text field, since 1.5.0, a Traits page with a badge configured through `@IBInspectable`, `CGRect` frames and bounds, and the size-class hooks on resize, since 1.6.0, a Navigation page whose root is a `UINavigationController`, pushing a detail controller and popping it from the bar, from the page and with the browser's back button, and, since 1.8.0, a PDFKit page with a `PDFView` showing a two-page document, both delegates, the four `PDFDocumentDelegate` find methods and `PDFViewDelegate`'s link interception, page buttons gated by `canGoToNextPage` and `canGoToPreviousPage`, and the `displayMode` and `displayDirection` pair. It depends on this package through `file:..`, so it runs against the working tree, and loads Font Awesome for the symbol images. Run `npm install` at the repo root first: npm does not install a linked package's own dependencies, so `pdfjs-dist` has to come from there, and without it the build stops with a module-not-found at `src/PDFKit.js`.
 
 ```
+npm install
 cd sample
 npm install
 npm start

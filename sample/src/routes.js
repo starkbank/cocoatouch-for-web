@@ -10,6 +10,7 @@ import { TableViewViewController } from "./uipages/tableView/tableViewViewContro
 import { LinksViewController } from "./uipages/links/linksViewController.js"
 import { TraitsViewController } from "./uipages/traits/traitsViewController.js"
 import { NavigationViewController } from "./uipages/navigation/navigationViewController.js"
+import { PdfViewController } from "./uipages/pdf/pdfViewController.js"
 
 
 const routes = {
@@ -23,6 +24,7 @@ const routes = {
     "/traits": TraitsViewController,
     "/navigation": NavigationViewController,
     "/navigation/detail": NavigationViewController,
+    "/pdf": PdfViewController,
 }
 
 // The page hosts one root controller at a time. Presenting the next one
