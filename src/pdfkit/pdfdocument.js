@@ -9,6 +9,15 @@ import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
 
 const _pageType = instance(PDFPage, "PDFPage")
+
+// The PDFDocumentDelegate method each find notification is also delivered
+// through. Apple's own signatures carry the notification (or, for
+// didMatchString, the selection) and no sender.
+const _delegateMethods = {
+    [NSNotification.Name.PDFDocumentDidBeginFind]: "documentDidBeginDocumentFind",
+    [NSNotification.Name.PDFDocumentDidFindMatch]: "documentDidFindMatch",
+    [NSNotification.Name.PDFDocumentDidEndFind]: "documentDidEndDocumentFind",
+}
 const _compareOptionsType = arrayOf(enumeration(NSString.CompareOptions, "NSString.CompareOptions"))
 
 // Apple's find is case-sensitive unless .caseInsensitive is given, and
@@ -79,12 +88,21 @@ export class PDFDocument {
         this._attachedView = null
         this._findGeneration = 0
         this._isFinding = false
+        this._delegate = null
 
         this._loadingTask = _pdfjsLib().getDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
         this._loadingTask.promise.then(
             (proxy) => this._didLoad(proxy),
             (reason) => this._didFail(reason)
         )
+    }
+
+    get delegate() {
+        return this._delegate
+    }
+
+    set delegate(delegate) {
+        this._delegate = delegate
     }
 
     get documentURL() {
@@ -174,16 +192,47 @@ export class PDFDocument {
         this._isFinding = false
     }
 
+    // The delegate is handed the very notification object observers receive.
+    // NotificationCenter.post builds that object and returns nothing, so a
+    // one-shot observer, registered last and removed before this returns,
+    // forwards it — which keeps NotificationCenter exactly Apple's.
     _post(name, generation, userInfo) {
         if (generation !== this._findGeneration) { return }
-        NotificationCenter.default.post({name: name, object: this, userInfo: userInfo || null})
+        var center = NotificationCenter.default
+        var method = _delegateMethods[name]
+        if (!this._delegateImplements(method)) {
+            center.post({name: name, object: this, userInfo: userInfo || null})
+            return
+        }
+        var forwarder = {}
+        center.addObserver(forwarder, {name: name, object: this, selector: (notification) => this._notifyDelegate(method, notification)})
+        try {
+            center.post({name: name, object: this, userInfo: userInfo || null})
+        } finally {
+            center.removeObserver(forwarder)
+        }
+    }
+
+    // PDFDocumentDelegate's methods have no sender in Apple's signatures, so
+    // this is deliberately not UITableView's _delegateCall, which would put
+    // `this` first. Exactly one argument is passed, as Apple's signature has.
+    _notifyDelegate(method, argument) {
+        if (!this._delegateImplements(method)) { return }
+        this._delegate[method](argument)
+    }
+
+    _delegateImplements(method) {
+        var delegate = this._delegate
+        return !!delegate && typeof delegate[method] === "function"
     }
 
     // Called by the attached PDFView once per match and once at the end of a
     // search; both check the generation themselves so a superseded search's
     // late results can never surface as if they were the current one's.
     _postFindMatch(selection, generation) {
+        if (generation !== this._findGeneration) { return }
         this._post(NSNotification.Name.PDFDocumentDidFindMatch, generation, {[PDFDocumentFoundSelectionKey]: selection})
+        this._notifyDelegate("didMatchString", selection)
     }
 
     // Apple's end-of-find carries no userInfo. The count is the view's own

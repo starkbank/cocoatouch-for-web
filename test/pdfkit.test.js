@@ -1610,3 +1610,110 @@ test("visiblePages returns the pages whose page-view divs intersect the containe
     assert.deepEqual(view.visiblePages, [])
     uninstallPdfjs()
 })
+
+// PDFDocumentDelegate's four optional methods carry Apple's own signatures: the
+// selection or the notification and no sender, which is the one place the
+// sender-first convention has nothing to put first. Arity is asserted because
+// a helper that prepended the document, as UITableView's does, would still
+// pass a check that only looked at the last argument.
+test("PDFDocumentDelegate: didMatchString and documentDidFindMatch once per match, documentDidBegin/EndDocumentFind once each, each with exactly Apple's one argument", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "needle needle", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var calls = []
+    var delegate = {}
+    for (var method of ["didMatchString", "documentDidBeginDocumentFind", "documentDidFindMatch", "documentDidEndDocumentFind"]) {
+        delegate[method] = (function(name) {
+            return function() { calls.push({method: name, args: Array.prototype.slice.call(arguments), self: this}) }
+        })(method)
+    }
+    doc.delegate = delegate
+    assert.equal(doc.delegate, delegate)
+
+    var observed = []
+    var observer = {}
+    for (var name of [NSNotification.Name.PDFDocumentDidBeginFind, NSNotification.Name.PDFDocumentDidFindMatch, NSNotification.Name.PDFDocumentDidEndFind]) {
+        NotificationCenter.default.addObserver(observer, {name: name, selector: function(n) { observed.push(n) }})
+    }
+
+    doc.beginFindString("needle")
+    view._findController.pageMatches = [[0, 7]]
+    view._findController.pageMatchesLength = [[6, 6]]
+    view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 2, current: 2}})
+    await flush()
+
+    var named = function(method) { return calls.filter(function(c) { return c.method === method }) }
+    assert.equal(named("documentDidBeginDocumentFind").length, 1)
+    assert.equal(named("documentDidEndDocumentFind").length, 1)
+    assert.equal(named("documentDidFindMatch").length, 2)
+    assert.equal(named("didMatchString").length, 2)
+
+    for (var call of calls) {
+        assert.equal(call.args.length, 1, `${call.method} receives exactly one argument, no sender`)
+        assert.equal(call.self, delegate)
+    }
+    for (var matched of named("didMatchString")) {
+        assert.ok(matched.args[0] instanceof PDFSelection)
+        assert.equal(matched.args[0].string, "needle")
+    }
+    for (var notified of calls.filter(function(c) { return c.method !== "didMatchString" })) {
+        var argument = notified.args[0]
+        assert.ok(observed.indexOf(argument) !== -1, `${notified.method} receives the very notification object observers got`)
+        assert.equal(argument.object, doc)
+    }
+    assert.equal(observed.length, 4, "the delegate does not add or remove a notification: begin, two matches, end")
+    assert.equal(named("documentDidFindMatch")[0].args[0].userInfo[PDFDocumentFoundSelectionKey], named("didMatchString")[0].args[0])
+    assert.deepEqual(calls.map(function(c) { return c.method }).filter(function(m) { return m === "documentDidBeginDocumentFind" || m === "documentDidEndDocumentFind" }), ["documentDidBeginDocumentFind", "documentDidEndDocumentFind"])
+    assert.equal(calls[0].method, "documentDidBeginDocumentFind")
+    assert.equal(calls[calls.length - 1].method, "documentDidEndDocumentFind")
+
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+test("PDFDocumentDelegate: a delegate implementing none of the methods, or none at all, is never an error; a superseded or cancelled generation calls nothing", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "needle", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var search = function() {
+        doc.beginFindString("needle")
+        view._findController.pageMatches = [[0]]
+        view._findController.pageMatchesLength = [[6]]
+        view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 1, current: 1}})
+        return flush()
+    }
+
+    assert.equal(doc.delegate, null)
+    await search()
+    doc.delegate = {}
+    await search()
+    doc.delegate = {documentDidFindMatch: "not a function"}
+    await search()
+    doc.delegate = null
+    await search()
+    assert.equal(doc.isFinding, false)
+
+    var calls = []
+    doc.delegate = {
+        didMatchString: function() { calls.push("didMatchString") },
+        documentDidFindMatch: function() { calls.push("documentDidFindMatch") },
+        documentDidEndDocumentFind: function() { calls.push("documentDidEndDocumentFind") },
+    }
+    doc.beginFindString("needle")
+    var stale = doc._findGeneration
+    doc.cancelFindString()
+    doc._postFindMatch(new PDFSelection({document: doc}), stale)
+    doc._postEndFind(0, stale)
+    assert.deepEqual(calls, [], "a cancelled generation calls nothing")
+
+    doc.beginFindString("again")
+    doc._postFindMatch(new PDFSelection({document: doc}), stale)
+    assert.deepEqual(calls, [], "a superseded generation calls nothing")
+    uninstallPdfjs()
+})
