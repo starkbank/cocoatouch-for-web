@@ -76,7 +76,7 @@ export class PDFDocument {
         this._destroyed = false
         this._attachedView = null
         this._findGeneration = 0
-        this._pendingQuery = null
+        this._isFinding = false
 
         this._loadingTask = _pdfjsLib().getDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
         this._loadingTask.promise.then(
@@ -119,11 +119,11 @@ export class PDFDocument {
         typed(string, "string", StringType, "PDFDocument.beginFindString(_:withOptions:)", "Apple's is beginFindString(_:withOptions:); write beginFindString(query, {withOptions: []}).")
         typed(withOptions, "withOptions", _compareOptionsType, "PDFDocument.beginFindString(_:withOptions:)", "Apple's is beginFindString(_:withOptions:); write beginFindString(query, {withOptions: [NSString.CompareOptions.caseInsensitive]}).")
         var generation = ++this._findGeneration
-        this._pendingQuery = string
 
         if (string === "") {
+            this._isFinding = true
             this._post(NSNotification.Name.PDFDocumentDidBeginFind, generation)
-            this._post(NSNotification.Name.PDFDocumentDidEndFind, generation)
+            this._postEndFind(0, generation)
             // Bookkeeping only, not the public highlightedSelections setter:
             // that setter dispatches an empty find to make pdf.js drop the
             // spans it drew (finding 12), and an empty query here must
@@ -139,6 +139,7 @@ export class PDFDocument {
             throw new Error("PDFDocument.beginFindString(_:withOptions:) requires this document to be set on a PDFView's document first.")
         }
 
+        this._isFinding = true
         this._post(NSNotification.Name.PDFDocumentDidBeginFind, generation)
         this._attachedView._beginFind({
             query: string,
@@ -147,9 +148,16 @@ export class PDFDocument {
         })
     }
 
+    // Apple's isFinding: true from the begin of a find until its end, which
+    // is a cancel, a superseding empty find, the detach of the document, or
+    // the DidEndFind itself.
+    get isFinding() {
+        return this._isFinding
+    }
+
     cancelFindString() {
         this._findGeneration++
-        this._pendingQuery = null
+        this._isFinding = false
     }
 
     _post(name, generation, userInfo) {
@@ -168,6 +176,8 @@ export class PDFDocument {
     // bookkeeping (_lastFindTotalMatches), passed here only so the call site
     // says what the search found.
     _postEndFind(matchCount, generation) {
+        if (generation !== this._findGeneration) { return }
+        this._isFinding = false
         this._post(NSNotification.Name.PDFDocumentDidEndFind, generation)
     }
 
@@ -196,6 +206,9 @@ export class PDFDocument {
     _destroy() {
         if (this._destroyed) { return }
         this._destroyed = true
+        // The view bumps its own find generation before destroying the document,
+        // so this document's end-of-find is dropped and would never clear the flag.
+        this._isFinding = false
         if (this._loadingTask && typeof this._loadingTask.destroy === "function") {
             this._loadingTask.destroy()
         }
