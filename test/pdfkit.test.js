@@ -143,12 +143,45 @@ var FindState = Object.freeze({FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3})
 // LinkTarget object exactly.
 var LinkTarget = Object.freeze({NONE: 0, SELF: 1, BLANK: 2, PARENT: 3, TOP: 4})
 
-function fakePdfjsViewer() {
+// Real pdf.js lays its pages out after setDocument returns: pagesCount is 0
+// until it dispatches pagesinit on a later turn, and its own pagechanging for
+// page 1 follows. currentPageNumber is already 1 the whole time, because
+// _resetView() sets it (pdfjs-dist@6.4.299, pdf_viewer.mjs, called from the
+// constructor and from setDocument). Its currentPageNumber setter logs "not a
+// valid page" while there are no pages. FakeViewer above is synchronous and so
+// cannot show anything that happens in between; this one can.
+class DeferredPagesViewer extends FakeViewer {
+    setDocument(proxy) {
+        this.document = proxy
+        this.pagesCount = 0
+        this._currentPageNumber = 1
+        if (!proxy) { return }
+        Promise.resolve().then(() => Promise.resolve()).then(() => {
+            if (this.document !== proxy) { return }
+            this.pagesCount = proxy.numPages
+            this.options.eventBus.dispatch("pagesinit", {source: this})
+            this.options.eventBus.dispatch("pagechanging", {pageNumber: 1})
+        })
+    }
+    get currentPageNumber() {
+        return this._currentPageNumber
+    }
+    set currentPageNumber(n) {
+        if (this.pagesCount === 0) {
+            console.error(`currentPageNumber: "${n}" is not a valid page.`)
+            return
+        }
+        this._currentPageNumber = n
+        this.options.eventBus.dispatch("pagechanging", {pageNumber: n})
+    }
+}
+
+function fakePdfjsViewer({deferPagesInit = false} = {}) {
     return {
         EventBus: FakeEventBus,
         PDFLinkService: FakeLinkService,
         PDFFindController: FakeFindController,
-        PDFViewer: FakeViewer,
+        PDFViewer: deferPagesInit ? DeferredPagesViewer : FakeViewer,
         ScrollMode: ScrollMode,
         SpreadMode: SpreadMode,
         FindState: FindState,
@@ -246,10 +279,10 @@ function fakePdfjsLib({resolve, reject} = {}) {
     }
 }
 
-function installPdfjs(options) {
+function installPdfjs(options, {deferPagesInit = false} = {}) {
     var lib = fakePdfjsLib(options)
     pdfjsLibSeam.use(lib)
-    pdfjsViewerSeam.use(fakePdfjsViewer())
+    pdfjsViewerSeam.use(fakePdfjsViewer({deferPagesInit: deferPagesInit}))
     return lib
 }
 
@@ -1597,6 +1630,71 @@ test("goToNextPage/PreviousPage/FirstPage/LastPage move currentPageNumber; the c
     assert.equal(view.currentPage, doc.page({at: 1}), "the sender is optional, as Apple's Any? is")
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
+})
+
+// Apple's canGoToNextPage is right the moment the document is set, and the
+// natural place to read the gates is the PDFViewDocumentChanged handler, which
+// posts before pdf.js lays its pages out. The synchronous fake cannot tell:
+// DeferredPagesViewer reports 0 pages and page 0 until pagesinit.
+async function gatesInsideDocumentChanged(numPages) {
+    installPdfjs({resolve: fakeProxy({numPages: numPages, pages: Array.from({length: numPages}, function() { return fakePage([]) })})}, {deferPagesInit: true})
+    var view = makeView()
+    var seen = []
+    var pageChanges = 0
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDocumentChanged, selector: function() {
+        seen.push({next: view.canGoToNextPage, last: view.canGoToLastPage, previous: view.canGoToPreviousPage, first: view.canGoToFirstPage})
+    }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewPageChanged, selector: function() { pageChanges++ }})
+    view.document = new PDFDocument({url: "/a.pdf"})
+    await flush()
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+    return {seen: seen, pageChanges: pageChanges}
+}
+
+test("inside PDFViewDocumentChanged, before pdf.js lays out its pages, a two-page document can go forward and not back", async function() {
+    var result = await gatesInsideDocumentChanged(2)
+    assert.deepEqual(result.seen, [{next: true, last: true, previous: false, first: false}])
+})
+
+test("inside PDFViewDocumentChanged, a one-page document can go nowhere", async function() {
+    var result = await gatesInsideDocumentChanged(1)
+    assert.deepEqual(result.seen, [{next: false, last: false, previous: false, first: false}])
+})
+
+// The gates are true inside PDFViewDocumentChanged, and a button enabled there
+// can be pressed before pdf.js has any pages: its setter would log "not a
+// valid page" for a move the gate just licensed, so the moves wait for layout.
+test("goToNextPage and goToLastPage called inside PDFViewDocumentChanged, before pdf.js has pages, do nothing and log nothing; once it has, they move", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 3, pages: [fakePage([]), fakePage([]), fakePage([])]})}, {deferPagesInit: true})
+    var view = makeView()
+    var errors = []
+    var originalError = console.error
+    console.error = function(message) { errors.push(message) }
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDocumentChanged, selector: function() {
+        view.goToNextPage()
+        view.goToLastPage()
+        view.goToPreviousPage()
+        view.goToFirstPage()
+    }})
+    view.document = new PDFDocument({url: "/a.pdf"})
+    await flush()
+    assert.deepEqual(errors, [])
+    assert.equal(view._pdfViewer.currentPageNumber, 1)
+
+    view.goToLastPage()
+    assert.equal(view._pdfViewer.currentPageNumber, 3)
+    assert.deepEqual(errors, [])
+    console.error = originalError
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+test("pagesinit posts PDFViewPageChanged once, and pdf.js's own page-1 pagechanging right after it does not post a second", async function() {
+    var result = await gatesInsideDocumentChanged(2)
+    assert.equal(result.pageChanges, 1)
 })
 
 // Apple's displayDirection picks the scroll axis of the continuous modes; it
