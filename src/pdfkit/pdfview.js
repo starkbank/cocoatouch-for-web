@@ -251,7 +251,7 @@ export class PDFView extends UIView {
 
     // pdf.js's removePageBorders is its own public field, and
     // .pdfViewer.removePageBorders in pdf_viewer.css draws the effect, which is
-    // why the host must load that stylesheet. The class is toggled by name,
+    // why PDFKit's entry imports that stylesheet. The class is toggled by name,
     // never by assigning className: pdf.js's scrollMode setter writes
     // scrollHorizontal and scrollWrapped onto this same element, so a
     // whole-className write would undo displayDirection, and the opposite
