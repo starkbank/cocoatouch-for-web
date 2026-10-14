@@ -40,3 +40,14 @@ test("the webpack aliases point every framework name at an existing entry", func
         assert.equal(path.basename(path.dirname(file)), "src")
     }
 })
+
+test("a framework publishes its NSNotification.Name constants by being imported: Foundation alone leaves PDFKit's unpublished", async function() {
+    const Foundation = await import("../src/Foundation.js")
+    assert.equal(Foundation.NSNotification.Name.PDFViewDocumentChanged, undefined)
+    assert.equal(Foundation.NSNotification.Name.PDFDocumentDidEndFind, undefined)
+
+    await import("../src/PDFKit.js")
+    for (const name of ["PDFViewDocumentChanged", "PDFViewPageChanged", "PDFViewScaleChanged", "PDFViewSelectionChanged", "PDFViewDisplayModeChanged", "PDFDocumentDidBeginFind", "PDFDocumentDidFindMatch", "PDFDocumentDidEndFind"]) {
+        assert.equal(Foundation.NSNotification.Name[name], name)
+    }
+})

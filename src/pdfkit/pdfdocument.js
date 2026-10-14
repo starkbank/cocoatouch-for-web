@@ -1,5 +1,7 @@
 import { required, typed, StringType } from "../utils/required.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
+import { NSNotification } from "../foundation/nsnotification.js"
+import "./notifications.js"
 import { PDFPage } from "./pdfpage.js"
 import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
@@ -60,18 +62,6 @@ export class PDFDocument {
 
     static get FindOptions() {
         return FindOptions
-    }
-
-    static get didBeginFindNotification() {
-        return "PDFDocumentDidBeginFind"
-    }
-
-    static get didFindMatchNotification() {
-        return "PDFDocumentDidFindMatch"
-    }
-
-    static get didEndFindNotification() {
-        return "PDFDocumentDidEndFind"
     }
 
     // PDFDocument(url:)
@@ -136,8 +126,8 @@ export class PDFDocument {
         this._pendingQuery = string
 
         if (string === "") {
-            this._post(PDFDocument.didBeginFindNotification, generation)
-            this._post(PDFDocument.didEndFindNotification, generation, {matchCount: 0})
+            this._post(NSNotification.Name.PDFDocumentDidBeginFind, generation)
+            this._post(NSNotification.Name.PDFDocumentDidEndFind, generation, {matchCount: 0})
             // Bookkeeping only, not the public highlightedSelections setter:
             // that setter dispatches an empty find to make pdf.js drop the
             // spans it drew (finding 12), and an empty query here must
@@ -153,7 +143,7 @@ export class PDFDocument {
             throw new Error("PDFDocument.beginFindString(_:withOptions:) requires this document to be set on a PDFView's document first.")
         }
 
-        this._post(PDFDocument.didBeginFindNotification, generation)
+        this._post(NSNotification.Name.PDFDocumentDidBeginFind, generation)
         this._attachedView._beginFind({
             query: string,
             dispatchOptions: _dispatchOptionsFor(withOptions),
@@ -175,11 +165,11 @@ export class PDFDocument {
     // search; both check the generation themselves so a superseded search's
     // late results can never surface as if they were the current one's.
     _postFindMatch(selection, generation) {
-        this._post(PDFDocument.didFindMatchNotification, generation, {selection: selection})
+        this._post(NSNotification.Name.PDFDocumentDidFindMatch, generation, {selection: selection})
     }
 
     _postEndFind(matchCount, generation) {
-        this._post(PDFDocument.didEndFindNotification, generation, {matchCount: matchCount})
+        this._post(NSNotification.Name.PDFDocumentDidEndFind, generation, {matchCount: matchCount})
     }
 
     _didLoad(proxy) {
