@@ -83,6 +83,13 @@ export class PDFView extends UIView {
         this._displayMode = PDFDisplayMode.singlePageContinuous
         this._displayDirection = PDFDisplayDirection.vertical
         this._displaysPageBreaks = true
+        this._delegate = null
+
+        // Delegated from the host, not bound per link: pdf.js rebuilds its
+        // annotation layer on every render, so a handler on a link would be
+        // gone with the next page draw.
+        this.$el.off("click.pdfview")
+        this.$el.on("click.pdfview", "a[href]", (event) => this._linkWasClicked(event))
 
         this._eventListeners = [
             ["pagesinit", () => this._applyScale()],
@@ -94,6 +101,14 @@ export class PDFView extends UIView {
 
     get document() {
         return this._document
+    }
+
+    get delegate() {
+        return this._delegate
+    }
+
+    set delegate(delegate) {
+        this._delegate = delegate
     }
 
     // document — Apple's is a plain PDFDocument? property; setting it starts
@@ -384,6 +399,29 @@ export class PDFView extends UIView {
         this._pdfViewer.spreadMode = mapped.spreadMode
     }
 
+    // PDFViewDelegate.pdfViewWillClick(onLink:with:), whose Objective-C
+    // selector is pdfViewWillClickOnLink:withURL:. Apple's semantics: a
+    // delegate that implements it takes over opening the URL, so PDFKit
+    // prevents the default only then, and leaves a link alone when there is no
+    // delegate or no method. pdf.js's own internal destinations are #-hrefs,
+    // which .href would resolve to the page's own URL, so the attribute is
+    // read as written and those are skipped; only http(s) is delivered.
+    _linkWasClicked(event) {
+        var delegate = this._delegate
+        if (!delegate || typeof delegate.pdfViewWillClickOnLinkWithURL !== "function") { return }
+        var href = event.currentTarget.getAttribute("href")
+        if (!href || href.charAt(0) === "#") { return }
+        var url
+        try {
+            url = new URL(href, window.location.href)
+        } catch (error) {
+            return
+        }
+        if (url.protocol !== "http:" && url.protocol !== "https:") { return }
+        event.preventDefault()
+        delegate.pdfViewWillClickOnLinkWithURL(this, url)
+    }
+
     _applyScale() {
         if (this.autoScales) {
             this._pdfViewer.currentScaleValue = "page-width"
@@ -513,6 +551,8 @@ export class PDFView extends UIView {
         this._detachDocument()
         for (var entry of this._eventListeners || []) { this._eventBus.off(entry[0], entry[1]) }
         this._eventListeners = []
+        // UIView._dispose does not unbind jQuery handlers on its own element.
+        this.$el.off("click.pdfview")
         super._dispose()
     }
 }
