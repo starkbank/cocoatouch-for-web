@@ -1,0 +1,52 @@
+/* pdf.js's PDFViewer throws "The container must be absolutely positioned."
+   from its constructor when the bound element is on screen and not
+   position: absolute. The wrapper therefore carries the height and the
+   positioning context, and #pdf-view fills it with inset: 0. */
+.pdf-wrapper {
+    position: relative;
+    height: 480px;
+    margin-bottom: 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.pdf-view {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+}
+
+.pdf-controls {
+    margin-bottom: 12px;
+}
+
+.pdf-page-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.pdf-position {
+    color: var(--color-muted);
+}
+
+.pdf-field {
+    flex: 1;
+    min-width: 200px;
+    margin-bottom: 0;
+}
+
+.pdf-field span {
+    display: none;
+}
+
+.demo .pdf-note {
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.pdf-transcript {
+    white-space: pre-wrap;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+}

@@ -1,0 +1,57 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 7 0 R /Annots [9 0 R] >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 8 0 R >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+7 0 obj
+<< /Length 364 >>
+stream
+BT /F2 24 Tf 72 700 Td (CocoaTouch sample guide) Tj ET
+BT /F1 14 Tf 72 660 Td (Page one belongs to alpha. PDFKit shows this document.) Tj ET
+BT /F1 14 Tf 72 636 Td (Search for pdfkit to match on both pages.) Tj ET
+BT /F1 14 Tf 72 580 Td (Click the link below; the delegate decides what happens.) Tj ET
+BT 0 0 1 rg /F1 14 Tf 72 540 Td (https://starkbank.com) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Length 216 >>
+stream
+BT /F2 24 Tf 72 700 Td (The second page) Tj ET
+BT /F1 14 Tf 72 660 Td (Page two belongs to omega. PDFKit finds text here too.) Tj ET
+BT /F1 14 Tf 72 636 Td (A match on this page proves the find crosses pages.) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 534 200 554] /Border [0 0 0] /A << /S /URI /URI (https://starkbank.com) >> >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000273 00000 n 
+0000000409 00000 n 
+0000000479 00000 n 
+0000000554 00000 n 
+0000000968 00000 n 
+0000001234 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1368
+%%EOF
