@@ -10,7 +10,8 @@ var frameworks = {
     CoreGraphics: "coregraphics",
     CoreAnimation: "coreanimation",
     CoreMedia: "coremedia",
-    AVKit: "avkit"
+    AVKit: "avkit",
+    PDFKit: "pdfkit"
 }
 
 globalThis.$ = function() { return {} }

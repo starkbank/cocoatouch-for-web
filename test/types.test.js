@@ -31,14 +31,14 @@ function diagnose(fixture) {
 }
 
 test("the build emits a declaration for every framework entry", function() {
-    ;["index", "UIKit", "Foundation", "CoreAnimation", "AVKit", "globals", "uikit/index", "foundation/index"].forEach(function(name) {
+    ;["index", "UIKit", "Foundation", "CoreAnimation", "AVKit", "PDFKit", "globals", "uikit/index", "foundation/index", "pdfkit/index"].forEach(function(name) {
         assert.ok(fs.existsSync(path.join(root, "types", name + ".d.ts")), name + ".d.ts is missing")
     })
 })
 
-test("globals.d.ts and the eslint globals cover every export of the six frameworks", async function() {
+test("globals.d.ts and the eslint globals cover every export of the seven frameworks", async function() {
     var expected = []
-    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit"]) {
+    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit", "pdfkit"]) {
         expected = expected.concat(Object.keys(await import("../src/" + directory + "/index.js")))
     }
     var dts = fs.readFileSync(path.join(root, "types/globals.d.ts"), "utf8")
@@ -102,6 +102,7 @@ test("every labelled member names its labels and marks optionality", function() 
         ["UITableView", "setEditing", ["animated"], []], ["UITableView", "numberOfRows", ["inSection"], []], ["UITableView", "selectRow", ["at", "animated", "scrollPosition"], []], ["UITableView", "deselectRow", ["at", "animated"], []],
         ["UIDatePicker", "setDate", ["animated"], []], ["UIScrollView", "setContentOffset", ["animated"], []], ["UIProgressView", "setProgress", ["animated"], []], ["UISwitch", "setOn", ["animated"], []],
         ["UIView", "insertSubview", ["at"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
+        ["PDFDocument", "page", ["at"], []], ["PDFDocument", "index", ["for"], []], ["PDFView", "go", ["to"], []], ["PDFView", "setCurrentSelection", ["animate"], []],
     ]
     var all = declarations()
     expected.forEach(function([owner, member, required, optional]) {
