@@ -78,9 +78,11 @@ class FakeViewer {
         this._currentScale = 1
         this._currentPageNumber = 1
         this.document = null
+        this.pagesCount = 0
     }
     setDocument(proxy) {
         this.document = proxy
+        this.pagesCount = proxy ? proxy.numPages : 0
     }
     set currentScaleValue(value) {
         this.scaleWrites.push({kind: "value", value: value})
@@ -1387,5 +1389,64 @@ test("index(for:) round-trips with page(at:); NSNotFound for another document's 
     assert.throws(function() { doc.index() }, /PDFDocument\.index\(for:\)/)
     assert.throws(function() { doc.index({}) }, /PDFDocument\.index\(for:\)/)
     assert.throws(function() { doc.index({for: 1}) }, /PDFDocument\.index\(for:\)/)
+    uninstallPdfjs()
+})
+
+// Apple's goTo*Page(_:) are target/action methods, so they take a sender;
+// each is a no-op when its canGoTo* is false, as Apple's are.
+test("goToNextPage/PreviousPage/FirstPage/LastPage move currentPageNumber; the canGoTo* are false at the ends and with no document, where the goTo* are no-ops", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 3, pages: [fakePage([]), fakePage([]), fakePage([])]})})
+    var view = makeView()
+    for (var name of ["canGoToNextPage", "canGoToPreviousPage", "canGoToFirstPage", "canGoToLastPage"]) {
+        assert.equal(view[name], false, `${name} with no document`)
+    }
+    var before = view._pdfViewer.currentPageNumber
+    view.goToNextPage(null)
+    view.goToLastPage(null)
+    view.goToPreviousPage(null)
+    view.goToFirstPage(null)
+    assert.equal(view._pdfViewer.currentPageNumber, before, "with no document every goTo* is a no-op")
+
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    assert.equal(view.canGoToNextPage, false, "false until the document has loaded and its pages exist")
+    await flush()
+
+    assert.equal(view.currentPage, doc.page({at: 0}))
+    assert.equal(view.canGoToNextPage, true)
+    assert.equal(view.canGoToLastPage, true)
+    assert.equal(view.canGoToPreviousPage, false)
+    assert.equal(view.canGoToFirstPage, false)
+    view.goToPreviousPage(null)
+    view.goToFirstPage(null)
+    assert.equal(view._pdfViewer.currentPageNumber, 1, "at the first page, the backward moves are no-ops")
+
+    view.goToNextPage(null)
+    assert.equal(view.currentPage, doc.page({at: 1}))
+    assert.equal(view.canGoToPreviousPage, true)
+    assert.equal(view.canGoToFirstPage, true)
+    assert.equal(view.canGoToNextPage, true)
+
+    view.goToLastPage(null)
+    assert.equal(view.currentPage, doc.page({at: 2}))
+    assert.equal(view.canGoToNextPage, false)
+    assert.equal(view.canGoToLastPage, false)
+    var changes = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewPageChanged, selector: function() { changes.push(1) }})
+    view.goToNextPage(null)
+    view.goToLastPage(null)
+    assert.equal(view._pdfViewer.currentPageNumber, 3, "at the last page, the forward moves are no-ops")
+    assert.equal(changes.length, 0)
+
+    view.goToPreviousPage(null)
+    assert.equal(view.currentPage, doc.page({at: 1}))
+    view.goToFirstPage(null)
+    assert.equal(view.currentPage, doc.page({at: 0}))
+    assert.equal(changes.length, 2)
+
+    view.goToNextPage()
+    assert.equal(view.currentPage, doc.page({at: 1}), "the sender is optional, as Apple's Any? is")
+    NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })

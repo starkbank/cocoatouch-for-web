@@ -145,6 +145,47 @@ export class PDFView extends UIView {
         this._pdfViewer.currentPageNumber = to._index + 1
     }
 
+    // goToNextPage(_:) and its three siblings are Apple's target/action
+    // methods: the sender is whatever control fired them, and nothing here
+    // reads it. Each is a no-op when its canGoTo* is false, as Apple's are.
+    goToNextPage(sender = null) {
+        if (!this.canGoToNextPage) { return }
+        this._pdfViewer.currentPageNumber = this._pdfViewer.currentPageNumber + 1
+    }
+
+    goToPreviousPage(sender = null) {
+        if (!this.canGoToPreviousPage) { return }
+        this._pdfViewer.currentPageNumber = this._pdfViewer.currentPageNumber - 1
+    }
+
+    goToFirstPage(sender = null) {
+        if (!this.canGoToFirstPage) { return }
+        this._pdfViewer.currentPageNumber = 1
+    }
+
+    goToLastPage(sender = null) {
+        if (!this.canGoToLastPage) { return }
+        this._pdfViewer.currentPageNumber = this._pdfViewer.pagesCount
+    }
+
+    // pdf.js's own pagesCount is 0 until the document has loaded into the
+    // viewer, so none of these is true before the pages exist.
+    get canGoToNextPage() {
+        return !!this._document && this._pdfViewer.currentPageNumber < this._pdfViewer.pagesCount
+    }
+
+    get canGoToPreviousPage() {
+        return !!this._document && this._pdfViewer.currentPageNumber > 1
+    }
+
+    get canGoToFirstPage() {
+        return !!this._document && this._pdfViewer.currentPageNumber > 1
+    }
+
+    get canGoToLastPage() {
+        return !!this._document && this._pdfViewer.currentPageNumber < this._pdfViewer.pagesCount
+    }
+
     get scaleFactor() {
         return this._scaleFactor
     }
