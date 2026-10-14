@@ -662,7 +662,7 @@ test("a second beginFindString supersedes the first; cancelFindString clears; an
     assert.equal(matches.length, 1)
 
     doc.cancelFindString()
-    assert.equal(doc._pendingQuery, null)
+    assert.equal(doc.isFinding, false)
 
     var findDispatchesBefore = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
     doc.beginFindString("")
@@ -1306,4 +1306,63 @@ test("neither module-private factory is part of PDFKit's public surface", async 
     var pdfkit = await import("../src/pdfkit/index.js")
     assert.equal(pdfkit.selectionForMatch, undefined)
     assert.equal(pdfkit.pageIn, undefined)
+})
+
+// Apple's isFinding is true from the begin of a find until its end. The
+// dead _pendingQuery this replaces was set and never read.
+test("isFinding: false initially; true from begin until DidEndFind; false after cancelFindString, an empty-string find, a refused call and a detach mid-search", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "needle", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    assert.equal(doc.isFinding, false)
+    assert.equal(doc._pendingQuery, undefined, "the dead _pendingQuery is gone")
+
+    // Never attached: the throw must not strand isFinding true.
+    assert.throws(function() { doc.beginFindString("needle") }, /requires this document to be set on a PDFView/)
+    assert.equal(doc.isFinding, false)
+
+    view.document = doc
+    await flush()
+
+    var atBegin = null
+    var atEnd = null
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidBeginFind, selector: function() { atBegin = doc.isFinding }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function() { atEnd = doc.isFinding }})
+
+    doc.beginFindString("needle")
+    assert.equal(doc.isFinding, true)
+    assert.equal(atBegin, true, "isFinding is already true when DidBeginFind is observed")
+    view._findController.pageMatches = [[0]]
+    view._findController.pageMatchesLength = [[6]]
+    view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 1, current: 1}})
+    await flush()
+    assert.equal(atEnd, false, "isFinding is already false when DidEndFind is observed")
+    assert.equal(doc.isFinding, false)
+
+    doc.beginFindString("needle")
+    assert.equal(doc.isFinding, true)
+    doc.cancelFindString()
+    assert.equal(doc.isFinding, false)
+
+    doc.beginFindString("needle")
+    assert.equal(doc.isFinding, true)
+    doc.beginFindString("")
+    assert.equal(doc.isFinding, false, "an empty find supersedes the running one and ends inside the same call")
+
+    // A refused call (bad option) must not leave a flag behind either.
+    assert.throws(function() { doc.beginFindString("needle", {withOptions: ["bogus"]}) }, /NSString\.CompareOptions/)
+    assert.equal(doc.isFinding, false)
+
+    // Detached mid-search: the view bumps its own generation, so the
+    // end-of-find is dropped and would otherwise leave the flag true forever.
+    doc.beginFindString("needle")
+    assert.equal(doc.isFinding, true)
+    view.document = null
+    assert.equal(doc.isFinding, false)
+    await flush()
+    assert.equal(doc.isFinding, false)
+
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
 })
