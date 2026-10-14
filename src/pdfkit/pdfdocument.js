@@ -1,16 +1,13 @@
-import { required, typed, StringType } from "../utils/required.js"
+import { required, typed, arrayOf, enumeration, StringType } from "../utils/required.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
+import { NSString } from "../foundation/nsstring.js"
 import { PDFDocumentFoundSelectionKey } from "./notifications.js"
 import { PDFPage } from "./pdfpage.js"
 import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
 
-const FindOptions = Object.freeze({
-    caseInsensitive: "caseInsensitive",
-    literal: "literal",
-    backwards: "backwards",
-})
+const _compareOptionsType = arrayOf(enumeration(NSString.CompareOptions, "NSString.CompareOptions"))
 
 // Apple's find is case-sensitive unless .caseInsensitive is given; pdf.js
 // defaults the other way (caseSensitive: false), so the no-options case must
@@ -19,9 +16,9 @@ const FindOptions = Object.freeze({
 // matchDiacritics, never to entireWord, which stays false always because
 // Apple has no whole-word find option to misreport.
 function _dispatchOptionsFor(options) {
-    var caseInsensitive = options.indexOf(FindOptions.caseInsensitive) !== -1
-    var literal = options.indexOf(FindOptions.literal) !== -1
-    var backwards = options.indexOf(FindOptions.backwards) !== -1
+    var caseInsensitive = options.indexOf(NSString.CompareOptions.caseInsensitive) !== -1
+    var literal = options.indexOf(NSString.CompareOptions.literal) !== -1
+    var backwards = options.indexOf(NSString.CompareOptions.backwards) !== -1
     return {
         caseSensitive: !caseInsensitive,
         entireWord: false,
@@ -59,10 +56,6 @@ function _validateScheme(url) {
 // synchronously in the constructor, same as everywhere else in PDFKit, and
 // only the network fetch that follows is a promise.
 export class PDFDocument {
-
-    static get FindOptions() {
-        return FindOptions
-    }
 
     // PDFDocument(url:)
     /**
@@ -118,10 +111,11 @@ export class PDFDocument {
     /**
      * @param {string} string
      * @param {object} [options]
-     * @param {string[]} [options.withOptions]
+     * @param {string[]} [options.withOptions] NSString.CompareOptions cases
      */
     beginFindString(string, {withOptions = []} = {}) {
         typed(string, "string", StringType, "PDFDocument.beginFindString(_:withOptions:)", "Apple's is beginFindString(_:withOptions:); write beginFindString(query, {withOptions: []}).")
+        typed(withOptions, "withOptions", _compareOptionsType, "PDFDocument.beginFindString(_:withOptions:)", "Apple's is beginFindString(_:withOptions:); write beginFindString(query, {withOptions: [NSString.CompareOptions.caseInsensitive]}).")
         var generation = ++this._findGeneration
         this._pendingQuery = string
 

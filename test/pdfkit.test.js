@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, PDFDocumentFoundSelectionKey } from "../src/index.js"
+import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, NSString, PDFDocumentFoundSelectionKey } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -583,7 +583,7 @@ test("clearing highlightedSelections posts no end-of-find; a real search still p
 })
 
 // 14. Option mapping: literal -> matchDiacritics, never entireWord; caseInsensitive flips caseSensitive.
-test("find option mapping: no options defaults to caseSensitive true; caseInsensitive flips it; literal maps to matchDiacritics, never entireWord; backwards maps to findPrevious", async function() {
+test("find option mapping: no options defaults to caseSensitive true; .caseInsensitive flips it; .literal maps to matchDiacritics, never entireWord; .backwards maps to findPrevious", async function() {
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "a", hasEOL: false}])]})})
     var view = makeView()
     var doc = new PDFDocument({url: "/a.pdf"})
@@ -596,16 +596,16 @@ test("find option mapping: no options defaults to caseSensitive true; caseInsens
     assert.equal(last.entireWord, false)
     assert.equal(last.matchDiacritics, false)
 
-    doc.beginFindString("x", {withOptions: [PDFDocument.FindOptions.caseInsensitive]})
+    doc.beginFindString("x", {withOptions: [NSString.CompareOptions.caseInsensitive]})
     last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
     assert.equal(last.caseSensitive, false)
 
-    doc.beginFindString("x", {withOptions: [PDFDocument.FindOptions.literal]})
+    doc.beginFindString("x", {withOptions: [NSString.CompareOptions.literal]})
     last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
     assert.equal(last.matchDiacritics, true)
     assert.equal(last.entireWord, false)
 
-    doc.beginFindString("x", {withOptions: [PDFDocument.FindOptions.backwards]})
+    doc.beginFindString("x", {withOptions: [NSString.CompareOptions.backwards]})
     last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
     assert.equal(last.findPrevious, true)
     uninstallPdfjs()
@@ -1104,6 +1104,7 @@ test("the retired class-nested notification spellings are gone", function() {
     for (var retiredDocument of ["didBeginFindNotification", "didFindMatchNotification", "didEndFindNotification"]) {
         assert.equal(PDFDocument[retiredDocument], undefined, `PDFDocument.${retiredDocument}`)
     }
+    assert.equal(PDFDocument.FindOptions, undefined, "the invented PDFDocument.FindOptions is NSString.CompareOptions now")
 })
 
 // Apple's userInfo key for the match is PDFDocumentFoundSelectionKey, and the
@@ -1135,5 +1136,27 @@ test("DidFindMatch's userInfo is keyed by PDFDocumentFoundSelectionKey and carri
     assert.equal(ends.length, 1)
     assert.equal(ends[0].userInfo, null)
     NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// withOptions is Apple's NSString.CompareOptions, an OptionSet; here an array
+// of its cases. The guard is arrayOf(enumeration(...)), the one array check in
+// the package, and a rejected call must not supersede a running search.
+test("beginFindString rejects a non-array and an unknown option, naming the signature and NSString.CompareOptions", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "a", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var findsBefore = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
+    var generationBefore = doc._findGeneration
+    assert.throws(function() { doc.beginFindString("x", {withOptions: "caseInsensitive"}) }, /PDFDocument\.beginFindString\(_:withOptions:\).*NSString\.CompareOptions/s)
+    assert.throws(function() { doc.beginFindString("x", {withOptions: ["notAnOption"]}) }, /PDFDocument\.beginFindString\(_:withOptions:\).*NSString\.CompareOptions/s)
+    assert.throws(function() { doc.beginFindString("x", {withOptions: [NSString.CompareOptions.literal, "caseInsensitiv"]}) }, /NSString\.CompareOptions/)
+    assert.throws(function() { doc.beginFindString("x", {withOptions: null}) }, /NSString\.CompareOptions/)
+    assert.equal(view._eventBus.calls.filter(function(c) { return c.name === "find" }).length, findsBefore, "a refused call dispatches no find")
+    assert.equal(doc._findGeneration, generationBefore, "a refused call does not supersede the running search")
+    assert.doesNotThrow(function() { doc.beginFindString("x", {withOptions: [NSString.CompareOptions.caseInsensitive, NSString.CompareOptions.backwards]}) })
     uninstallPdfjs()
 })
