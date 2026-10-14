@@ -102,7 +102,7 @@ test("every labelled member names its labels and marks optionality", function() 
         ["UITableView", "setEditing", ["animated"], []], ["UITableView", "numberOfRows", ["inSection"], []], ["UITableView", "selectRow", ["at", "animated", "scrollPosition"], []], ["UITableView", "deselectRow", ["at", "animated"], []],
         ["UIDatePicker", "setDate", ["animated"], []], ["UIScrollView", "setContentOffset", ["animated"], []], ["UIProgressView", "setProgress", ["animated"], []], ["UISwitch", "setOn", ["animated"], []],
         ["UIView", "insertSubview", ["at"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
-        ["PDFDocument", "page", ["at"], []], ["PDFDocument", "index", ["for"], []], ["PDFView", "go", ["to"], []], ["PDFView", "setCurrentSelection", [], ["animate"]],
+        ["PDFDocument", "page", ["at"], []], ["PDFDocument", "index", ["for"], []], ["PDFView", "go", ["to"], []], ["PDFView", "setCurrentSelection", ["animate"], []],
     ]
     var all = declarations()
     expected.forEach(function([owner, member, required, optional]) {
