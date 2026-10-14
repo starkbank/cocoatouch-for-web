@@ -1717,3 +1717,83 @@ test("PDFDocumentDelegate: a delegate implementing none of the methods, or none 
     assert.deepEqual(calls, [], "a superseded generation calls nothing")
     uninstallPdfjs()
 })
+
+// Apple's PDFViewDelegate.pdfViewWillClick(onLink:with:) is the delegate's
+// chance to handle a link the user clicked; implementing it means PDFKit does
+// not open the URL itself. pdf.js rebuilds its annotation layer on every
+// render, so the handler is delegated from the host rather than bound per link.
+function clickLink(view, href) {
+    var layer = document.createElement("div")
+    layer.className = "annotationLayer"
+    var link = document.createElement("a")
+    link.setAttribute("href", href)
+    var inner = document.createElement("span")
+    link.appendChild(inner)
+    layer.appendChild(link)
+    view._viewerElement.appendChild(layer)
+
+    // jsdom would try to navigate on an unprevented click; this listener runs
+    // after PDFKit's (bubbling, on document), records what PDFKit left of the
+    // default, then prevents it so the test never navigates.
+    var defaultPreventedByPDFKit = null
+    var probe = function(event) { defaultPreventedByPDFKit = event.defaultPrevented; event.preventDefault() }
+    document.addEventListener("click", probe)
+    inner.dispatchEvent(new window.MouseEvent("click", {bubbles: true, cancelable: true}))
+    document.removeEventListener("click", probe)
+    view._viewerElement.removeChild(layer)
+    return defaultPreventedByPDFKit
+}
+
+test("PDFViewDelegate: a click on an annotation-layer link with an http(s) href calls pdfViewWillClickOnLinkWithURL(view, url) with a WHATWG URL and prevents the default", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var calls = []
+    view.delegate = {pdfViewWillClickOnLinkWithURL: function() { calls.push(Array.prototype.slice.call(arguments)) }}
+    assert.equal(typeof view.delegate.pdfViewWillClickOnLinkWithURL, "function")
+
+    var prevented = clickLink(view, "https://starkbank.com/legal?a=1#top")
+    assert.equal(prevented, true, "implementing the method means PDFKit does not open the URL")
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].length, 2, "Apple's order: sender first, then the url")
+    assert.equal(calls[0][0], view)
+    assert.ok(calls[0][1] instanceof URL)
+    assert.equal(calls[0][1].href, "https://starkbank.com/legal?a=1#top")
+
+    clickLink(view, "/static/other.pdf")
+    assert.equal(calls.length, 2)
+    assert.equal(calls[1][1].href, "http://localhost/static/other.pdf", "a relative href resolves against the page")
+    uninstallPdfjs()
+})
+
+test("PDFViewDelegate: internal destinations, empty and non-http(s) hrefs never reach the delegate, and leave the default alone", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var calls = []
+    view.delegate = {pdfViewWillClickOnLinkWithURL: function() { calls.push(1) }}
+
+    for (var href of ["#page=3", "#nameddest", "", "mailto:legal@starkbank.com", "javascript:void(0)", "ftp://example.com/a.pdf", "data:text/plain,x", "tel:+5511"]) {
+        assert.equal(clickLink(view, href), false, `${JSON.stringify(href)} leaves the default untouched`)
+    }
+    assert.equal(calls.length, 0)
+    uninstallPdfjs()
+})
+
+test("PDFViewDelegate: with no delegate, or one without the method, the default is untouched; the handler is gone after _dispose", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    assert.equal(view.delegate, null)
+    assert.equal(clickLink(view, "https://starkbank.com/a"), false, "no delegate")
+    view.delegate = {}
+    assert.equal(clickLink(view, "https://starkbank.com/a"), false, "a delegate without the method")
+    view.delegate = {pdfViewWillClickOnLinkWithURL: "not a function"}
+    assert.equal(clickLink(view, "https://starkbank.com/a"), false)
+
+    var calls = []
+    view.delegate = {pdfViewWillClickOnLinkWithURL: function() { calls.push(1) }}
+    assert.equal(clickLink(view, "https://starkbank.com/a"), true)
+    assert.equal(calls.length, 1)
+    view._dispose()
+    assert.equal(clickLink(view, "https://starkbank.com/a"), false)
+    assert.equal(calls.length, 1, "no click reaches the delegate after _dispose")
+    uninstallPdfjs()
+})
