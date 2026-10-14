@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter } from "../src/index.js"
+import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -308,7 +308,7 @@ test("setting document posts PDFViewDocumentChanged once; pageCount and page(at:
     var view = makeView()
     var posts = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFView.documentChangedNotification, selector: function(n) { posts.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDocumentChanged, selector: function(n) { posts.push(n) }})
     var doc = new PDFDocument({url: "/a.pdf"})
     view.document = doc
     await flush()
@@ -331,7 +331,7 @@ test("currentPage and go(to:) round-trip; PDFViewPageChanged fires only on a rea
     await flush()
     var changes = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFView.pageChangedNotification, selector: function() { changes.push(1) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewPageChanged, selector: function() { changes.push(1) }})
     var page2 = doc.page({at: 1})
     view.go({to: page2})
     assert.equal(view.currentPage, page2)
@@ -525,7 +525,7 @@ test("currentSelection and clearSelection post PDFViewSelectionChanged; clearing
     var view = makeView()
     var posts = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFView.selectionChangedNotification, selector: function() { posts.push(1) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewSelectionChanged, selector: function() { posts.push(1) }})
     var selection = new PDFSelection({string: "hello", pages: []})
     view.currentSelection = selection
     assert.equal(view.currentSelection, selection)
@@ -561,7 +561,7 @@ test("clearing highlightedSelections posts no end-of-find; a real search still p
 
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { ends.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
 
     view.highlightedSelections = []
     view._eventBus.dispatch("updatefindcontrolstate", {state: FindState.PENDING})
@@ -622,8 +622,8 @@ test("a second beginFindString supersedes the first; cancelFindString clears; an
     var matches = []
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { matches.push(n) }})
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { ends.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
 
     doc.beginFindString("first")
     var firstGeneration = doc._findGeneration
@@ -666,8 +666,8 @@ test("stubbed matches produce one DidFindMatch each and one DidEndFind, with PDF
     var matches = []
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { matches.push(n.userInfo.selection) }})
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { ends.push(n.userInfo.matchCount) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo.selection) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n.userInfo.matchCount) }})
 
     doc.beginFindString("bank")
     // joined text is "stark bank" + "\n" + "contract" -> "bank" is at [6, 10)
@@ -705,8 +705,8 @@ test("DidFindMatch for every page is observed before the single DidEndFind, whos
 
     var order = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { order.push({kind: "match", string: n.userInfo.selection.string}) }})
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { order.push({kind: "end", matchCount: n.userInfo.matchCount}) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { order.push({kind: "match", string: n.userInfo.selection.string}) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { order.push({kind: "end", matchCount: n.userInfo.matchCount}) }})
 
     doc.beginFindString("needle")
     view._eventBus.dispatch("updatefindcontrolstate", {state: FindState.PENDING})
@@ -741,7 +741,7 @@ test("a search with no matches posts exactly one DidEndFind, with zero", async f
 
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { ends.push(n.userInfo.matchCount) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n.userInfo.matchCount) }})
 
     doc.beginFindString("needle")
     view._eventBus.dispatch("updatefindcontrolstate", {state: FindState.PENDING})
@@ -784,8 +784,8 @@ test("a page whose text cannot be read yields no match, not a stranded search: t
     var matches = []
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { matches.push(n.userInfo.selection) }})
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { ends.push(n.userInfo.matchCount) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n.userInfo.selection) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n.userInfo.matchCount) }})
 
     var errors = []
     var originalError = console.error
@@ -838,8 +838,8 @@ test("replacing the document after updatefindmatchescount but before its match p
     var matches = []
     var ends = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { matches.push(n) }})
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didEndFindNotification, selector: function(n) { ends.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { matches.push(n) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidEndFind, selector: function(n) { ends.push(n) }})
 
     oldDoc.beginFindString("needle")
     view._findController.pageMatches = [[0]]
@@ -894,7 +894,7 @@ test("stepping to another match drives the renderer's own find-again pointer, in
 
     var selections = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFDocument.didFindMatchNotification, selector: function(n) { selections.push(n.userInfo.selection) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFDocumentDidFindMatch, selector: function(n) { selections.push(n.userInfo.selection) }})
 
     doc.beginFindString("needle")
     view._findController.pageMatches = [[0, 7, 14, 21]]
@@ -1004,7 +1004,7 @@ test("a load failure logs one console.error naming the url and error name, leave
     var view = makeView()
     var posts = []
     var observer = {}
-    NotificationCenter.default.addObserver(observer, {name: PDFView.documentChangedNotification, selector: function() { posts.push(1) }})
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDocumentChanged, selector: function() { posts.push(1) }})
 
     var errors = []
     var originalError = console.error
@@ -1049,4 +1049,50 @@ test("required()/typed() guards throw naming the method and the Swift signature"
     assert.throws(function() { view.setCurrentSelection(null) }, /PDFView\.setCurrentSelection\(_:animate:\)/)
     assert.throws(function() { view.document = "not a document" }, /PDFView\.document/)
     uninstallPdfjs()
+})
+
+
+// PDFKit's notification constants live on NSNotification.Name, as Apple's do
+// (`extension NSNotification.Name`). Publishing a name PDFKit never posts would
+// hand a consumer an observer that waits forever, so the set is pinned to what
+// the source actually posts.
+var _pdfkitNames = [
+    "PDFViewDocumentChanged",
+    "PDFViewPageChanged",
+    "PDFViewScaleChanged",
+    "PDFViewSelectionChanged",
+    "PDFViewDisplayModeChanged",
+    "PDFDocumentDidBeginFind",
+    "PDFDocumentDidFindMatch",
+    "PDFDocumentDidEndFind",
+]
+
+test("the eight PDFKit names are on NSNotification.Name, and PDFKit references no name outside that set", function() {
+    for (var name of _pdfkitNames) {
+        assert.equal(NSNotification.Name[name], name, `${name} is not published with its own raw value`)
+    }
+    var published = Object.keys(NSNotification.Name).filter(function(name) { return name.indexOf("PDF") === 0 && _pdfkitNames.indexOf(name) === -1 && name.indexOf("PDFTest") !== 0 })
+    assert.deepEqual(published, [], "PDFKit must publish only the names it posts")
+
+    var dir = path.join(__dirname, "..", "src", "pdfkit")
+    var referenced = new Set()
+    for (var file of fs.readdirSync(dir)) {
+        if (!file.endsWith(".js")) { continue }
+        var text = fs.readFileSync(path.join(dir, file), "utf8")
+        for (var match of text.matchAll(/NSNotification\.Name\.(\w+)/g)) { referenced.add(match[1]) }
+    }
+    for (var used of referenced) {
+        assert.ok(_pdfkitNames.indexOf(used) !== -1, `src/pdfkit/ references NSNotification.Name.${used}, which PDFKit does not publish`)
+    }
+})
+
+// No consumer ever shipped these: PDFKit has never been released, so the old
+// spellings simply cease to exist rather than being kept with a diagnostic.
+test("the retired class-nested notification spellings are gone", function() {
+    for (var retired of ["pageChangedNotification", "documentChangedNotification", "scaleChangedNotification", "selectionChangedNotification"]) {
+        assert.equal(PDFView[retired], undefined, `PDFView.${retired}`)
+    }
+    for (var retiredDocument of ["didBeginFindNotification", "didFindMatchNotification", "didEndFindNotification"]) {
+        assert.equal(PDFDocument[retiredDocument], undefined, `PDFDocument.${retiredDocument}`)
+    }
 })

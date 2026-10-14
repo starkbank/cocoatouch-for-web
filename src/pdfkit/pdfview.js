@@ -1,10 +1,12 @@
 import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
+import { NSNotification } from "../foundation/nsnotification.js"
 import { required, typed, instance, optional, enumeration, Float } from "../utils/required.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
 import { PDFSelection } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
+import "./notifications.js"
 import { pdfjsLib as _pdfjsLib, pdfjsViewer as _pdfjsViewer, assertTextLayerStylesheet } from "./pdfjsGlobals.js"
 
 
@@ -19,22 +21,6 @@ const _displayModeType = enumeration(PDFDisplayMode, "PDFDisplayMode")
 // child it builds inside whatever host element it is bound to, found by
 // class rather than a hardcoded id, so two PDFViews on one page never collide.
 export class PDFView extends UIView {
-
-    static get pageChangedNotification() {
-        return "PDFViewPageChanged"
-    }
-
-    static get documentChangedNotification() {
-        return "PDFViewDocumentChanged"
-    }
-
-    static get scaleChangedNotification() {
-        return "PDFViewScaleChanged"
-    }
-
-    static get selectionChangedNotification() {
-        return "PDFViewSelectionChanged"
-    }
 
     awakeFromNib() {
         assertTextLayerStylesheet()
@@ -133,11 +119,11 @@ export class PDFView extends UIView {
                 // for every document, with no error anywhere.
                 this._linkService.setDocument(doc._proxy)
                 this._pdfViewer.setDocument(doc._proxy)
-                NotificationCenter.default.post({name: PDFView.documentChangedNotification, object: this})
+                NotificationCenter.default.post({name: NSNotification.Name.PDFViewDocumentChanged, object: this})
             },
             () => {
                 if (this._documentGeneration !== generation) { return }
-                NotificationCenter.default.post({name: PDFView.documentChangedNotification, object: this})
+                NotificationCenter.default.post({name: NSNotification.Name.PDFViewDocumentChanged, object: this})
             }
         )
     }
@@ -168,7 +154,7 @@ export class PDFView extends UIView {
         this.autoScales = false
         this._scaleFactor = Math.min(this.maxScaleFactor, Math.max(this.minScaleFactor, value))
         this._pdfViewer.currentScale = this._scaleFactor
-        NotificationCenter.default.post({name: PDFView.scaleChangedNotification, object: this})
+        NotificationCenter.default.post({name: NSNotification.Name.PDFViewScaleChanged, object: this})
     }
 
     get displayMode() {
@@ -268,7 +254,7 @@ export class PDFView extends UIView {
         if (this._currentSelection === selection) { return }
         var previous = this._currentSelection
         this._currentSelection = selection
-        NotificationCenter.default.post({name: PDFView.selectionChangedNotification, object: this})
+        NotificationCenter.default.post({name: NSNotification.Name.PDFViewSelectionChanged, object: this})
         if (!animated || !selection || !selection.pages || selection.pages.length === 0) { return }
 
         if (selection._matchOrdinal !== undefined && this._lastFindDispatch) {
@@ -303,7 +289,7 @@ export class PDFView extends UIView {
         var number = evt && evt.pageNumber
         if (number === this._lastPageNumber) { return }
         this._lastPageNumber = number
-        NotificationCenter.default.post({name: PDFView.pageChangedNotification, object: this})
+        NotificationCenter.default.post({name: NSNotification.Name.PDFViewPageChanged, object: this})
     }
 
     // Driven by PDFDocument.beginFindString once this view's document is the
