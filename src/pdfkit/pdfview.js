@@ -1,7 +1,7 @@
 import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
-import { required, typed, instance, optional, enumeration, Bool, Float } from "../utils/required.js"
+import { required, typed, instance, optional, enumeration, arrayOf, Bool, Float } from "../utils/required.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
 import { PDFSelection, selectionForMatch } from "./pdfselection.js"
@@ -14,6 +14,7 @@ import { pdfjsLib as _pdfjsLib, pdfjsViewer as _pdfjsViewer, assertTextLayerStyl
 const _documentType = optional(instance(PDFDocument, "PDFDocument"))
 const _pageType = instance(PDFPage, "PDFPage")
 const _selectionType = instance(PDFSelection, "PDFSelection")
+const _selectionsType = optional(arrayOf(_selectionType))
 const _displayModeType = enumeration(PDFDisplayMode, "PDFDisplayMode")
 const _displayDirectionType = enumeration(PDFDisplayDirection, "PDFDisplayDirection")
 
@@ -317,6 +318,7 @@ export class PDFView extends UIView {
     // query is empty, so an empty find never fires updatefindmatchescount,
     // which is the only event end-of-find now comes from (finding 4).
     set highlightedSelections(selections) {
+        typed(selections, "highlightedSelections", _selectionsType, "PDFView.highlightedSelections", "Apple's is highlightedSelections: [PDFSelection]?; write pdfView.highlightedSelections = [selection] or null.")
         this._highlightedSelections = selections || []
         if (this._highlightedSelections.length === 0) {
             this._eventBus.dispatch("find", {source: this, type: "", query: "", highlightAll: true})
