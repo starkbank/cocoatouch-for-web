@@ -5,7 +5,7 @@ import { NSString } from "../foundation/nsstring.js"
 import { PDFDocumentFoundSelectionKey } from "./notifications.js"
 import { NSNotFound } from "../foundation/nsrange.js"
 import { PDFPage, pageIn } from "./pdfpage.js"
-import { pdfjsLib, pdfjsRendererOptions } from "./pdfjs.js"
+import { openDocument, pdfjsRendererOptions } from "./pdfjs.js"
 
 
 const _pageType = instance(PDFPage, "PDFPage")
@@ -90,8 +90,11 @@ export class PDFDocument {
         this._isFinding = false
         this._delegate = null
 
-        this._loadingTask = pdfjsLib.getDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
-        this._loadingTask.promise.then(
+        var opened = openDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
+        this._loadingTask = opened.loadingTask
+        this._loaded = opened.promise
+        this._releaseLoad = opened.release
+        this._loaded.then(
             (proxy) => this._didLoad(proxy),
             (reason) => this._didFail(reason)
         )
@@ -259,6 +262,9 @@ export class PDFDocument {
     // behind forever, so one console.error names what failed, logging rather
     // than inventing an `error` property pdf.js gives no basis for.
     _didFail(reason) {
+        // A document the consumer replaced is not a failure the consumer needs
+        // told about; pdf.js aborts a load destroyed in the same tick.
+        if (this._destroyed) { return }
         var name = (reason && reason.name) || "UnknownError"
         console.error(`PDFDocument(url:) failed to load "${this._documentURL}": ${name}`)
     }
@@ -269,6 +275,7 @@ export class PDFDocument {
     _destroy() {
         if (this._destroyed) { return }
         this._destroyed = true
+        this._releaseLoad()
         // The view bumps its own find generation before destroying the document,
         // so this document's end-of-find is dropped and would never clear the flag.
         this._isFinding = false

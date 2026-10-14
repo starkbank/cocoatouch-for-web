@@ -9,7 +9,7 @@ import { PDFSelection, selectionForMatch } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
 import { PDFDisplayDirection } from "./pdfdisplaydirection.js"
 import "./notifications.js"
-import { pdfjsLib, pdfjsViewer, assertTextLayerStylesheet } from "./pdfjs.js"
+import { pdfjsLib, pdfjsViewer, pdfjsWorker, assertTextLayerStylesheet } from "./pdfjs.js"
 
 
 const _documentType = optional(instance(PDFDocument, "PDFDocument"))
@@ -28,6 +28,9 @@ export class PDFView extends UIView {
 
     awakeFromNib() {
         assertTextLayerStylesheet()
+        // Before any document exists, so the worker chunk is already loading
+        // when the first one is set.
+        pdfjsWorker()
 
         var host = this.$el[0]
         var viewerElement = document.createElement("div")
@@ -126,7 +129,7 @@ export class PDFView extends UIView {
 
         doc._attachedView = this
         var generation = ++this._documentGeneration
-        doc._loadingTask.promise.then(
+        doc._loaded.then(
             () => {
                 if (this._documentGeneration !== generation) { return }
                 // Both, not just the viewer: PDFViewer.setDocument propagates
