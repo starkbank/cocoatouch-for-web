@@ -167,6 +167,7 @@ export class PDFView extends UIView {
         var mapped = _scrollAndSpreadFor(mode, _pdfjsViewer())
         this._pdfViewer.scrollMode = mapped.scrollMode
         this._pdfViewer.spreadMode = mapped.spreadMode
+        NotificationCenter.default.post({name: NSNotification.Name.PDFViewDisplayModeChanged, object: this})
     }
 
     get currentSelection() {

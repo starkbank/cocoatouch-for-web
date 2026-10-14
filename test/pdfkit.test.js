@@ -1101,8 +1101,8 @@ test("the eight PDFKit names are on NSNotification.Name, and PDFKit references n
     for (var name of _pdfkitNames) {
         assert.equal(NSNotification.Name[name], name, `${name} is not published with its own raw value`)
     }
-    var published = Object.keys(NSNotification.Name).filter(function(name) { return name.indexOf("PDF") === 0 && _pdfkitNames.indexOf(name) === -1 && name.indexOf("PDFTest") !== 0 })
-    assert.deepEqual(published, [], "PDFKit must publish only the names it posts")
+    var extra = Object.keys(NSNotification.Name).filter(function(name) { return name.indexOf("PDF") === 0 && _pdfkitNames.indexOf(name) === -1 && name.indexOf("PDFTest") !== 0 })
+    assert.deepEqual(extra, [], "PDFKit must publish only the names it posts")
 
     var dir = path.join(__dirname, "..", "src", "pdfkit")
     var referenced = new Set()
@@ -1113,6 +1113,9 @@ test("the eight PDFKit names are on NSNotification.Name, and PDFKit references n
     }
     for (var used of referenced) {
         assert.ok(_pdfkitNames.indexOf(used) !== -1, `src/pdfkit/ references NSNotification.Name.${used}, which PDFKit does not publish`)
+    }
+    for (var published of _pdfkitNames) {
+        assert.ok(referenced.has(published), `${published} is published but no src/pdfkit/ post site uses it`)
     }
 })
 
@@ -1179,5 +1182,27 @@ test("beginFindString rejects a non-array and an unknown option, naming the sign
     assert.equal(view._eventBus.calls.filter(function(c) { return c.name === "find" }).length, findsBefore, "a refused call dispatches no find")
     assert.equal(doc._findGeneration, generationBefore, "a refused call does not supersede the running search")
     assert.doesNotThrow(function() { doc.beginFindString("x", {withOptions: [NSString.CompareOptions.caseInsensitive, NSString.CompareOptions.backwards]}) })
+    uninstallPdfjs()
+})
+
+// Apple documents PDFViewDisplayModeChanged for displayMode; the setter posts
+// once per set, unconditionally, as scaleFactor's does. Apple documents no
+// notification for displayDirection, so that one is covered with its own member.
+test("displayMode posts exactly one PDFViewDisplayModeChanged per set", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var posts = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewDisplayModeChanged, selector: function(n) { posts.push(n) }})
+    view.displayMode = PDFDisplayMode.singlePage
+    assert.equal(posts.length, 1)
+    assert.equal(posts[0].object, view)
+    view.displayMode = PDFDisplayMode.singlePage
+    assert.equal(posts.length, 2, "unconditional, like the scaleFactor setter")
+    view.displayMode = PDFDisplayMode.twoUp
+    assert.equal(posts.length, 3)
+    assert.throws(function() { view.displayMode = "nope" }, /PDFView\.displayMode/)
+    assert.equal(posts.length, 3, "a refused set posts nothing")
+    NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
