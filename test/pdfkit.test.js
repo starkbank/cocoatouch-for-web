@@ -4,7 +4,8 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, NotificationCenter, NSNotification, NSString, NSNotFound, PDFDocumentFoundSelectionKey } from "../src/index.js"
+import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, PDFDocumentFoundSelectionKey } from "../src/pdfkit/index.js"
+import { NotificationCenter, NSNotification, NSString, NSNotFound } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
 import { pageIn } from "../src/pdfkit/pdfpage.js"
 import { selectionForMatch } from "../src/pdfkit/pdfselection.js"
@@ -1907,4 +1908,22 @@ test("the delegate's one-shot forwarder leaves no observer behind after a find, 
     assert.throws(function() { doc._postFindMatch(new PDFSelection({document: doc}), doc._findGeneration) }, /match delegate failed/)
     assert.equal(center._observers.size, recorded)
     uninstallPdfjs()
+})
+
+
+// 0. The test seam: test/register.mjs maps pdfjs-dist's two entry points onto
+// stand-ins this file configures, because the real ones need a worker, a
+// canvas and a network that node does not have.
+test("test/register.mjs maps pdfjs-dist's entry points onto the stand-ins and installs a Worker", async function() {
+    var lib = await import("./pdfjs/lib.mjs")
+    var viewer = await import("./pdfjs/viewer.mjs")
+    lib.use({getDocument: function() { return "stand-in getDocument" }})
+    viewer.use({EventBus: class { constructor() { this.stood = "in" } }})
+    var pdfjsLib = await import("pdfjs-dist/build/pdf.min.mjs")
+    var pdfjsViewer = await import("pdfjs-dist/web/pdf_viewer.mjs")
+    assert.equal(pdfjsLib.getDocument(), "stand-in getDocument")
+    assert.equal(new pdfjsViewer.EventBus().stood, "in")
+    assert.equal(typeof Worker, "function")
+    lib.use(null)
+    viewer.use(null)
 })
