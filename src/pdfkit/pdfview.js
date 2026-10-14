@@ -2,6 +2,7 @@ import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
 import { required, typed, instance, optional, enumeration, arrayOf, Bool, Float } from "../utils/required.js"
+import { NSNotFound } from "../foundation/nsrange.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
 import { PDFSelection, selectionForMatch } from "./pdfselection.js"
@@ -158,10 +159,13 @@ export class PDFView extends UIView {
     // go(to:)
     /**
      * @param {object} options
-     * @param {*} options.to
+     * @param {PDFPage} options.to
      */
     go({to} = {}) {
         required(to, "to", _pageType, "PDFView.go(to:)", "Apple's is go(to:); write go({to: page}).")
+        // A bare PDFPage() or another document's page carries an index that means
+        // nothing here; Apple's go(to:) ignores it rather than turning to some page.
+        if (!this._document || this._document.index({for: to}) === NSNotFound) { return }
         this._pdfViewer.currentPageNumber = to._index + 1
     }
 

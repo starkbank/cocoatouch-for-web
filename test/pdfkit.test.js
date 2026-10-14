@@ -363,6 +363,24 @@ test("currentPage and go(to:) round-trip; PDFViewPageChanged fires only on a rea
     uninstallPdfjs()
 })
 
+// 6b. go(to:) ignores a page that is not in the displayed document, as Apple's does.
+test("go(to:) leaves currentPageNumber alone for a bare PDFPage and for a page of another document, and still turns to its own", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 2, pages: [fakePage([]), fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    var other = new PDFDocument({url: "/b.pdf"})
+    view.document = doc
+    await flush()
+    assert.equal(view._pdfViewer.currentPageNumber, 1)
+    assert.doesNotThrow(function() { view.go({to: new PDFPage()}) })
+    assert.equal(view._pdfViewer.currentPageNumber, 1, "a bare PDFPage belongs to no document")
+    view.go({to: other.page({at: 1})})
+    assert.equal(view._pdfViewer.currentPageNumber, 1, "a page of another document must not turn to its index here")
+    view.go({to: doc.page({at: 1})})
+    assert.equal(view._pdfViewer.currentPageNumber, 2, "a page of the shown document still navigates")
+    uninstallPdfjs()
+})
+
 // 7. scaleFactor clamps to min/max.
 test("scaleFactor clamps to minScaleFactor and maxScaleFactor", function() {
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
