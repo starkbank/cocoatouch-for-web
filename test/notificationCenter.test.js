@@ -1,7 +1,8 @@
 import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIResponder, NotificationCenter } from "../src/index.js"
+import { UIResponder, NotificationCenter, NSNotification } from "../src/index.js"
+import { defineNotificationNames } from "../src/foundation/nsnotification.js"
 
 
 test("two observers of the same name both receive the notification", function() {
@@ -86,4 +87,38 @@ test("an observer removed while a notification is delivered is skipped", functio
     NotificationCenter.default.post({name: "step"})
     assert.equal(hits, 0)
     NotificationCenter.default.removeObserver(a)
+})
+
+
+// NSNotification.Name is the namespace every framework hangs its notification
+// constants off, as `extension NSNotification.Name { static let ... }` does.
+test("NSNotification.Name is a namespace frameworks extend; a defined name is enumerable and non-writable", function() {
+    defineNotificationNames({PDFTestPing: "PDFTestPing"})
+    assert.equal(NSNotification.Name.PDFTestPing, "PDFTestPing")
+    assert.ok(Object.keys(NSNotification.Name).includes("PDFTestPing"))
+    var descriptor = Object.getOwnPropertyDescriptor(NSNotification.Name, "PDFTestPing")
+    assert.equal(descriptor.enumerable, true)
+    assert.equal(descriptor.writable, false)
+    assert.equal(descriptor.configurable, false)
+    assert.throws(function() { NSNotification.Name.PDFTestPing = "other" }, TypeError)
+
+    var seen = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFTestPing, selector: function(n) { seen.push(n.name) }})
+    NotificationCenter.default.post({name: NSNotification.Name.PDFTestPing})
+    NotificationCenter.default.removeObserver(observer)
+    assert.deepEqual(seen, ["PDFTestPing"])
+})
+
+test("redefining a notification name with a different value throws naming the constant; the same value is a no-op", function() {
+    defineNotificationNames({PDFTestRedefine: "PDFTestRedefine"})
+    assert.doesNotThrow(function() { defineNotificationNames({PDFTestRedefine: "PDFTestRedefine"}) })
+    assert.throws(function() { defineNotificationNames({PDFTestRedefine: "somethingElse"}) }, /PDFTestRedefine/)
+    assert.equal(NSNotification.Name.PDFTestRedefine, "PDFTestRedefine")
+})
+
+test("defineNotificationNames is framework-internal: Foundation's public entry does not export it", async function() {
+    var foundation = await import("../src/foundation/index.js")
+    assert.equal(foundation.defineNotificationNames, undefined)
+    assert.equal(foundation.NSNotification, NSNotification)
 })
