@@ -582,32 +582,53 @@ test("clearing highlightedSelections posts no end-of-find; a real search still p
     uninstallPdfjs()
 })
 
-// 14. Option mapping: literal -> matchDiacritics, never entireWord; caseInsensitive flips caseSensitive.
-test("find option mapping: no options defaults to caseSensitive true; .caseInsensitive flips it; .literal maps to matchDiacritics, never entireWord; .backwards maps to findPrevious", async function() {
+// 14. Option mapping, Apple-exact: caseSensitive is the absence of
+// .caseInsensitive; entireWord is never set; matchDiacritics is true unless
+// .diacriticInsensitive is given (Apple's default compare is diacritic-
+// sensitive) and .literal always wins over it; .backwards is findPrevious.
+test("find option mapping: no options is case- and diacritic-sensitive; .caseInsensitive flips caseSensitive; .diacriticInsensitive flips matchDiacritics and .literal wins over it; entireWord is never set; .backwards maps to findPrevious", async function() {
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "a", hasEOL: false}])]})})
     var view = makeView()
     var doc = new PDFDocument({url: "/a.pdf"})
     view.document = doc
     await flush()
 
-    doc.beginFindString("x")
-    var last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
+    function dispatchedFor(options) {
+        doc.beginFindString("x", {withOptions: options})
+        return view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
+    }
+
+    var last = dispatchedFor([])
     assert.equal(last.caseSensitive, true)
     assert.equal(last.entireWord, false)
-    assert.equal(last.matchDiacritics, false)
+    assert.equal(last.matchDiacritics, true)
+    assert.equal(last.findPrevious, false)
 
-    doc.beginFindString("x", {withOptions: [NSString.CompareOptions.caseInsensitive]})
+    doc.beginFindString("x")
     last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
+    assert.equal(last.matchDiacritics, true, "omitting withOptions is the empty option set")
+
+    last = dispatchedFor([NSString.CompareOptions.caseInsensitive])
     assert.equal(last.caseSensitive, false)
+    assert.equal(last.matchDiacritics, true)
 
-    doc.beginFindString("x", {withOptions: [NSString.CompareOptions.literal]})
-    last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
+    last = dispatchedFor([NSString.CompareOptions.diacriticInsensitive])
+    assert.equal(last.matchDiacritics, false)
+    assert.equal(last.caseSensitive, true)
+
+    last = dispatchedFor([NSString.CompareOptions.literal])
     assert.equal(last.matchDiacritics, true)
     assert.equal(last.entireWord, false)
 
-    doc.beginFindString("x", {withOptions: [NSString.CompareOptions.backwards]})
-    last = view._eventBus.calls.filter(function(c) { return c.name === "find" }).pop().data
+    last = dispatchedFor([NSString.CompareOptions.literal, NSString.CompareOptions.diacriticInsensitive])
+    assert.equal(last.matchDiacritics, true, ".literal wins even alongside .diacriticInsensitive")
+
+    last = dispatchedFor([NSString.CompareOptions.backwards])
     assert.equal(last.findPrevious, true)
+
+    for (var options of [[], [NSString.CompareOptions.literal], [NSString.CompareOptions.caseInsensitive, NSString.CompareOptions.diacriticInsensitive, NSString.CompareOptions.backwards]]) {
+        assert.equal(dispatchedFor(options).entireWord, false)
+    }
     uninstallPdfjs()
 })
 
