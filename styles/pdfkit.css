@@ -1,0 +1,12 @@
+/* pdf.js's viewer stylesheet sets `:root { color-scheme: light dark }` because
+   it assumes it owns the page. Embedded it does not, and that one declaration
+   hands the host app's default colours to the OS theme on every page that
+   imports PDFKit — including pages with no PDF on them. Apple's PDFView
+   changes no app's appearance, so it is reset to the initial value here.
+   Nothing inside the viewer is affected: pdf.js scopes `only light` onto
+   .textLayer, .annotationLayer and .xfaLayer and `light dark` onto its own
+   comment widgets, so every element that cares already sets its own
+   (pdfjs-dist@6.4.299 web/pdf_viewer.css, lines 649, 812, 1285, 2714, 3202). */
+:root {
+    color-scheme: normal;
+}
