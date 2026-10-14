@@ -4,6 +4,7 @@ import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
 import { PDFSelection } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
+import { PDFDisplayDirection } from "./pdfdisplaydirection.js"
 
 
 export {
@@ -12,5 +13,6 @@ export {
     PDFPage,
     PDFSelection,
     PDFDisplayMode,
+    PDFDisplayDirection,
     PDFDocumentFoundSelectionKey,
 }
