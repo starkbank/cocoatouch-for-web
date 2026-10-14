@@ -6,6 +6,8 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, NotificationCenter, NSNotification, NSString, PDFDocumentFoundSelectionKey } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
+import { pageIn } from "../src/pdfkit/pdfpage.js"
+import { selectionForMatch } from "../src/pdfkit/pdfselection.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -526,7 +528,8 @@ test("currentSelection and clearSelection post PDFViewSelectionChanged; clearing
     var posts = []
     var observer = {}
     NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewSelectionChanged, selector: function() { posts.push(1) }})
-    var selection = new PDFSelection({string: "hello", pages: []})
+    var doc = new PDFDocument({url: "/a.pdf"})
+    var selection = selectionForMatch({document: doc, string: "hello", pages: []})
     view.currentSelection = selection
     assert.equal(view.currentSelection, selection)
     assert.equal(posts.length, 1)
@@ -896,12 +899,12 @@ test("setCurrentSelection(_:animate:) scrolls when animated is true, not when it
     var view = makeView()
     var doc = new PDFDocument({url: "/a.pdf"})
     view.document = doc
-    var page = new PDFPage(doc, 0)
-    var selection = new PDFSelection({string: "x", pages: [page]})
+    var page = pageIn(doc, 0)
+    var selection = selectionForMatch({document: doc, string: "x", pages: [page]})
 
     view.setCurrentSelection(selection, {animate: false})
     assert.equal(view._pdfViewer.scrollCalls.length, 0)
-    view.setCurrentSelection(new PDFSelection({string: "y", pages: [page]}), {animate: true})
+    view.setCurrentSelection(selectionForMatch({document: doc, string: "y", pages: [page]}), {animate: true})
     assert.equal(view._pdfViewer.scrollCalls.length, 1)
     assert.equal(view._pdfViewer.scrollCalls[0].pageNumber, 1)
     uninstallPdfjs()
@@ -982,20 +985,21 @@ test("stepping to another match drives the renderer's own find-again pointer, in
     uninstallPdfjs()
 })
 
-// A manually-built selection (Apple's generic path: an app can set
-// currentSelection to any PDFSelection it constructs itself, not only a find
-// result) carries no matchOrdinal, so this must fall back to the plain
-// scroll exactly as before — the "again" path is only for find results.
+// A selection not built by a find carries no matchOrdinal, so this must fall
+// back to the plain scroll exactly as before — the "again" path is only for
+// find results. Apple's public PDFSelection(document:) builds an empty one an
+// app cannot fill, so the regression is exercised through the module-private
+// factory the framework itself builds find results with.
 test("setCurrentSelection with a selection that carries no matchOrdinal still only scrolls, never dispatches again", function() {
     installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
     var view = makeView()
     var doc = new PDFDocument({url: "/a.pdf"})
     view.document = doc
-    var page = new PDFPage(doc, 0)
+    var page = pageIn(doc, 0)
 
-    view.setCurrentSelection(new PDFSelection({string: "a", pages: [page]}), {animate: true})
+    view.setCurrentSelection(selectionForMatch({document: doc, string: "a", pages: [page]}), {animate: true})
     var before = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
-    view.setCurrentSelection(new PDFSelection({string: "b", pages: [page]}), {animate: true})
+    view.setCurrentSelection(selectionForMatch({document: doc, string: "b", pages: [page]}), {animate: true})
     var after = view._eventBus.calls.filter(function(c) { return c.name === "find" }).length
     assert.equal(after, before)
     assert.equal(view._pdfViewer.scrollCalls.length, 2)
@@ -1252,4 +1256,54 @@ test("currentSelection = null does the same; a non-selection throws naming PDFVi
     assert.equal(posts.length, 1)
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
+})
+
+// Apple's PDFPage() takes no arguments; a page the document hands out is the
+// framework's own, built by the module-private pageIn, never a public initializer.
+test("new PDFPage() has no document and no label; page(at:) returns the identical object across calls", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 2, pages: [fakePage([]), fakePage([])], labels: ["i", "ii"]})})
+    var bare = new PDFPage()
+    assert.equal(bare.document, null)
+    assert.equal(bare.label, null)
+
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+    assert.equal(doc.page({at: 0}), doc.page({at: 0}))
+    assert.notEqual(doc.page({at: 0}), doc.page({at: 1}))
+    assert.equal(doc.page({at: 0}).document, doc)
+    assert.equal(doc.page({at: 1}).label, "ii", "an attached page keeps the page-labels logic")
+    uninstallPdfjs()
+})
+
+test("an attached page without a page-labels entry labels itself with its 1-based number", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 2, pages: [fakePage([]), fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+    assert.equal(doc.page({at: 1}).label, "2")
+    uninstallPdfjs()
+})
+
+// Apple's PDFSelection(document:) is empty until extended, and PDFKit cannot
+// extend one (add/extend are not backable), so it stays empty.
+test("new PDFSelection({document}) is empty; omitting the document throws naming PDFSelection(document:)", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var doc = new PDFDocument({url: "/a.pdf"})
+    var selection = new PDFSelection({document: doc})
+    assert.equal(selection.string, "")
+    assert.deepEqual(selection.pages, [])
+    assert.throws(function() { new PDFSelection() }, /PDFSelection\(document:\)/)
+    assert.throws(function() { new PDFSelection({}) }, /PDFSelection\(document:\)/)
+    assert.throws(function() { new PDFSelection({document: "not a document"}) }, /PDFSelection\(document:\)/)
+    assert.throws(function() { new PDFSelection({document: null}) }, /PDFSelection\(document:\)/)
+    uninstallPdfjs()
+})
+
+test("neither module-private factory is part of PDFKit's public surface", async function() {
+    var pdfkit = await import("../src/pdfkit/index.js")
+    assert.equal(pdfkit.selectionForMatch, undefined)
+    assert.equal(pdfkit.pageIn, undefined)
 })

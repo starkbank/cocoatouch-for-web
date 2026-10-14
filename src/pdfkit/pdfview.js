@@ -4,7 +4,7 @@ import { NSNotification } from "../foundation/nsnotification.js"
 import { required, typed, instance, optional, enumeration, Float } from "../utils/required.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
-import { PDFSelection } from "./pdfselection.js"
+import { PDFSelection, selectionForMatch } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
 import "./notifications.js"
 import { pdfjsLib as _pdfjsLib, pdfjsViewer as _pdfjsViewer, assertTextLayerStylesheet } from "./pdfjsGlobals.js"
@@ -350,18 +350,12 @@ export class PDFView extends UIView {
     // proxy was destroyed out from under this call — yields no match rather
     // than an unhandled rejection that would otherwise strand every match
     // still pending for this search and leave DidEndFind never posted.
-    // matchOrdinal is PDFView's own bookkeeping for _setSelection's direction
-    // check, not a PDFSelection constructor label — Apple's PDFSelection has
-    // no such property, so it is set on the instance after construction, the
-    // same way PDFDocument._attachedView is, rather than added to the public
-    // shape PDFSelection's constructor accepts.
     _reportMatch({pageIndex, offset, length, generation, document, matchOrdinal}) {
         return this._textFor(pageIndex).then(
             (text) => {
                 if (generation !== this._findGeneration) { return }
                 var page = document.page({at: pageIndex})
-                var selection = new PDFSelection({string: text.slice(offset, offset + length), pages: page ? [page] : []})
-                selection._matchOrdinal = matchOrdinal
+                var selection = selectionForMatch({document: document, string: text.slice(offset, offset + length), pages: page ? [page] : [], matchOrdinal: matchOrdinal})
                 document._postFindMatch(selection, generation)
             },
             (reason) => {
