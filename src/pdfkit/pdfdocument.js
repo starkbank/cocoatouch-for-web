@@ -3,7 +3,7 @@ import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
 import { NSString } from "../foundation/nsstring.js"
 import { PDFDocumentFoundSelectionKey } from "./notifications.js"
-import { PDFPage } from "./pdfpage.js"
+import { PDFPage, pageIn } from "./pdfpage.js"
 import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
 
@@ -100,7 +100,7 @@ export class PDFDocument {
      */
     page({at} = {}) {
         if (at < 0 || at >= this._pageCount) { return null }
-        if (!this._pages.has(at)) { this._pages.set(at, new PDFPage(this, at)) }
+        if (!this._pages.has(at)) { this._pages.set(at, pageIn(this, at)) }
         return this._pages.get(at)
     }
 
