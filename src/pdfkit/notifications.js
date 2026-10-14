@@ -17,3 +17,9 @@ defineNotificationNames({
     PDFDocumentDidFindMatch: "PDFDocumentDidFindMatch",
     PDFDocumentDidEndFind: "PDFDocumentDidEndFind",
 })
+
+
+// The userInfo key DidFindMatch carries its PDFSelection under, Apple's
+// PDFDocumentFoundSelectionKey. The other PDFKit notifications carry no
+// userInfo at all, so this is the only key PDFKit publishes.
+export const PDFDocumentFoundSelectionKey = "PDFDocumentFoundSelection"
