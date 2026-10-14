@@ -9,7 +9,7 @@ import { PDFSelection, selectionForMatch } from "./pdfselection.js"
 import { PDFDisplayMode } from "./pdfdisplaymode.js"
 import { PDFDisplayDirection } from "./pdfdisplaydirection.js"
 import "./notifications.js"
-import { pdfjsLib as _pdfjsLib, pdfjsViewer as _pdfjsViewer, assertTextLayerStylesheet } from "./pdfjsGlobals.js"
+import { pdfjsLib, pdfjsViewer, assertTextLayerStylesheet } from "./pdfjs.js"
 
 
 const _documentType = optional(instance(PDFDocument, "PDFDocument"))
@@ -28,8 +28,6 @@ export class PDFView extends UIView {
 
     awakeFromNib() {
         assertTextLayerStylesheet()
-        var pdfjsLib = _pdfjsLib()
-        var pdfjsViewer = _pdfjsViewer()
 
         var host = this.$el[0]
         var viewerElement = document.createElement("div")
@@ -407,7 +405,7 @@ export class PDFView extends UIView {
     // takes the axis, spreadMode the pairing, so both setters route here and
     // neither can leave the other's half stale.
     _applyDisplayMode() {
-        var mapped = _scrollAndSpreadFor(this._displayMode, this._displayDirection, _pdfjsViewer())
+        var mapped = _scrollAndSpreadFor(this._displayMode, this._displayDirection, pdfjsViewer)
         this._pdfViewer.scrollMode = mapped.scrollMode
         this._pdfViewer.spreadMode = mapped.spreadMode
     }

@@ -5,7 +5,7 @@ import { NSString } from "../foundation/nsstring.js"
 import { PDFDocumentFoundSelectionKey } from "./notifications.js"
 import { NSNotFound } from "../foundation/nsrange.js"
 import { PDFPage, pageIn } from "./pdfpage.js"
-import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
+import { pdfjsLib, pdfjsRendererOptions } from "./pdfjs.js"
 
 
 const _pageType = instance(PDFPage, "PDFPage")
@@ -65,9 +65,9 @@ function _validateScheme(url) {
 
 // PDFKit's PDFDocument: a parsed PDF, independent of any PDFView showing it,
 // as in PDFKit. Loading is asynchronous — pdf.js has no other way to do it —
-// but nothing about that asynchrony is new API: the host globals are read
-// synchronously in the constructor, same as everywhere else in PDFKit, and
-// only the network fetch that follows is a promise.
+// but nothing about that asynchrony is new API: the constructor starts the
+// load synchronously, same as everywhere else in PDFKit, and only the network
+// fetch that follows is a promise.
 export class PDFDocument {
 
     // PDFDocument(url:)
@@ -90,7 +90,7 @@ export class PDFDocument {
         this._isFinding = false
         this._delegate = null
 
-        this._loadingTask = _pdfjsLib().getDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
+        this._loadingTask = pdfjsLib.getDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
         this._loadingTask.promise.then(
             (proxy) => this._didLoad(proxy),
             (reason) => this._didFail(reason)

@@ -6,9 +6,11 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, PDFDocumentFoundSelectionKey } from "../src/pdfkit/index.js"
 import { NotificationCenter, NSNotification, NSString, NSNotFound } from "../src/index.js"
-import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjsGlobals.js"
+import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjs.js"
 import { pageIn } from "../src/pdfkit/pdfpage.js"
 import { selectionForMatch } from "../src/pdfkit/pdfselection.js"
+import * as pdfjsLibSeam from "./pdfjs/lib.mjs"
+import * as pdfjsViewerSeam from "./pdfjs/viewer.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -179,7 +181,7 @@ function fakePdfjsLib({resolve, reject} = {}) {
     _getDocumentCalls = []
     return {
         version: "6.4.299",
-        GlobalWorkerOptions: {workerSrc: "/static/pdfjs/pdf.worker.min.mjs"},
+        GlobalWorkerOptions: {},
         AnnotationMode: {ENABLE: 1},
         getDocument: function(options) {
             _getDocumentCalls.push(options)
@@ -199,13 +201,13 @@ function fakePdfjsLib({resolve, reject} = {}) {
 }
 
 function installPdfjs(options) {
-    globalThis.pdfjsLib = fakePdfjsLib(options)
-    globalThis.pdfjsViewer = fakePdfjsViewer()
+    pdfjsLibSeam.use(fakePdfjsLib(options))
+    pdfjsViewerSeam.use(fakePdfjsViewer())
 }
 
 function uninstallPdfjs() {
-    delete globalThis.pdfjsLib
-    delete globalThis.pdfjsViewer
+    pdfjsLibSeam.use(null)
+    pdfjsViewerSeam.use(null)
 }
 
 // Builds a connected host element with a PDFView bound to it. awakeFromNib
@@ -224,18 +226,6 @@ async function flush() {
     for (var i = 0; i < 10; i++) { await Promise.resolve() }
 }
 
-
-// 1. Missing globals and an empty workerSrc, both at first use.
-test("missing pdfjsLib throws naming pdf.js; an empty GlobalWorkerOptions.workerSrc throws naming it", function() {
-    uninstallPdfjs()
-    assert.throws(function() { new PDFDocument({url: "/a.pdf"}) }, /pdfjsLib.*pdf\.js/s)
-
-    globalThis.pdfjsLib = fakePdfjsLib({resolve: fakeProxy({numPages: 0, pages: []})})
-    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = ""
-    globalThis.pdfjsViewer = fakePdfjsViewer()
-    assert.throws(function() { new PDFDocument({url: "/a.pdf"}) }, /workerSrc/)
-    uninstallPdfjs()
-})
 
 // 2. The stylesheet probe, measured on a document-attached element.
 test("an unstyled .textLayer throws naming pdf_viewer.css and pdfjsLib.version", function() {
