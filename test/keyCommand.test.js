@@ -130,3 +130,59 @@ test("a plain character key command is still swallowed by a focused text input, 
         page("")
     }
 })
+
+test("one control binding command and control on the same chord runs only the control method off Apple", function() {
+    var bindings = {viaCommand: command + UIKeyCommand.input("k"), viaControl: control + UIKeyCommand.input("k")}
+    for (var systemName of offApple) {
+        assert.deepEqual(pressed(systemName, bindings, "k", {ctrlKey: true}), ["viaControl"], systemName)
+    }
+})
+
+test("on macOS one control binding command and control on the same key runs each on its own chord", function() {
+    var bindings = {viaCommand: command + UIKeyCommand.input("k"), viaControl: control + UIKeyCommand.input("k")}
+    assert.deepEqual(pressed(mac, bindings, "k", {metaKey: true}), ["viaCommand"])
+    assert.deepEqual(pressed(mac, bindings, "k", {ctrlKey: true}), ["viaControl"])
+})
+
+test("two methods bound to the identical chord on one control both fire, on macOS and off", function() {
+    var chord = control + UIKeyCommand.input("k")
+    var bindings = {first: chord, second: chord}
+    for (var systemName of [mac, windows]) {
+        assert.deepEqual(pressed(systemName, bindings, "k", {ctrlKey: true}).sort(), ["first", "second"], systemName)
+    }
+    var commandChord = command + UIKeyCommand.input("k")
+    assert.deepEqual(pressed(windows, {first: commandChord, second: commandChord}, "k", {ctrlKey: true}).sort(), ["first", "second"])
+})
+
+test("a plain binding is no twin of a command binding: both run on Ctrl+F off Apple", function() {
+    var bindings = {typed: UIKeyCommand.input("f"), find: command + UIKeyCommand.input("f")}
+    assert.deepEqual(pressed(windows, bindings, "f", {ctrlKey: true}).sort(), ["find", "typed"])
+})
+
+test("a command binding on one control and a control binding on another both fire off Apple", function() {
+    var fired = []
+    var first = bound(fired, {viaCommand: command + UIKeyCommand.input("k")})
+    var second = bound(fired, {viaControl: control + UIKeyCommand.input("k")})
+    try {
+        onPlatform(windows, function() { keydown("k", {ctrlKey: true}) })
+    } finally {
+        first._dispose()
+        second._dispose()
+    }
+    assert.deepEqual(fired.sort(), ["viaCommand", "viaControl"])
+})
+
+test("with focus inside the control, one Ctrl+K off Apple still runs only the control method", function() {
+    page("<div id=\"panel\"><input id=\"field\"></div>")
+    var fired = []
+    var controller = bound(fired, {viaCommand: command + UIKeyCommand.input("k"), viaControl: control + UIKeyCommand.input("k")})
+    controller.selector = "#panel"
+    try {
+        document.getElementById("field").focus()
+        onPlatform(windows, function() { keydown("k", {ctrlKey: true}) })
+    } finally {
+        controller._dispose()
+        page("")
+    }
+    assert.deepEqual(fired, ["viaControl"])
+})
