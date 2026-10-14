@@ -242,6 +242,30 @@ export class PDFView extends UIView {
         this._viewerElement.classList.toggle("removePageBorders", !value)
     }
 
+    // Pull-based on purpose: Apple's PDFViewVisiblePagesChanged would have to
+    // measure every page's rect at scroll rate, so it is not published, and
+    // this measures once per read instead. Only pdf.js's public pagesCount and
+    // getPageView(_:).div are read — its own _getVisiblePages is private. The
+    // test is the page-view rect against the host's, on both axes, because
+    // horizontal and wrapped layouts put pages side by side.
+    get visiblePages() {
+        if (!this._document) { return [] }
+        var container = this.$el[0].getBoundingClientRect()
+        var visible = []
+        var count = this._pdfViewer.pagesCount
+        for (var index = 0; index < count; index++) {
+            var pageView = this._pdfViewer.getPageView(index)
+            if (!pageView || !pageView.div) { continue }
+            var rect = pageView.div.getBoundingClientRect()
+            var overlapsHorizontally = rect.left < container.right && rect.right > container.left
+            var overlapsVertically = rect.top < container.bottom && rect.bottom > container.top
+            if (!overlapsHorizontally || !overlapsVertically) { continue }
+            var page = this._document.page({at: index})
+            if (page) { visible.push(page) }
+        }
+        return visible
+    }
+
     get currentSelection() {
         return this._currentSelection
     }
