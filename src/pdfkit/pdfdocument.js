@@ -1,12 +1,14 @@
-import { required, typed, arrayOf, enumeration, StringType } from "../utils/required.js"
+import { required, typed, arrayOf, enumeration, instance, StringType } from "../utils/required.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
 import { NSString } from "../foundation/nsstring.js"
 import { PDFDocumentFoundSelectionKey } from "./notifications.js"
+import { NSNotFound } from "../foundation/nsrange.js"
 import { PDFPage, pageIn } from "./pdfpage.js"
 import { pdfjsLib as _pdfjsLib, pdfjsRendererOptions } from "./pdfjsGlobals.js"
 
 
+const _pageType = instance(PDFPage, "PDFPage")
 const _compareOptionsType = arrayOf(enumeration(NSString.CompareOptions, "NSString.CompareOptions"))
 
 // Apple's find is case-sensitive unless .caseInsensitive is given, and
@@ -102,6 +104,18 @@ export class PDFDocument {
         if (at < 0 || at >= this._pageCount) { return null }
         if (!this._pages.has(at)) { this._pages.set(at, pageIn(this, at)) }
         return this._pages.get(at)
+    }
+
+    // index(for:) — NSNotFound for a page this document does not own, which
+    // includes a bare PDFPage(), as Apple's does.
+    /**
+     * @param {object} options
+     * @param {PDFPage} options.for
+     */
+    index({for: page} = {}) {
+        required(page, "for", _pageType, "PDFDocument.index(for:)", "Apple's is index(for:); write doc.index({for: page}).")
+        if (page._document !== this) { return NSNotFound }
+        return page._index
     }
 
     // beginFindString(_:withOptions:) — Apple's find is asynchronous here
