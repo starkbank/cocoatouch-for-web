@@ -2,6 +2,7 @@ import { UIViewController } from "../uikit/uiviewcontroller.js"
 import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { inspectableValue } from "../uikit/ibinspectable.js"
+import { UIDevice } from "../uikit/uidevice.js"
 
 
 export class Bind {
@@ -319,10 +320,31 @@ function _bindKeyboardAction(control, action) {
     NotificationCenter.default.addObserver(control, {selector: selector, name: "keydown", object: document})
 }
 
-function _keyMatches(binding, e) {
-    if (e.key !== binding.key) { return false }
-    if (binding.modifiers.length === 0) { return true }
-    return binding.requiresMeta === e.metaKey && binding.requiresShift === e.shiftKey && binding.requiresAlt === e.altKey && binding.requiresCtrl === e.ctrlKey
+// Command exists on Apple hardware only. Elsewhere the Control key carries the
+// same shortcuts (Ctrl+F, Ctrl+K) and the Windows or Super key belongs to the OS.
+const commandKeyPlatforms = /^(Mac|iPhone|iPad|iPod)/i
+
+// Read per keydown, not cached at load: a test stands in a platform through
+// UIDevice._current, and one anchored regex per keystroke is not worth a cache.
+function _usesCommandKey() {
+    return commandKeyPlatforms.test(UIDevice.current.systemName)
+}
+
+// null when the event is not the binding's chord. "substituted" marks a chord
+// that matched through Control standing in for Command, so a twin binding on
+// Control itself can be told apart and not run twice.
+function _matchKind(binding, e, usesCommandKey) {
+    if (e.key !== binding.key) { return null }
+    if (binding.modifiers.length === 0) { return "native" }
+    if (usesCommandKey) {
+        var matches = binding.requiresMeta === e.metaKey && binding.requiresShift === e.shiftKey && binding.requiresAlt === e.altKey && binding.requiresCtrl === e.ctrlKey
+        return matches ? "native" : null
+    }
+    if (binding.requiresMeta && binding.requiresCtrl) { return null }
+    if (e.metaKey) { return null }
+    var effectiveCtrl = binding.requiresCtrl || binding.requiresMeta
+    if (e.ctrlKey !== effectiveCtrl || e.shiftKey !== binding.requiresShift || e.altKey !== binding.requiresAlt) { return null }
+    return binding.requiresMeta ? "substituted" : "native"
 }
 
 // A text input that is first responder consumes the characters typed into it,
@@ -348,7 +370,8 @@ function _depth(element) {
 function _dispatchKey(e) {
     _keyBindings = _keyBindings.filter(function(binding) { return !binding.control._disposed })
     var active = document.activeElement && document.activeElement !== document.body ? document.activeElement : null
-    var matching = _keyBindings.filter(function(binding) { return _keyMatches(binding, e) && !_isTypedInto(binding, active) })
+    var usesCommandKey = _usesCommandKey()
+    var matching = _keyBindings.filter(function(binding) { return _matchKind(binding, e, usesCommandKey) !== null && !_isTypedInto(binding, active) })
     if (matching.length === 0) { return }
     e.preventDefault()
     var chain = [], others = []
