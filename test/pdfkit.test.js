@@ -1076,7 +1076,9 @@ test("required()/typed() guards throw naming the method and the Swift signature"
     assert.throws(function() { new PDFDocument({}) }, /PDFDocument\(url:\)/)
     var view = makeView()
     assert.throws(function() { view.go({}) }, /PDFView\.go\(to:\)/)
-    assert.throws(function() { view.setCurrentSelection(null) }, /PDFView\.setCurrentSelection\(_:animate:\)/)
+    assert.throws(function() { view.setCurrentSelection("not a selection") }, /PDFView\.setCurrentSelection\(_:animate:\)/)
+    assert.throws(function() { view.setCurrentSelection() }, /PDFView\.setCurrentSelection\(_:animate:\)/)
+    assert.doesNotThrow(function() { view.setCurrentSelection(null) }, "Apple's selection is PDFSelection?, so nil is a value, not a missing argument")
     assert.throws(function() { view.document = "not a document" }, /PDFView\.document/)
     uninstallPdfjs()
 })
@@ -1203,6 +1205,51 @@ test("displayMode posts exactly one PDFViewDisplayModeChanged per set", function
     assert.equal(posts.length, 3)
     assert.throws(function() { view.displayMode = "nope" }, /PDFView\.displayMode/)
     assert.equal(posts.length, 3, "a refused set posts nothing")
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// Apple's setCurrentSelection(_:animate:) takes a PDFSelection?; nil clears.
+test("setCurrentSelection(null) clears, posts PDFViewSelectionChanged and scrolls nothing; a non-selection throws", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    var selection = new PDFSelection({document: doc})
+    view.setCurrentSelection(selection, {animate: false})
+    assert.equal(view.currentSelection, selection)
+
+    var posts = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewSelectionChanged, selector: function() { posts.push(1) }})
+    view.setCurrentSelection(null, {animate: true})
+    assert.equal(view.currentSelection, null)
+    assert.equal(posts.length, 1)
+    assert.equal(view._pdfViewer.scrollCalls.length, 0, "clearing scrolls nothing, even animated")
+    assert.throws(function() { view.setCurrentSelection({string: "x", pages: []}) }, /PDFView\.setCurrentSelection\(_:animate:\)/)
+    assert.throws(function() { view.setCurrentSelection(undefined) }, /PDFView\.setCurrentSelection\(_:animate:\)/)
+    assert.equal(posts.length, 1)
+    NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+test("currentSelection = null does the same; a non-selection throws naming PDFView.currentSelection", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    view.currentSelection = new PDFSelection({document: doc})
+
+    var posts = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: NSNotification.Name.PDFViewSelectionChanged, selector: function() { posts.push(1) }})
+    view.currentSelection = null
+    assert.equal(view.currentSelection, null)
+    assert.equal(posts.length, 1)
+    assert.equal(view._pdfViewer.scrollCalls.length, 0)
+    assert.throws(function() { view.currentSelection = "not a selection" }, /PDFView\.currentSelection/)
+    assert.throws(function() { view.currentSelection = undefined }, /PDFView\.currentSelection/)
+    assert.equal(posts.length, 1)
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
