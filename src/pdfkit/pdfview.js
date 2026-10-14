@@ -498,15 +498,24 @@ export class PDFView extends UIView {
     }
 
     // PDFSelection.string is never derived from pdf.js's private per-page
-    // cache: it reproduces pdf.js's own join — items' str, plus "\n" where
-    // hasEOL — from the page's public getTextContent(), the same text the
-    // match offsets were computed against (ruling 3c). Returns the promise so
-    // _findDidComplete can wait for every match of a search to post before
-    // posting that search's end. A page whose text cannot be read — most
-    // realistically because the document was replaced mid-search and the old
-    // proxy was destroyed out from under this call — yields no match rather
-    // than an unhandled rejection that would otherwise strand every match
-    // still pending for this search and leave DidEndFind never posted.
+    // cache: it is sliced from the page's public getTextContent(), as the
+    // concatenation of the items' str with NO separator. That is not what
+    // pdf.js's extraction visibly builds, which pushes "\n" after an item with
+    // hasEOL, and the next reader will be tempted to restore the newline. Do
+    // not: measured against pdfjs-dist@6.4.299, the PDFFindController's
+    // published pageMatches offsets index the EOL-free concatenation, because
+    // normalize() consumes the EOL and getOriginalIndex maps back past it, so
+    // a join with "\n" shifts every match by one character per preceding line
+    // break (" PDFKi" for "PDFKit"). The text is read with
+    // disableNormalization, the option pdf.js extracts its own find text with,
+    // so the two strings cannot diverge on a ligature or an NFKC-normalizable
+    // character either. Returns the promise so _findDidComplete can wait for
+    // every match of a search to post before posting that search's end. A page
+    // whose text cannot be read — most realistically because the document was
+    // replaced mid-search and the old proxy was destroyed out from under this
+    // call — yields no match rather than an unhandled rejection that would
+    // otherwise strand every match still pending for this search and leave
+    // DidEndFind never posted.
     _reportMatch({pageIndex, offset, length, generation, document, matchOrdinal}) {
         return this._textFor(pageIndex).then(
             (text) => {
@@ -526,8 +535,8 @@ export class PDFView extends UIView {
         if (this._pageTextCache.has(pageIndex)) { return this._pageTextCache.get(pageIndex) }
         var cache = this._pageTextCache
         var promise = this._document._proxy.getPage(pageIndex + 1)
-            .then((pageProxy) => pageProxy.getTextContent())
-            .then((content) => content.items.map((item) => item.str + (item.hasEOL ? "\n" : "")).join(""))
+            .then((pageProxy) => pageProxy.getTextContent({disableNormalization: true}))
+            .then((content) => content.items.map((item) => item.str).join(""))
         // A rejection (the document replaced mid-flight, its proxy already
         // destroyed) must not poison every later search that touches this
         // page: drop the cache entry so the next one retries the read, rather
