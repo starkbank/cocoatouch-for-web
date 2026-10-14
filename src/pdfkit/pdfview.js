@@ -175,17 +175,18 @@ export class PDFView extends UIView {
     }
 
     set currentSelection(selection) {
+        typed(selection, "currentSelection", optional(_selectionType), "PDFView.currentSelection", "Apple's is currentSelection: PDFSelection?; write pdfView.currentSelection = selection or null.")
         this._setSelection(selection, {animated: false})
     }
 
     // setCurrentSelection(_:animate:) — Apple's label is animate:, not animated:.
     /**
-     * @param {PDFSelection} selection
+     * @param {PDFSelection|null} selection
      * @param {object} [options]
      * @param {boolean} [options.animate]
      */
     setCurrentSelection(selection, {animate = false} = {}) {
-        required(selection, "selection", _selectionType, "PDFView.setCurrentSelection(_:animate:)", "Apple's is setCurrentSelection(_:animate:); write setCurrentSelection(selection, {animate: true}).")
+        typed(selection, "selection", optional(_selectionType), "PDFView.setCurrentSelection(_:animate:)", "Apple's is setCurrentSelection(_:animate:) with a PDFSelection?; write setCurrentSelection(selection, {animate: true}) or setCurrentSelection(null).")
         this._setSelection(selection, {animated: animate})
     }
 
