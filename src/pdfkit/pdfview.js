@@ -95,7 +95,13 @@ export class PDFView extends UIView {
         this.$el.on("click.pdfview", "a[href]", (event) => this._linkWasClicked(event))
 
         this._eventListeners = [
-            ["pagesinit", () => this._applyScale()],
+            ["pagesinit", () => {
+                this._applyScale()
+                // pdf.js's own pagechanging for page 1 follows and is dropped
+                // by _pageDidChange's guard, so this is the one post that
+                // tells an observer the gates and currentPage now answer.
+                this._pageDidChange({pageNumber: this._pdfViewer.currentPageNumber})
+            }],
             ["pagechanging", (evt) => this._pageDidChange(evt)],
             ["updatefindmatchescount", (evt) => this._findDidComplete(evt)],
         ]
@@ -174,29 +180,32 @@ export class PDFView extends UIView {
     // methods: the sender is whatever control fired them, and nothing here
     // reads it. Each is a no-op when its canGoTo* is false, as Apple's are.
     goToNextPage(sender = null) {
-        if (!this.canGoToNextPage) { return }
+        if (!this.canGoToNextPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = this._pdfViewer.currentPageNumber + 1
     }
 
     goToPreviousPage(sender = null) {
-        if (!this.canGoToPreviousPage) { return }
+        if (!this.canGoToPreviousPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = this._pdfViewer.currentPageNumber - 1
     }
 
     goToFirstPage(sender = null) {
-        if (!this.canGoToFirstPage) { return }
+        if (!this.canGoToFirstPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = 1
     }
 
     goToLastPage(sender = null) {
-        if (!this.canGoToLastPage) { return }
+        if (!this.canGoToLastPage || !this._pagesAreLaidOut()) { return }
         this._pdfViewer.currentPageNumber = this._pdfViewer.pagesCount
     }
 
-    // pdf.js's own pagesCount is 0 until the document has loaded into the
-    // viewer, so none of these is true before the pages exist.
+    // The gates read the document's own page count, which _didLoad fills
+    // before PDFViewDocumentChanged posts, not the viewer's pagesCount: that
+    // is 0 until pdf.js lays its pages out, after the notification. For the
+    // same reason the moves above wait for layout: a gate that is already true
+    // inside that handler must not license a move pdf.js would refuse.
     get canGoToNextPage() {
-        return !!this._document && this._pdfViewer.currentPageNumber < this._pdfViewer.pagesCount
+        return !!this._document && this._pdfViewer.currentPageNumber < this._document.pageCount
     }
 
     get canGoToPreviousPage() {
@@ -208,7 +217,7 @@ export class PDFView extends UIView {
     }
 
     get canGoToLastPage() {
-        return !!this._document && this._pdfViewer.currentPageNumber < this._pdfViewer.pagesCount
+        return !!this._document && this._pdfViewer.currentPageNumber < this._document.pageCount
     }
 
     get scaleFactor() {
@@ -442,6 +451,10 @@ export class PDFView extends UIView {
             return
         }
         this._pdfViewer.currentScale = this._scaleFactor
+    }
+
+    _pagesAreLaidOut() {
+        return this._pdfViewer.pagesCount > 0
     }
 
     _pageDidChange(evt) {
