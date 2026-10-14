@@ -32,7 +32,11 @@ export function page(html) {
     return $(document.body)
 }
 
-export function keydown(key) {
-    var event = new window.KeyboardEvent("keydown", {key: key, bubbles: true, cancelable: true})
+// `modifiers` is KeyboardEventInit's flags, {metaKey: true, ctrlKey: true, ...};
+// the event comes back so a test can read defaultPrevented.
+export function keydown(key, modifiers) {
+    var init = Object.assign({}, modifiers, {key: key, bubbles: true, cancelable: true})
+    var event = new window.KeyboardEvent("keydown", init)
     document.dispatchEvent(event)
+    return event
 }

@@ -37,5 +37,9 @@
             <h3>Navigation</h3>
             <p>A UINavigationController: push and pop bound to browser history, with a navigation bar</p>
         </a>
+        <a id="home-pdf" class="home-option">
+            <h3>PDFKit</h3>
+            <p>A PDFView outlet and PDFDocument(url:), find with a PDFDocumentDelegate, link clicks through a PDFViewDelegate</p>
+        </a>
     </div>
 </main>

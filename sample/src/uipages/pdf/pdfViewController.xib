@@ -1,0 +1,42 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>PDFKit</h1>
+    <p class="lead">A PDFView outlet and new PDFDocument({url}) are the whole contract: PDFKit carries pdf.js itself, so this page loads no script, sets no worker and imports no stylesheet.</p>
+
+    <section class="demo">
+        <h2>PDFView and PDFDocument</h2>
+        <p>The view builds its own <code>.pdfViewer</code> inside the element it is bound to. The two buttons are enabled by <code>canGoToPreviousPage</code> and <code>canGoToNextPage</code>, refreshed on <code>PDFViewPageChanged</code>, so scrolling updates them too.</p>
+        <div class="pdf-wrapper">
+            <div id="pdf-view" class="pdf-view"></div>
+        </div>
+        <div class="row pdf-controls">
+            <button id="pdf-previous" class="button button-secondary pdf-page-button">Previous page</button>
+            <button id="pdf-next" class="button button-secondary pdf-page-button">Next page</button>
+            <span id="pdf-position" class="pdf-position"></span>
+        </div>
+        <div class="row pdf-controls">
+            <button id="pdf-mode" class="button button-secondary"></button>
+            <button id="pdf-direction" class="button button-secondary"></button>
+        </div>
+        <p class="pdf-note"><code>displayDirection</code> only moves a continuous mode's scroll axis; in <code>singlePage</code> it changes nothing.</p>
+    </section>
+
+    <section class="demo">
+        <h2>PDFDocumentDelegate</h2>
+        <p><code>beginFindString(_:withOptions:)</code> is asynchronous. The delegate on <code>document.delegate</code> hears all four methods and each one appends to the label below, so a search shows the whole sequence. "pdfkit" is on both pages; "alpha" and "omega" are on one each.</p>
+        <div class="row">
+            <label class="field pdf-field"><span>Search</span><input id="pdf-search" type="text"></label>
+            <button id="pdf-find" class="button">Find</button>
+            <button id="pdf-clear" class="button button-secondary">Clear highlights</button>
+        </div>
+        <p class="pdf-note"><code>highlightedSelections = []</code> is the documented way to clear what a find drew on screen.</p>
+        <p id="pdf-find-output" class="output pdf-transcript"></p>
+    </section>
+
+    <section class="demo">
+        <h2>PDFViewDelegate</h2>
+        <p>The PDF has one link, on page 1. Implementing <code>pdfViewWillClickOnLinkWithURL(pdfView, url)</code> is what suppresses the open: PDFKit hands the URL over and does nothing else. Remove the method and the same click opens a new tab.</p>
+        <p id="pdf-link-output" class="output"></p>
+    </section>
+</main>

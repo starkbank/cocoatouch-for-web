@@ -1,6 +1,6 @@
 {
     "name": "cocoatouch",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
@@ -85,7 +85,7 @@
     "scripts": {
         "build": "rm -rf types && tsc -p tsconfig.types.json && node scripts/globals.cjs",
         "pretest": "npm run build",
-        "test": "node --test test/*.test.js",
+        "test": "node --import ./test/register.mjs --test test/*.test.js",
         "prepack": "npm run build"
     },
     "repository": {
@@ -128,5 +128,8 @@
         "jquery-ui": {
             "optional": true
         }
+    },
+    "dependencies": {
+        "pdfjs-dist": "6.4.299"
     }
 }
