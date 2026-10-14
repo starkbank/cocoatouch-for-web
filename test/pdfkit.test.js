@@ -120,6 +120,11 @@ class FakeViewer {
     scrollPageIntoView(options) {
         this.scrollCalls.push(options)
     }
+    // pdf.js's public accessor: a PDFPageView per page, or undefined before
+    // its views exist. Tests install the views they want through pageViews.
+    getPageView(index) {
+        return this.pageViews ? this.pageViews[index] : undefined
+    }
 }
 
 // Real values at the pinned version (pdfjs-dist/web/pdf_viewer.mjs), not
@@ -1549,5 +1554,59 @@ test("displaysPageBreaks defaults true; false writes removePageBorders and PDFKi
 
     assert.throws(function() { view.displaysPageBreaks = "yes" }, /PDFView\.displaysPageBreaks/)
     assert.equal(view.displaysPageBreaks, false, "a refused set changes nothing")
+    uninstallPdfjs()
+})
+
+// jsdom lays nothing out and reports every rect as zeros, so the host and each
+// page-view div get stubbed rects here; what is under test is which pages
+// PDFKit selects from those rects and in what order, not pdf.js's layout.
+function stubRect(element, rect) {
+    element.getBoundingClientRect = function() {
+        return {left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.right - rect.left, height: rect.bottom - rect.top}
+    }
+}
+
+function pageViewAt(rect) {
+    var div = document.createElement("div")
+    stubRect(div, rect)
+    return {div: div}
+}
+
+test("visiblePages returns the pages whose page-view divs intersect the container on both axes, in page order; [] with no document or before page views exist", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 5, pages: [fakePage([]), fakePage([]), fakePage([]), fakePage([]), fakePage([])]})})
+    var view = makeView()
+    stubRect(view.$el[0], {left: 0, top: 0, right: 100, bottom: 100})
+    assert.deepEqual(view.visiblePages, [], "no document")
+
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    assert.deepEqual(view.visiblePages, [], "a document that has not loaded has no page views")
+    await flush()
+    assert.deepEqual(view.visiblePages, [], "loaded, but pdf.js has built no page views yet")
+
+    view._pdfViewer.pageViews = [
+        pageViewAt({left: 0, top: -300, right: 100, bottom: -100}),
+        pageViewAt({left: 0, top: -50, right: 100, bottom: 50}),
+        pageViewAt({left: 0, top: 50, right: 100, bottom: 150}),
+        pageViewAt({left: 0, top: 200, right: 100, bottom: 300}),
+        pageViewAt({left: 150, top: 0, right: 250, bottom: 100}),
+    ]
+    var visible = view.visiblePages
+    assert.deepEqual(visible, [doc.page({at: 1}), doc.page({at: 2})], "pages 1 and 2 overlap vertically; page 4 overlaps only on the vertical axis and sits off to the right")
+    assert.equal(visible[0], doc.page({at: 1}), "the document's own cached PDFPage, not a copy")
+
+    view._pdfViewer.pageViews[3] = undefined
+    view._pdfViewer.pageViews[1] = {div: null}
+    assert.deepEqual(view.visiblePages, [doc.page({at: 2})], "a missing page view or div is skipped, not an error")
+
+    view._pdfViewer.pageViews = [
+        pageViewAt({left: 0, top: 100, right: 100, bottom: 200}),
+        pageViewAt({left: -100, top: 0, right: 0, bottom: 100}),
+        pageViewAt({left: 99, top: 99, right: 199, bottom: 199}),
+    ]
+    assert.deepEqual(view.visiblePages, [doc.page({at: 2})], "touching edges is not intersecting; a one-pixel overlap is")
+
+    view.document = null
+    assert.deepEqual(view.visiblePages, [])
     uninstallPdfjs()
 })
