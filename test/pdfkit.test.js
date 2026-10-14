@@ -1797,3 +1797,32 @@ test("PDFViewDelegate: with no delegate, or one without the method, the default 
     assert.equal(calls.length, 1, "no click reaches the delegate after _dispose")
     uninstallPdfjs()
 })
+
+// Apple's highlightedSelections is [PDFSelection]?; nil is accepted and clears,
+// as an empty array does.
+test("highlightedSelections: null is accepted, stores [] and dispatches the empty find; a non-array or a non-PDFSelection element throws naming PDFView.highlightedSelections", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    var selection = new PDFSelection({document: doc})
+    function findDispatches() { return view._eventBus.calls.filter(function(c) { return c.name === "find" }) }
+
+    view.highlightedSelections = [selection]
+    assert.deepEqual(view.highlightedSelections, [selection])
+    var before = findDispatches().length
+
+    view.highlightedSelections = null
+    assert.deepEqual(view.highlightedSelections, [])
+    assert.equal(findDispatches().length, before + 1)
+    assert.equal(findDispatches()[before].data.query, "", "pdf.js's own highlighter is told to remove its spans")
+
+    var unchanged = [selection]
+    view.highlightedSelections = unchanged
+    for (var bad of ["not an array", {length: 1, 0: selection}, undefined, 5]) {
+        assert.throws(function() { view.highlightedSelections = bad }, /PDFView\.highlightedSelections/)
+    }
+    assert.throws(function() { view.highlightedSelections = [selection, {string: "x", pages: []}] }, /PDFView\.highlightedSelections/)
+    assert.throws(function() { view.highlightedSelections = [null] }, /PDFView\.highlightedSelections/)
+    assert.deepEqual(view.highlightedSelections, [selection], "a refused set changes nothing")
+    uninstallPdfjs()
+})
