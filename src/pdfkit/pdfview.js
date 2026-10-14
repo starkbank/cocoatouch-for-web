@@ -273,6 +273,11 @@ export class PDFView extends UIView {
             var pageView = this._pdfViewer.getPageView(index)
             if (!pageView || !pageView.div) { continue }
             var rect = pageView.div.getBoundingClientRect()
+            // In the paged modes pdf.js detaches every page but the current one,
+            // and a detached div measures as all zeros, which would pass the
+            // overlap test below whenever the host is scrolled past the viewport's
+            // top-left. A page with no area is never visible.
+            if (rect.width === 0 || rect.height === 0) { continue }
             var overlapsHorizontally = rect.left < container.right && rect.right > container.left
             var overlapsVertically = rect.top < container.bottom && rect.bottom > container.top
             if (!overlapsHorizontally || !overlapsVertically) { continue }

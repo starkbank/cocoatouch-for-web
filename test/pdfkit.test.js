@@ -1606,6 +1606,18 @@ test("visiblePages returns the pages whose page-view divs intersect the containe
     ]
     assert.deepEqual(view.visiblePages, [doc.page({at: 2})], "touching edges is not intersecting; a one-pixel overlap is")
 
+    // In the paged modes pdf.js detaches every page but the current one, and a
+    // detached div measures as {0,0,0,0}; with the host scrolled partly off the
+    // top-left (negative left/top) that rect passes a naive overlap test.
+    stubRect(view.$el[0], {left: -50, top: -50, right: 50, bottom: 50})
+    view._pdfViewer.pageViews = [
+        pageViewAt({left: 0, top: 0, right: 0, bottom: 0}),
+        pageViewAt({left: 0, top: 0, right: 100, bottom: 100}),
+        pageViewAt({left: 0, top: 0, right: 0, bottom: 100}),
+        pageViewAt({left: 0, top: 0, right: 100, bottom: 0}),
+    ]
+    assert.deepEqual(view.visiblePages, [doc.page({at: 1})], "a zero-area page view is never visible, wherever the host is")
+
     view.document = null
     assert.deepEqual(view.visiblePages, [])
     uninstallPdfjs()
@@ -1824,5 +1836,55 @@ test("highlightedSelections: null is accepted, stores [] and dispatches the empt
     assert.throws(function() { view.highlightedSelections = [selection, {string: "x", pages: []}] }, /PDFView\.highlightedSelections/)
     assert.throws(function() { view.highlightedSelections = [null] }, /PDFView\.highlightedSelections/)
     assert.deepEqual(view.highlightedSelections, [selection], "a refused set changes nothing")
+    uninstallPdfjs()
+})
+
+// The delegate is fed by a one-shot observer registered for the length of one
+// post (PDFDocument._post). It must be gone afterwards, on the normal path and
+// when a delegate method throws, or every match would leave an observer behind.
+test("the delegate's one-shot forwarder leaves no observer behind after a find, and none after a delegate method throws", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([{str: "needle needle", hasEOL: false}])]})})
+    var view = makeView()
+    var doc = new PDFDocument({url: "/a.pdf"})
+    view.document = doc
+    await flush()
+
+    var center = NotificationCenter.default
+    var search = function() {
+        doc.beginFindString("needle")
+        view._findController.pageMatches = [[0, 7]]
+        view._findController.pageMatchesLength = [[6, 6]]
+        view._eventBus.dispatch("updatefindmatchescount", {matchesCount: {total: 2, current: 2}})
+        return flush()
+    }
+
+    var calls = []
+    doc.delegate = {
+        didMatchString: function() { calls.push("didMatchString") },
+        documentDidBeginDocumentFind: function() { calls.push("documentDidBeginDocumentFind") },
+        documentDidFindMatch: function() { calls.push("documentDidFindMatch") },
+        documentDidEndDocumentFind: function() { calls.push("documentDidEndDocumentFind") },
+    }
+    var recorded = center._observers.size
+    await search()
+    assert.equal(calls.length, 6, "begin, two matches each through two methods, end")
+    assert.equal(center._observers.size, recorded, "every forwarder is removed once its post returns")
+
+    // A throwing delegate surfaces from the post, as an observer's throw always
+    // has; in a live search that is the rejection of the promise chain that
+    // posts the end of the find. Driven directly here, because that chain is
+    // not returned to a caller the test could catch it from (and the test
+    // runner fails on an unhandled rejection however it is listened for).
+    // The finally must still remove the forwarder.
+    doc.delegate = {documentDidEndDocumentFind: function() { throw new Error("delegate failed") }}
+    doc.beginFindString("needle")
+    assert.throws(function() { doc._postEndFind(2, doc._findGeneration) }, /delegate failed/)
+    assert.equal(center._observers.size, recorded, "the forwarder is removed even when the delegate throws")
+    assert.equal(doc.isFinding, false, "the find had already ended when the delegate threw")
+    doc.cancelFindString()
+    doc.delegate = {documentDidFindMatch: function() { throw new Error("match delegate failed") }}
+    doc.beginFindString("needle")
+    assert.throws(function() { doc._postFindMatch(new PDFSelection({document: doc}), doc._findGeneration) }, /match delegate failed/)
+    assert.equal(center._observers.size, recorded)
     uninstallPdfjs()
 })
