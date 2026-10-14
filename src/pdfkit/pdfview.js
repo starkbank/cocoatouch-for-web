@@ -1,7 +1,7 @@
 import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
-import { required, typed, instance, optional, enumeration, Float } from "../utils/required.js"
+import { required, typed, instance, optional, enumeration, Bool, Float } from "../utils/required.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
 import { PDFSelection, selectionForMatch } from "./pdfselection.js"
@@ -82,6 +82,7 @@ export class PDFView extends UIView {
         this._scaleFactor = 1
         this._displayMode = PDFDisplayMode.singlePageContinuous
         this._displayDirection = PDFDisplayDirection.vertical
+        this._displaysPageBreaks = true
 
         this._eventListeners = [
             ["pagesinit", () => this._applyScale()],
@@ -221,6 +222,24 @@ export class PDFView extends UIView {
         typed(direction, "displayDirection", _displayDirectionType, "PDFView.displayDirection", "Apple's is displayDirection: PDFDisplayDirection; write pdfView.displayDirection = PDFDisplayDirection.horizontal.")
         this._displayDirection = direction
         this._applyDisplayMode()
+    }
+
+    get displaysPageBreaks() {
+        return this._displaysPageBreaks
+    }
+
+    // pdf.js's removePageBorders is its own public field, and
+    // .pdfViewer.removePageBorders in pdf_viewer.css draws the effect, which is
+    // why the host must load that stylesheet. The class is toggled by name,
+    // never by assigning className: pdf.js's scrollMode setter writes
+    // scrollHorizontal and scrollWrapped onto this same element, so a
+    // whole-className write would undo displayDirection, and the opposite
+    // order would drop the class a later write should keep.
+    set displaysPageBreaks(value) {
+        typed(value, "displaysPageBreaks", Bool, "PDFView.displaysPageBreaks", "Apple's is displaysPageBreaks: Bool; write pdfView.displaysPageBreaks = false.")
+        this._displaysPageBreaks = value
+        this._pdfViewer.removePageBorders = !value
+        this._viewerElement.classList.toggle("removePageBorders", !value)
     }
 
     get currentSelection() {

@@ -84,6 +84,18 @@ class FakeViewer {
         this.document = proxy
         this.pagesCount = proxy ? proxy.numPages : 0
     }
+    // pdf.js's own scrollMode setter writes its class state onto the viewer
+    // element (scrollHorizontal / scrollWrapped, pdf_viewer.mjs), the same
+    // element PDFKit toggles removePageBorders on; the stand-in does the same so
+    // a whole-className write on PDFKit's side would be caught.
+    set scrollMode(mode) {
+        this._scrollMode = mode
+        this.options.viewer.classList.toggle("scrollHorizontal", mode === ScrollMode.HORIZONTAL)
+        this.options.viewer.classList.toggle("scrollWrapped", mode === ScrollMode.WRAPPED)
+    }
+    get scrollMode() {
+        return this._scrollMode
+    }
     set currentScaleValue(value) {
         this.scaleWrites.push({kind: "value", value: value})
         this._currentScale = value
@@ -1492,5 +1504,50 @@ test("displayDirection defaults to vertical; horizontal maps continuous modes to
 
     assert.throws(function() { view.displayDirection = "diagonal" }, /PDFView\.displayDirection/)
     NotificationCenter.default.removeObserver(observer)
+    uninstallPdfjs()
+})
+
+// Apple's displaysPageBreaks hides the gaps and borders between pages. pdf.js's
+// public removePageBorders field and its .pdfViewer.removePageBorders rules
+// back it. The viewer element also carries the classes pdf.js's scrollMode
+// setter writes, so only the one class PDFKit owns is touched: a whole-className
+// write would silently undo displayDirection.
+test("displaysPageBreaks defaults true; false writes removePageBorders and PDFKit's own class, true restores both, the host is untouched, and displayDirection's scrollHorizontal survives both writes", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var view = makeView()
+    var host = view.$el[0]
+    var hostClasses = host.className
+    assert.equal(view.displaysPageBreaks, true)
+    assert.equal(view._viewerElement.classList.contains("removePageBorders"), false)
+
+    view.displaysPageBreaks = false
+    assert.equal(view.displaysPageBreaks, false)
+    assert.equal(view._pdfViewer.removePageBorders, true)
+    assert.equal(view._viewerElement.classList.contains("removePageBorders"), true)
+    assert.equal(host.className, hostClasses, "the host element's classes are untouched")
+
+    view.displaysPageBreaks = true
+    assert.equal(view.displaysPageBreaks, true)
+    assert.equal(view._pdfViewer.removePageBorders, false)
+    assert.equal(view._viewerElement.classList.contains("removePageBorders"), false)
+    assert.equal(host.className, hostClasses)
+    assert.ok(view._viewerElement.classList.contains("pdfViewer"), "PDFKit's own pdfViewer class stays")
+
+    view.displayDirection = PDFDisplayDirection.horizontal
+    assert.equal(view._viewerElement.classList.contains("scrollHorizontal"), true)
+    view.displaysPageBreaks = false
+    assert.equal(view._viewerElement.classList.contains("scrollHorizontal"), true, "a false write leaves the class pdf.js wrote")
+    assert.equal(view._viewerElement.classList.contains("removePageBorders"), true)
+    view.displaysPageBreaks = true
+    assert.equal(view._viewerElement.classList.contains("scrollHorizontal"), true, "a true write leaves it too")
+    assert.equal(view._viewerElement.classList.contains("removePageBorders"), false)
+
+    view.displaysPageBreaks = false
+    view.displayDirection = PDFDisplayDirection.vertical
+    assert.equal(view._viewerElement.classList.contains("removePageBorders"), true, "a later scrollMode write does not drop PDFKit's class")
+    assert.equal(view._viewerElement.classList.contains("scrollHorizontal"), false)
+
+    assert.throws(function() { view.displaysPageBreaks = "yes" }, /PDFView\.displaysPageBreaks/)
+    assert.equal(view.displaysPageBreaks, false, "a refused set changes nothing")
     uninstallPdfjs()
 })
