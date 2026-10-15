@@ -3,13 +3,14 @@ import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { inspectableValue } from "../uikit/ibinspectable.js"
 import { UIDevice } from "../uikit/uidevice.js"
+import { outletIndexFor, outletElement } from "./outletindex.js"
 
 
 export class Bind {
 
     static _restorePrototypes = new Set()
 
-    // {cls, selector} of the view a creator is inside `new` for. The view's own
+    // {cls, selector, $el} of the view a creator is inside `new` for. The view's own
     // constructor fills its empty element but leaves binding to the creator, so
     // awakeFromNib arrives once, after the subclass's fields exist. The previous
     // marker is restored, not cleared: an outlet bound from inside a view's
@@ -17,9 +18,9 @@ export class Bind {
     // to its own constructor for a second bind.
     static _constructing = null
 
-    static construct(cls, selector, ...rest) {
+    static construct(cls, selector, $el, ...rest) {
         var previous = Bind._constructing
-        Bind._constructing = {cls: cls, selector: selector}
+        Bind._constructing = {cls: cls, selector: selector, $el: $el}
         try {
             return new cls(selector, ...rest)
         } finally {
@@ -30,6 +31,13 @@ export class Bind {
     static isConstructing(view) {
         var marker = Bind._constructing
         return !!marker && marker.cls === view.constructor && marker.selector === view.selector
+    }
+
+    // The element the creator already holds for the view being constructed, so
+    // the constructor does not look it up again through its selector: for a
+    // repeated id that lookup is a query over the whole document.
+    static elementUnderConstruction(view) {
+        return Bind.isConstructing(view) ? Bind._constructing.$el : null
     }
 
     static registerPrototypeForRestore(prototype) {
@@ -59,7 +67,7 @@ export class Bind {
             instance._$el = $scope
             owner._link(instance)
             Bind.ibOutletRestore(instance)
-            Bind.ibAction(instance)
+            Bind.ibAction(instance, {isRestoring: true})
             if (_overrides(instance, "didMoveToWindow")) {
                 instance.didMoveToWindow()
             }
@@ -70,25 +78,31 @@ export class Bind {
     // to the same element; binding twice over one element leaves one handler,
     // since a row element outlives the cell bound to it on the previous reload.
     // A matched element without an id is given one, as an outlet is, so the
-    // sender's selector resolves again when its node is replaced.
-    static ibAction(control) {
+    // sender's selector resolves again when its node is replaced. A restored
+    // page binds its senders the way ibOutletRestore binds an outlet.
+    static ibAction(control, {isRestoring = false} = {}) {
         if (!control) { return }
         var actions = control["ibactions"] || []
         if (actions.length === 0) { return }
         var $parent = control._$el || $(control.selector)
+        var index = outletIndexFor($parent, actions)
         for (const action of actions) {
             if (_isKeyboardAction(action)) {
                 _bindKeyboardAction(control, action)
                 continue
             }
             var unnamed = 0
-            $parent.find(action.selector).each(function() {
+            outletElement({selector: action.selector, $parent, index}).each(function() {
                 var $target = $(this)
                 if (!$target.attr("id")) {
                     $target.attr("id", _dashed(control.identifier, action.method) + "-" + (++unnamed))
                 }
-                var sender = new action.cls(`${control.selector} #${$target.attr("id")}`)
+                // Lent the element it was matched on, as an outlet is: the
+                // sender's own selector is a descendant one, which $el would
+                // otherwise answer with a query over the whole document.
+                var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
                 sender._$el = $target
+                _awakeSender(sender, {isRestoring})
                 $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
                     if (control[method]) {
@@ -120,14 +134,16 @@ export class Bind {
         if (outlets.length === 0) { return }
 
         var $parent = control._$el || $(control.selector)
+        var index = outletIndexFor($parent, outlets)
 
         for (const outlet of outlets) {
             var cls = outlet.cls
             var method = outlet.method
             var selector = outlet.selector
 
-            var responder = Bind.construct(cls, `${control.selector} ${selector}`)
-            responder._$el = $parent.find(selector)
+            var $el = outletElement({selector, $parent, index})
+            var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
+            responder._$el = $el
             _identifyOutlet(control, responder, method)
             control._link(responder)
 
@@ -157,14 +173,16 @@ export class Bind {
         if (outlets.length === 0) { return }
 
         var $parent = control._$el || $(control.selector)
+        var index = outletIndexFor($parent, outlets)
 
         for (const outlet of outlets) {
             var cls = outlet.cls
             var method = outlet.method
             var selector = outlet.selector
 
-            var responder = Bind.construct(cls, `${control.selector} ${selector}`)
-            responder._$el = $parent.find(selector)
+            var $el = outletElement({selector, $parent, index})
+            var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
+            responder._$el = $el
             _identifyOutlet(control, responder, method)
             control._link(responder)
 
@@ -181,7 +199,7 @@ export class Bind {
             }
 
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
-                Bind.ibAction(responder)
+                Bind.ibAction(responder, {isRestoring: true})
             }
 
             _appear(responder, {isRestoring: true})
@@ -205,6 +223,23 @@ function _appear(responder, {isRestoring}) {
     }
     responder.viewWillAppear(false)
     responder.viewDidAppear(false)
+}
+
+
+// construct() holds the marker that makes a view's own nib loading leave
+// binding to its creator, so a sender class carrying a nib is bound here in
+// the order ibOutlet binds an outlet, or ibOutletRestore on a restored page,
+// where the prerenderer already ran awakeFromNib and the client sends
+// didMoveToWindow in its place.
+function _awakeSender(sender, {isRestoring}) {
+    var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
+    if (isRestoring) { Bind.ibOutletRestore(sender) }
+    if (!isRestoring) { Bind.ibOutlet(sender) }
+    Bind.ibInspectable(sender)
+    if (_overrides(sender, hook)) {
+        sender[hook]()
+    }
+    Bind.ibAction(sender, {isRestoring})
 }
 
 
