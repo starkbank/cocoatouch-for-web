@@ -84,18 +84,22 @@ export class Bind {
         var actions = control["ibactions"] || []
         if (actions.length === 0) { return }
         var $parent = control._$el || $(control.selector)
+        var index = outletIndexFor($parent, actions)
         for (const action of actions) {
             if (_isKeyboardAction(action)) {
                 _bindKeyboardAction(control, action)
                 continue
             }
             var unnamed = 0
-            $parent.find(action.selector).each(function() {
+            outletElement({selector: action.selector, $parent, index}).each(function() {
                 var $target = $(this)
                 if (!$target.attr("id")) {
                     $target.attr("id", _dashed(control.identifier, action.method) + "-" + (++unnamed))
                 }
-                var sender = new action.cls(`${control.selector} #${$target.attr("id")}`)
+                // Lent the element it was matched on, as an outlet is: the
+                // sender's own selector is a descendant one, which $el would
+                // otherwise answer with a query over the whole document.
+                var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
                 sender._$el = $target
                 $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
