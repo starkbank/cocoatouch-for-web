@@ -655,3 +655,18 @@ test("null is accepted where Apple's type is optional and refused where it is no
     control.removeTarget({}, {for: UIControlEvent.touchUpInside})
     assert.throws(() => control.removeTarget({}, {action: 3, for: UIControlEvent.touchUpInside}), (error) => isTypeMessage(error, "UIControl.removeTarget"))
 })
+
+test("a control the framework constructs binds its highlight on the element lent to it, not on a document-wide lookup", function() {
+    var lent = $()
+    var control = Bind.construct(UIButton, "#card-b #solo", lent)
+    assert.equal(control.$el, lent)
+    assert.equal(typeof lent._handlers.pointerdown, "function")
+})
+
+test("the lent element is given up once construction ends", function() {
+    var lent = $()
+    var control = Bind.construct(UIButton, "#solo", lent)
+    control._$el = null
+    assert.notEqual(control.$el, lent)
+    assert.equal(Bind.elementUnderConstruction(control), null)
+})

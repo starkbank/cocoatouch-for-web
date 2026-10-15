@@ -75,6 +75,8 @@ A view's nib describes the view's contents when the view has a host element, and
 
 A nib configures the view it draws through `@IBInspectable`, Interface Builder's user-defined runtime attributes: `@IBInspectable title` reads `data-title` off the view's own element into `title`, `@IBInspectable(UIColor) titleColor` reads `data-title-color` and converts it, and the value lands after the outlets are connected and before `awakeFromNib`, so `awakeFromNib` sees the configured view. The name maps lowerCamelCase to dashes. The types are the ones Interface Builder inspects: `String` (the default), `Number`, `Boolean` (`"true"` or `"false"`, anything else throws), `UIColor` (`#…` is a hex color, any other value a token resolved like `UIColor(named:)`), `UIImage` (`UIImage(named:)`), `CGPoint` and `CGSize` (two comma-separated numbers) and `CGRect` (four). A malformed number or boolean throws, naming the property; an absent attribute leaves the field's declared default standing.
 
+Since 1.8.1 a class's outlets are resolved in one walk of its element instead of one query each, so binding cost no longer grows with the outlets times the page: an outlet written as a bare id, class or tag is answered from that walk, any other selector keeps jQuery's own lookup, and a view the framework is constructing is handed the element its creator already found. The elements an outlet binds are the ones `find` returns.
+
 ```js
 export class BannerView extends UIView {
 

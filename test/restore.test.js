@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBOutlet, IBAction, UIView, UIButton, UIViewController, UISearchTextField } from "../src/index.js"
+import { IBOutlet, IBAction, UIView, UIButton, UIViewController, UISearchTextField, UISwitch } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -142,4 +142,63 @@ test("restoring a prerendered page does not run an outlet-bound controller's con
     restored.restore(restored)
     assert.equal($("#panel .row").length, 1)
     assert.equal(restored.panel.isViewLoaded, true)
+})
+
+
+// A page of the docs' /api shape: repeated cards sharing every id, each bound
+// by a class of its own, restored rather than built.
+function restoredCards() {
+    Bind._restorePrototypes.clear()
+    class Card extends UIView {}
+    IBOutlet("#sw", UISwitch)(Card.prototype, "toggle", {})
+    IBOutlet(".x", UIView)(Card.prototype, "marks", {})
+    IBOutlet(".nothing", UIView)(Card.prototype, "nothing", {})
+    class Controller extends UIViewController {}
+    IBOutlet("#card-a", Card)(Controller.prototype, "cardA", {})
+    IBOutlet("#card-b", Card)(Controller.prototype, "cardB", {})
+    var card = (id) => "<div id=\"" + id + "\"><input id=\"sw\"><i class=\"x\"></i><i class=\"x\"></i></div>"
+    page("<cocoatouch>" + card("card-a") + card("card-b") + "</cocoatouch>")
+    var controller = new Controller()
+    controller.restore(controller)
+    return controller
+}
+
+test("restore binds each card's outlets to its own elements, as find would, when ids repeat across cards", function() {
+    var controller = restoredCards()
+    var [inputA, inputB] = document.querySelectorAll("input")
+    assert.deepEqual(Array.from(controller.cardA.toggle.$el), [inputA])
+    assert.deepEqual(Array.from(controller.cardB.toggle.$el), [inputB])
+    assert.deepEqual(Array.from(controller.cardB.marks.$el), Array.from($("#card-b").find(".x")))
+    assert.equal(controller.cardB.marks.$el.length, 2)
+})
+
+test("restore leaves an outlet that matches nothing with an empty set", function() {
+    var controller = restoredCards()
+    assert.equal(controller.cardA.nothing.$el.length, 0)
+    assert.equal(controller.cardB.nothing.$el.length, 0)
+})
+
+test("a control restored on the second card highlights that card's element and not the first", function() {
+    var controller = restoredCards()
+    var inputs = document.querySelectorAll("input")
+    inputs[1].dispatchEvent(new window.Event("pointerdown", {bubbles: true}))
+    assert.equal(controller.cardB.toggle.isHighlighted, true)
+    assert.equal(controller.cardA.toggle.isHighlighted, false)
+})
+
+test("a revived view's outlets resolve inside the restored scope, as find would", function() {
+    Bind._restorePrototypes.clear()
+    class Chip extends UIView {}
+    IBOutlet("#label", UIView)(Chip.prototype, "label", {})
+    IBOutlet(".x", UIView)(Chip.prototype, "marks", {})
+    IBAction(".chip-close", UIButton)(Chip.prototype, "closeTapped", {})
+    class Controller extends UIViewController {}
+    page("<cocoatouch><div class=\"chip\"><a class=\"chip-close\"></a><b id=\"label\"></b><i class=\"x\"></i><i class=\"x\"></i></div><b id=\"label\"></b></cocoatouch>")
+    var controller = new Controller()
+    controller.restore(controller)
+    var chips = instancesOf(controller, Chip)
+    assert.equal(chips.length, 1)
+    assert.deepEqual(Array.from(chips[0].label.$el), Array.from($("cocoatouch").find("#label")))
+    assert.deepEqual(Array.from(chips[0].marks.$el), Array.from($("cocoatouch").find(".x")))
+    assert.equal(chips[0].marks.$el.length, 2)
 })
