@@ -67,7 +67,7 @@ export class Bind {
             instance._$el = $scope
             owner._link(instance)
             Bind.ibOutletRestore(instance)
-            Bind.ibAction(instance)
+            Bind.ibAction(instance, {isRestoring: true})
             if (_overrides(instance, "didMoveToWindow")) {
                 instance.didMoveToWindow()
             }
@@ -78,8 +78,9 @@ export class Bind {
     // to the same element; binding twice over one element leaves one handler,
     // since a row element outlives the cell bound to it on the previous reload.
     // A matched element without an id is given one, as an outlet is, so the
-    // sender's selector resolves again when its node is replaced.
-    static ibAction(control) {
+    // sender's selector resolves again when its node is replaced. A restored
+    // page binds its senders the way ibOutletRestore binds an outlet.
+    static ibAction(control, {isRestoring = false} = {}) {
         if (!control) { return }
         var actions = control["ibactions"] || []
         if (actions.length === 0) { return }
@@ -101,6 +102,7 @@ export class Bind {
                 // otherwise answer with a query over the whole document.
                 var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
                 sender._$el = $target
+                _awakeSender(sender, {isRestoring})
                 $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
                     if (control[method]) {
@@ -197,7 +199,7 @@ export class Bind {
             }
 
             if (responder["ibactions"] && responder["ibactions"].length > 0) {
-                Bind.ibAction(responder)
+                Bind.ibAction(responder, {isRestoring: true})
             }
 
             _appear(responder, {isRestoring: true})
@@ -221,6 +223,23 @@ function _appear(responder, {isRestoring}) {
     }
     responder.viewWillAppear(false)
     responder.viewDidAppear(false)
+}
+
+
+// construct() holds the marker that makes a view's own nib loading leave
+// binding to its creator, so a sender class carrying a nib is bound here in
+// the order ibOutlet binds an outlet, or ibOutletRestore on a restored page,
+// where the prerenderer already ran awakeFromNib and the client sends
+// didMoveToWindow in its place.
+function _awakeSender(sender, {isRestoring}) {
+    var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
+    if (isRestoring) { Bind.ibOutletRestore(sender) }
+    if (!isRestoring) { Bind.ibOutlet(sender) }
+    Bind.ibInspectable(sender)
+    if (_overrides(sender, hook)) {
+        sender[hook]()
+    }
+    Bind.ibAction(sender, {isRestoring})
 }
 
 

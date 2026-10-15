@@ -3,7 +3,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { IBOutlet, UIView, UISwitch, UIButton } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
-import { isSimpleOutletSelector, outletIndexFor, outletElement } from "../src/utils/outletindex.js"
+import { isIdOutletSelector, outletIndexFor, outletElement } from "../src/utils/outletindex.js"
 
 
 // A view declaring one UIView outlet per selector, bound the way a controller's
@@ -41,9 +41,9 @@ function assertEquivalent(selectors, html) {
     })
 }
 
-// An index needs two simple outlets, so each case carries these two beside it.
-var fillers = ["#filler", ".filler"]
-var fillerHtml = "<i id=\"filler\"></i><i class=\"filler\"></i>"
+// An index needs two id outlets, so each case carries these two beside it.
+var fillers = ["#filler", "#filler2"]
+var fillerHtml = "<i id=\"filler\"></i><i id=\"filler2\"></i>"
 
 test("an outlet binds the elements jQuery's find gives, for every kind of selector", function() {
     var cases = {
@@ -93,7 +93,7 @@ function twoCards(outlets) {
     return [new Card("#card-a"), new Card("#card-b")]
 }
 
-test("binding the outlets of a class costs one query per class, however many outlets it has", function() {
+test("binding the outlets of a class costs no document query, however many outlets it has", function() {
     var queriesFor = function(outlets) {
         var cards = twoCards(outlets)
         return countQueries(() => cards.forEach((card) => Bind.ibOutlet(card)))
@@ -101,7 +101,7 @@ test("binding the outlets of a class costs one query per class, however many out
     var few = queriesFor(10)
     var many = queriesFor(40)
     assert.equal(many, few)
-    assert.equal(few, 2)
+    assert.equal(few, 0)
 })
 
 test("an outlet that matches nothing keeps an empty set, defined and without throwing", function() {
@@ -134,6 +134,37 @@ test("an element created while an earlier outlet binds is found by a later outle
     assert.ok(late)
     assert.deepEqual(elementsOf(host.lateById.$el), [late])
     assert.deepEqual(elementsOf(host.lateByClass.$el), [late])
+})
+
+test("a class that already had a match and gains another while an earlier outlet binds is found whole", function() {
+    page("<div id=\"host\"><div id=\"first\"></div><i class=\"x\"></i><i id=\"filler\"></i></div>")
+    class Filler extends UIView {}
+    Filler.nib = "<span class=\"x\"></span>"
+    class Host extends UIView {}
+    IBOutlet("#first", Filler)(Host.prototype, "first", {})
+    IBOutlet(".x", UIView)(Host.prototype, "xs", {})
+    IBOutlet("#filler", UIView)(Host.prototype, "filler", {})
+    var host = new Host("#host")
+    Bind.ibOutlet(host)
+    var expected = elementsOf($("#host").find(".x"))
+    assert.equal(expected.length, 2)
+    assert.deepEqual(elementsOf(host.xs.$el), expected)
+})
+
+test("a class an earlier outlet's init writes onto an element does not hide that element from a later class outlet", function() {
+    page("<div id=\"host\"><div id=\"first\"></div><b id=\"b\"></b><i class=\"selected\"></i><i id=\"filler\"></i></div>")
+    class Selecting extends UIView {
+        init() { new UIButton("#b").isSelected = true }
+    }
+    class Host extends UIView {}
+    IBOutlet("#first", Selecting)(Host.prototype, "first", {})
+    IBOutlet(".selected", UIView)(Host.prototype, "selected", {})
+    IBOutlet("#filler", UIView)(Host.prototype, "filler", {})
+    var host = new Host("#host")
+    Bind.ibOutlet(host)
+    var expected = elementsOf($("#host").find(".selected"))
+    assert.equal(expected.length, 2)
+    assert.deepEqual(elementsOf(host.selected.$el), expected)
 })
 
 test("an element replaced while an earlier outlet binds resolves to the live node, not the detached one", function() {
@@ -195,26 +226,18 @@ test("a nib fills only the element of its own outlet when an earlier element sha
     assert.deepEqual(elementsOf(host.nibbed.$el), [inside])
 })
 
-test("only a bare id, class or tag is a simple outlet selector", function() {
-    for (var selector of ["#a", "#a-b_1", "#1x", ".c", ".c-d", "p", "h1"]) { assert.equal(isSimpleOutletSelector(selector), true, selector) }
-    for (var selector of ["#a > .b", "#a .b", "a.b", "[href]", "a:first", "P", "#", "", "*"]) { assert.equal(isSimpleOutletSelector(selector), false, selector) }
+test("only a bare id is an indexed outlet selector", function() {
+    for (var selector of ["#a", "#a-b_1", "#1x"]) { assert.equal(isIdOutletSelector(selector), true, selector) }
+    for (var selector of [".c", "p", "#a > .b", "#a .b", "a.b", "#a.b", "[href]", "a:first", "#", "", "*"]) { assert.equal(isIdOutletSelector(selector), false, selector) }
 })
 
-test("no index is built for fewer than two simple outlets, several or detached roots, or a non-element root", function() {
+test("no index is built for fewer than two id outlets, several or detached roots, or a non-element root", function() {
     page("<div id=\"host\"><b class=\"c\"></b></div><div id=\"other\"></div>")
-    var simple = [{selector: "#a"}, {selector: ".c"}]
+    var simple = [{selector: "#a"}, {selector: "#c"}]
     assert.ok(outletIndexFor($("#host"), simple))
-    assert.equal(outletIndexFor($("#host"), [{selector: "#a"}, {selector: "#a > .b"}]), null)
+    assert.equal(outletIndexFor($("#host"), [{selector: "#a"}, {selector: "#a > .b"}, {selector: ".c"}]), null)
     assert.equal(outletIndexFor($("#host, #other"), simple), null)
     assert.equal(outletIndexFor($(), simple), null)
     assert.equal(outletIndexFor($(document.createElement("div")), simple), null)
     assert.equal(outletIndexFor($(document), simple), null)
-})
-
-test("a type selector matches an svg element by its exact name and an html element in any case", function() {
-    page("<div id=\"host\"><svg><linearGradient></linearGradient><g></g></svg><P></P></div>")
-    var index = outletIndexFor($("#host"), [{selector: "g"}, {selector: "p"}])
-    assert.deepEqual(Array.from(outletElement({selector: "g", $parent: $("#host"), index})), Array.from($("#host").find("g")))
-    assert.deepEqual(Array.from(outletElement({selector: "p", $parent: $("#host"), index})), Array.from($("#host").find("p")))
-    assert.equal(outletElement({selector: "p", $parent: $("#host"), index}).length, 1)
 })
