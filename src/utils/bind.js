@@ -4,6 +4,7 @@ import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { inspectableValue } from "../uikit/ibinspectable.js"
 import { UIDevice } from "../uikit/uidevice.js"
 import { outletIndexFor, outletElement } from "./outletindex.js"
+import { ownElement, ownerOf } from "./elementowner.js"
 
 
 export class Bind {
@@ -100,9 +101,16 @@ export class Bind {
                 // Lent the element it was matched on, as an outlet is: the
                 // sender's own selector is a descendant one, which $el would
                 // otherwise answer with a query over the whole document.
+                // A sender is the one creator that is only a second connection to
+                // an element: when a view already owns it, the sender is built to
+                // be handed to the handler and nothing else.
+                var owner = ownerOf($target[0])
+                _rejectNibOverOwnedElement(owner, action)
                 var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
                 sender._$el = $target
-                _awakeSender(sender, {isRestoring})
+                if (!owner) {
+                    _awakeSender(sender, {isRestoring})
+                }
                 $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
                     if (control[method]) {
@@ -144,6 +152,7 @@ export class Bind {
             var $el = outletElement({selector, $parent, index})
             var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
             responder._$el = $el
+            ownElement($el, responder)
             _identifyOutlet(control, responder, method)
             control._link(responder)
 
@@ -183,6 +192,7 @@ export class Bind {
             var $el = outletElement({selector, $parent, index})
             var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
             responder._$el = $el
+            ownElement($el, responder)
             _identifyOutlet(control, responder, method)
             control._link(responder)
 
@@ -232,6 +242,7 @@ function _appear(responder, {isRestoring}) {
 // where the prerenderer already ran awakeFromNib and the client sends
 // didMoveToWindow in its place.
 function _awakeSender(sender, {isRestoring}) {
+    ownElement(sender._$el, sender)
     var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
     if (isRestoring) { Bind.ibOutletRestore(sender) }
     if (!isRestoring) { Bind.ibOutlet(sender) }
@@ -240,6 +251,23 @@ function _awakeSender(sender, {isRestoring}) {
         sender[hook]()
     }
     Bind.ibAction(sender, {isRestoring})
+}
+
+
+// A sender class carrying a nib asserts that the element's contents are its
+// own, and UIView's nib loading fills an empty element before it learns who is
+// constructing it. Over an element another class already owns that would write
+// one view's nib inside another's element and leave it unawoken, a state no
+// released version ever produced. The same class owning it is the ordinary nib
+// wiring, where the outlet already loaded that nib, so it is allowed.
+function _rejectNibOverOwnedElement(owner, action) {
+    if (!owner || !action.cls || !action.cls.nib) { return }
+    if (owner instanceof action.cls) { return }
+    throw new TypeError(
+        `@IBAction("${action.selector}", ${action.cls.name}) matches an element ${owner.constructor.name} already owns, ` +
+        `and ${action.cls.name} carries a nib. One element has one owner: declare the action with the class that owns ` +
+        `the element, or give the action an element of its own.`
+    )
 }
 
 
