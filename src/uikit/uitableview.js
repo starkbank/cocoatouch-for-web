@@ -2,6 +2,7 @@ import { UIScrollView } from "./uiscrollview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
+import { ownElement } from "../utils/elementowner.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
@@ -195,6 +196,7 @@ export class UITableView extends UIScrollView {
         var cell = Bind.construct(cellClass, this.selector + " #" + id, element, indexPath)
         cell.reuseIdentifier = withIdentifier
         cell._$el = element
+        ownElement(element, cell)
         this._link(cell)
         Bind.ibOutlet(cell)
         Bind.ibInspectable(cell)

@@ -3,6 +3,7 @@ import { CALayer } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
+import { ownElement } from "../utils/elementowner.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
 import { required, Int } from "../utils/required.js"
@@ -308,6 +309,7 @@ export class UIView extends UIResponder {
             this.$el.append($viewEl)
         }
         view._$el = $viewEl
+        ownElement($viewEl, view)
         this._link(view)
         view.didMoveToSuperview()
         view.didMoveToWindow()
@@ -407,6 +409,7 @@ export class UIView extends UIResponder {
         if ($el.length === 0 || $el.children().length > 0 || $el.html().trim() !== "") { return }
         $el.html(nib)
         if (Bind.isConstructing(this)) { return }
+        ownElement($el, this)
         Bind.ibOutlet(this)
         Bind.ibInspectable(this)
         this.awakeFromNib()
