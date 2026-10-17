@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBAction, IBOutlet, IBInspectable, UIView, UIButton, UIViewController } from "../src/index.js"
+import { IBAction, IBOutlet, IBInspectable, UIView, UIButton, UIViewController, UITableView, UITableViewCell } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -343,4 +343,245 @@ test("a restored page binds the action of a revived view to its own element, onc
     assert.equal(taps[0].identifier, "close-1")
     assert.deepEqual(Array.from(taps[0].$el), [document.getElementById("close-1")])
     assert.equal(queries, 0)
+})
+
+
+
+// A sender class with no nib of its own, so it can be named on an element
+// another view owns: the log places the one hook such a sender would get.
+function plainSender(log) {
+    return class Plain extends UIView {
+        awakeFromNib() { log.push("sender.awakeFromNib") }
+        didMoveToWindow() { log.push("sender.didMoveToWindow") }
+    }
+}
+
+
+// ---- one element, one owner: every creator claims, only an action consults ----
+
+// An element an outlet owns, reached again by an action of the same control.
+test("an element an outlet owns is awoken once, and still answers its action with a sender", function() {
+    var log = []
+    page("<div id=\"card\"><a id=\"go\" data-count=\"3\"></a></div>")
+    var taps = []
+    class Card extends UIView {
+        tapped(sender) { taps.push(sender) }
+    }
+    var Fancy = hookedSender(log)
+    IBOutlet("#go", Fancy)(Card.prototype, "go", {})
+    IBAction("#go", Fancy)(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    Bind.ibOutlet(card)
+    Bind.ibAction(card)
+    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+    $("#go").trigger("click")
+    assert.equal(taps.length, 1)
+    assert.ok(taps[0] instanceof Fancy)
+    assert.deepEqual(Array.from(taps[0].$el), [document.getElementById("go")])
+})
+
+test("an element an outlet owns gets one didMoveToWindow on a restored page", function() {
+    var log = []
+    page("<cocoatouch><div id=\"card\"><a id=\"go\" data-count=\"3\"><span class=\"icon\"></span><i class=\"close\"></i></a></div></cocoatouch>")
+    class Card extends UIView {
+        tapped() {}
+    }
+    var Fancy = hookedSender(log)
+    IBOutlet("#go", Fancy)(Card.prototype, "go", {})
+    IBAction("#go", Fancy)(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    Bind.ibOutletRestore(card)
+    Bind.ibAction(card, {isRestoring: true})
+    assert.deepEqual(log, ["icon.didMoveToWindow", "count 3", "didMoveToWindow", "inner.didMoveToWindow"])
+})
+
+test("an element a view placed with addSubview owns is not awoken again by an action over it", function() {
+    var log = []
+    page("<div id=\"card\"></div>")
+    class Placed extends UIView {
+        awakeFromNib() { log.push("placed.awakeFromNib") }
+    }
+    Placed.nib = "<div id=\"placed-host\"></div>"
+    class Card extends UIView {
+        tapped() {}
+    }
+    IBAction("#placed-host", plainSender(log))(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    card.addSubview(new Placed())
+    Bind.ibAction(card)
+    assert.deepEqual(log, ["placed.awakeFromNib"])
+})
+
+test("an element a view the app constructed owns is not awoken again by an action over it", function() {
+    var log = []
+    page("<div id=\"card\"><div id=\"own\"></div></div>")
+    class Owned extends UIView {
+        awakeFromNib() { log.push("owned.awakeFromNib") }
+    }
+    Owned.nib = "<i class=\"mark\"></i>"
+    class Card extends UIView {
+        tapped() {}
+    }
+    IBAction("#own", plainSender(log))(Card.prototype, "tapped", {})
+    new Owned("#own")
+    Bind.ibAction(new Card("#card"))
+    assert.deepEqual(log, ["owned.awakeFromNib"])
+})
+
+test("a row element a dequeued cell owns is not awoken again by an action over it", function() {
+    var log = []
+    page("<div id=\"page\"><table id=\"table\"><tbody></tbody></table></div>")
+    class Row extends UITableViewCell {
+        awakeFromNib() { log.push("row.awakeFromNib") }
+    }
+    Row.nib = "<tr><td class=\"title\"></td></tr>"
+    class Page extends UIView {
+        rowTapped() {}
+    }
+    IBAction("#cell-0", plainSender(log))(Page.prototype, "rowTapped", {})
+    var table = new UITableView("#table")
+    table.register(Row, {forCellReuseIdentifier: "row"})
+    table.dataSource = {
+        tableViewNumberOfRowsInSection: function() { return 1 },
+        tableViewCellForRowAtIndexPath: function(tableView, indexPath) {
+            return tableView.dequeueReusableCell({withIdentifier: "row", for: indexPath})
+        }
+    }
+    Bind.ibAction(new Page("#page"))
+    assert.deepEqual(log, ["row.awakeFromNib"])
+})
+
+test("rebinding a card's actions over the same elements awakes no second sender on them", function() {
+    var log = []
+    page("<div id=\"card\"><a id=\"go\" data-count=\"3\"></a></div>")
+    class Card extends UIView {
+        tapped() {}
+    }
+    IBAction("#go", hookedSender(log))(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    Bind.ibAction(card)
+    Bind.ibAction(card)
+    Bind.ibAction(card)
+    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+})
+
+test("two actions of one control over the same element awake it once", function() {
+    var log = []
+    page("<div id=\"card\"><a id=\"go\" data-count=\"3\"></a></div>")
+    class Card extends UIView {
+        tapped() {}
+        pressed() {}
+    }
+    var Fancy = hookedSender(log)
+    IBAction("#go", Fancy)(Card.prototype, "tapped", {})
+    IBAction("#go", Fancy)(Card.prototype, "pressed", {})
+    Bind.ibAction(new Card("#card"))
+    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+})
+
+test("every element a class action matches that no view owns gets a sender of its own, awoken once", function() {
+    var log = []
+    var taps = []
+    page("<div id=\"card\"><a class=\"go\" data-count=\"1\"></a><a class=\"go\" data-count=\"2\"></a></div>")
+    class Card extends UIView {
+        tapped(sender) { taps.push(sender) }
+    }
+    IBAction(".go", hookedSender(log))(Card.prototype, "tapped", {})
+    Bind.ibAction(new Card("#card"))
+    assert.deepEqual(log, [
+        "icon.awakeFromNib", "count 1", "awakeFromNib", "inner.awakeFromNib",
+        "icon.awakeFromNib", "count 2", "awakeFromNib", "inner.awakeFromNib",
+    ])
+    $(".go").each(function() { $(this).trigger("click") })
+    assert.equal(taps.length, 2)
+    assert.notEqual(taps[0], taps[1])
+    assert.deepEqual(taps.map((sender) => sender.$el[0]), Array.from(document.querySelectorAll(".go")))
+})
+
+// A row element outlives the cell bound to it, so the cell a reload puts there
+// next owns it in its predecessor's place and is awoken like any other creator.
+test("a cell that takes over a row element from a disposed cell is awoken on it", function() {
+    var log = []
+    page("<table id=\"table\"><tbody></tbody></table>")
+    class First extends UITableViewCell {
+        awakeFromNib() { log.push("first.awakeFromNib") }
+    }
+    First.nib = "<tr><td></td></tr>"
+    class Second extends UITableViewCell {
+        awakeFromNib() { log.push("second.awakeFromNib") }
+    }
+    Second.nib = "<tr><td></td></tr>"
+    var identifier = "first"
+    var table = new UITableView("#table")
+    table.register(First, {forCellReuseIdentifier: "first"})
+    table.register(Second, {forCellReuseIdentifier: "second"})
+    table.dataSource = {
+        tableViewNumberOfRowsInSection: function() { return 1 },
+        tableViewCellForRowAtIndexPath: function(tableView, indexPath) {
+            return tableView.dequeueReusableCell({withIdentifier: identifier, for: indexPath})
+        }
+    }
+    var row = document.querySelector("#table tbody > tr")
+    identifier = "second"
+    table.reloadData()
+    assert.equal(document.querySelector("#table tbody > tr"), row)
+    assert.deepEqual(log, ["first.awakeFromNib", "second.awakeFromNib"])
+})
+
+test("a sender class carrying a nib over an element another class owns is refused, naming the action, the sender and the owner", function() {
+    page("<div id=\"card\"><a id=\"go\"></a></div>")
+    class Card extends UIView {
+        tapped() {}
+    }
+    var Fancy = hookedSender([])
+    IBOutlet("#go", UIButton)(Card.prototype, "go", {})
+    IBAction("#go", Fancy)(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    Bind.ibOutlet(card)
+    assert.throws(() => Bind.ibAction(card), function(error) {
+        assert.ok(error instanceof TypeError)
+        assert.match(error.message, /#go.*Fancy.*UIButton/)
+        return true
+    })
+})
+
+test("a sender class carrying a nib over an element its own class owns is the ordinary wiring, and writes no second nib", function() {
+    var log = []
+    page("<div id=\"card\"><a id=\"go\" data-count=\"3\"></a></div>")
+    class Card extends UIView {
+        tapped() {}
+    }
+    var Fancy = hookedSender(log)
+    IBOutlet("#go", Fancy)(Card.prototype, "go", {})
+    IBAction("#go", Fancy)(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    Bind.ibOutlet(card)
+    var html = document.getElementById("card").innerHTML
+    Bind.ibAction(card)
+    assert.equal(document.getElementById("card").innerHTML, html)
+    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+})
+
+// The one place an owner stops owning is its disposal: the element outlives it
+// and a later action over it binds a sender again, which only works because a
+// disposed owner is read as no owner at all.
+test("an element whose owner was disposed is awoken again by the next action over it", function() {
+    var log = []
+    page("<div id=\"card\"><a id=\"go\"></a></div>")
+    class Sender extends UIView {
+        awakeFromNib() { log.push("sender.awakeFromNib") }
+    }
+    Sender.nib = "<i class=\"mark\"></i>"
+    var senders = []
+    class Card extends UIView {
+        tapped(sender) { senders.push(sender) }
+    }
+    IBAction("#go", Sender)(Card.prototype, "tapped", {})
+    var card = new Card("#card")
+    Bind.ibAction(card)
+    $("#go").trigger("click")
+    assert.deepEqual(log, ["sender.awakeFromNib"])
+    senders[0]._dispose()
+    Bind.ibAction(card)
+    assert.deepEqual(log, ["sender.awakeFromNib", "sender.awakeFromNib"])
 })
