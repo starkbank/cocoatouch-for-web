@@ -227,6 +227,7 @@ tableViewCellForRowAtIndexPath(tableView, indexPath) {
 - `UISearchTextField`: `tokens`, `insertToken(token, {at})`, `removeToken({at})`, `allowsDeletingTokens`; Backspace in the empty input removes the last token, and clearing is `tokens = []`. Selected tokens use the view's `tintColor`, which defaults to the page's `--action-or-selection-color` token.
 - `UIDatePicker`: `date`, `minimumDate`, `maximumDate`, `locale`, `datePickerMode = "yearAndMonth"`; a selection is a `UIControlEvent.valueChanged`, so `addTarget` runs the action on its target with the picker as the sender, as every control does, and `removeTarget` undoes it; the date is `picker.date`. Wraps the jQuery UI datepicker, so `jquery-ui` must be on the page where it is used.
 - `UIPasteboard.general`: `string` and `hasStrings`. Setting `string` copies the text for the user to paste elsewhere, through `navigator.clipboard.writeText` and, where that API is absent or refuses, through a hidden read-only `<textarea>` selected and copied with `document.execCommand("copy")`, which gives the focus back afterwards; call it from the user's click, since both paths need one. One deviation from Apple, on purpose: Apple's getter reads the system pasteboard, which a page cannot do synchronously, so `string` returns only the last string this page wrote, and `null` before any write. `string = null` forgets that string and writes nothing, and `hasStrings` is whether this page holds one.
+- `UIApplication.shared`: `open(url, {options, completionHandler})` and `canOpenURL(url)`. `open` hands an address to the browser in a new tab (`window.open(url, "_blank", "noopener")`, so the opened page cannot reach back). Only `http(s)`, `mailto:` and `tel:` are accepted, the validation `NSUserActivity.webpageURL` applies, as a string or a `URL`; `javascript:`, `data:`, `file:` and the rest are refused without throwing: nothing opens and `completionHandler(false)` runs. Two deviations: `completionHandler(true)` means the request was made, since a blocked popup is silent and `noopener` makes `window.open` return `null`, and it runs synchronously, where Apple's arrives on the main queue. `options` is accepted and ignored, as Apple's keys mean nothing in a browser. Call it from the user's click so the popup is not blocked.
 - `UIDevice.current`: `model`, `systemName` and `userInterfaceIdiom`, a `UIUserInterfaceIdiom` that is `phone`, `pad` or `mac` for a desktop browser, Apple's cases only.
 - `UITapGestureRecognizer({target, action})` with `view.addGestureRecognizer(recognizer)`.
 - Foundation: `DispatchGroup` (`enter`, `leave`, `notify`), `IndexPath({row, section})`, `Locale(identifier)` with date formats and datepicker regional strings.
@@ -349,7 +350,7 @@ One element has one owner. The owner is recorded as each view is bound, and from
 | NSAttributedString, NSAttributedStringDocumentType | | |
 | | UITraitCollection, UIUserInterfaceSizeClass, UIUserInterfaceIdiom | |
 | | UINavigationController, UINavigationBar, UINavigationItem | |
-| | UIPasteboard | |
+| | UIPasteboard, UIApplication | |
 | NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, IBInspectable, UIKeyCommand, UIKeyModifierFlags | |
 | | | PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, PDFDocumentFoundSelectionKey |
 

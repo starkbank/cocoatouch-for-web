@@ -37,6 +37,7 @@ import { UINavigationController } from "./uinavigationcontroller.js"
 import { UINavigationBar } from "./uinavigationbar.js"
 import { UINavigationItem } from "./uinavigationitem.js"
 import { UIPasteboard } from "./uipasteboard.js"
+import { UIApplication } from "./uiapplication.js"
 
 
 export {
@@ -84,4 +85,5 @@ export {
      UINavigationBar,
      UINavigationItem,
      UIPasteboard,
+     UIApplication,
 }
