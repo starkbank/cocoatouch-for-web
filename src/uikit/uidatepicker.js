@@ -166,9 +166,14 @@ export class UIDatePicker extends UIControl {
 
     // The plugin puts a popover in the body and a resize listener on the window
     // the first time the clock opens, and keeps both until removed, so a picker
-    // that goes with its controller must remove the clock too.
+    // that goes with its controller must remove the clock too. The calendar is
+    // one div the page shares, so an open one is closed with its picker.
     _dispose() {
         this._removeClock()
+        if (this._mode !== "time") {
+            this.$input.datepicker("hide")
+            this.$input.datepicker("destroy")
+        }
         super._dispose()
     }
 
