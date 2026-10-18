@@ -260,6 +260,34 @@ export class UIView extends UIResponder {
         }
     }
 
+    // UIInteraction objects the view carries, UIToolTipInteraction among them.
+    // The interaction is told it will move to the view and then that it did, and
+    // on removal to nil: that is where it draws and erases its own state. The
+    // list is a copy, as Swift's array is a value.
+    get interactions() {
+        return (this._interactions || []).slice()
+    }
+
+    addInteraction(interaction) {
+        var signature = "Apple's is addInteraction(_ interaction: UIInteraction)."
+        if (!interaction || typeof interaction.willMove !== "function" || typeof interaction.didMove !== "function") {
+            throw new TypeError(`UIView.addInteraction expects a UIInteraction for interaction, got ${interaction === null ? "null" : typeof interaction}. ${signature}`)
+        }
+        if (!this._interactions) { this._interactions = [] }
+        if (this._interactions.indexOf(interaction) !== -1) { return }
+        interaction.willMove({to: this})
+        this._interactions.push(interaction)
+        interaction.didMove({to: this})
+    }
+
+    removeInteraction(interaction) {
+        var index = (this._interactions || []).indexOf(interaction)
+        if (index === -1) { return }
+        interaction.willMove({to: null})
+        this._interactions.splice(index, 1)
+        interaction.didMove({to: null})
+    }
+
     layoutSubviews() {
 
     }
