@@ -186,3 +186,98 @@ test("with focus inside the control, one Ctrl+K off Apple still runs only the co
     }
     assert.deepEqual(fired, ["viaControl"])
 })
+
+
+// A text input is the first responder here: the focused element is what the
+// dispatcher reads as the first responder.
+function typingInto(html, run) {
+    page("<div id=\"host\">" + html + "</div>")
+    var element = document.querySelector("#host input, #host textarea")
+    element.focus()
+    run(element)
+}
+
+function backspace() {
+    return keydown("Backspace")
+}
+
+test("inputDelete is Backspace, and wantsPriorityOverSystemBehavior is a flag before the input", function() {
+    assert.equal(UIKeyCommand.inputDelete, UIKeyCommand.input("Backspace"))
+    assert.equal(UIKeyCommand.wantsPriorityOverSystemBehavior + UIKeyCommand.inputDelete, "priority+keyboard:Backspace")
+})
+
+test("the delete key is consumed by a focused text input, so an ordinary command on it does not fire and nothing is prevented", function() {
+    typingInto("<input id=\"field\">", function() {
+        var fired = []
+        var controller = bound(fired, {deleted: UIKeyCommand.inputDelete})
+        var event = backspace()
+        controller._dispose()
+        assert.deepEqual(fired, [])
+        assert.equal(event.defaultPrevented, false)
+    })
+})
+
+test("a command that wants priority fires from a text input and prevents the delete when its method acted", function() {
+    typingInto("<input id=\"field\">", function() {
+        var fired = []
+        var controller = bound(fired, {deleted: UIKeyCommand.wantsPriorityOverSystemBehavior + UIKeyCommand.inputDelete})
+        var event = backspace()
+        controller._dispose()
+        assert.deepEqual(fired, ["deleted"])
+        assert.equal(event.defaultPrevented, true)
+    })
+})
+
+test("a command that wants priority and declines, returning false, leaves the delete to the input", function() {
+    typingInto("<input id=\"field\">", function() {
+        class Page extends UIViewController {
+            deleted() { return false }
+        }
+        IBAction(UIKeyCommand.wantsPriorityOverSystemBehavior + UIKeyCommand.inputDelete)(Page.prototype, "deleted", {})
+        var controller = new Page()
+        Bind.ibAction(controller)
+        var event = backspace()
+        controller._dispose()
+        assert.equal(event.defaultPrevented, false)
+    })
+})
+
+test("a priority command prevents nothing of other keys, and an ordinary command on the same key still prevents", function() {
+    typingInto("<input id=\"field\">", function() {
+        var fired = []
+        var controller = bound(fired, {
+            priority: UIKeyCommand.wantsPriorityOverSystemBehavior + UIKeyCommand.inputDelete,
+            plain: UIKeyCommand.inputEscape,
+        })
+        var event = keydown("Escape")
+        controller._dispose()
+        assert.deepEqual(fired, ["plain"])
+        assert.equal(event.defaultPrevented, true)
+    })
+})
+
+test("outside a text input the delete key fires an ordinary command, with or without priority", function() {
+    page("<div id=\"host\"></div>")
+    var fired = []
+    var controller = bound(fired, {
+        plain: UIKeyCommand.inputDelete,
+        priority: UIKeyCommand.wantsPriorityOverSystemBehavior + UIKeyCommand.inputDelete,
+    })
+    var event = backspace()
+    controller._dispose()
+    assert.deepEqual(fired.sort(), ["plain", "priority"])
+    assert.equal(event.defaultPrevented, true)
+})
+
+test("a priority command on a character fires from a text input, where an ordinary one is typed", function() {
+    typingInto("<input id=\"field\">", function() {
+        var fired = []
+        var controller = bound(fired, {
+            typed: UIKeyCommand.input("k"),
+            priority: UIKeyCommand.wantsPriorityOverSystemBehavior + UIKeyCommand.input("k"),
+        })
+        keydown("k")
+        controller._dispose()
+        assert.deepEqual(fired, ["priority"])
+    })
+})
