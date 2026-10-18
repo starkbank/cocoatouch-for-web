@@ -4,6 +4,7 @@ import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { inspectableValue } from "../uikit/ibinspectable.js"
 import { UIDevice } from "../uikit/uidevice.js"
 import { outletIndexFor, outletElement } from "./outletindex.js"
+import { outletElementClass } from "../uikit/iboutlet.js"
 import { ownElement, ownerOf } from "./elementowner.js"
 
 
@@ -150,6 +151,10 @@ export class Bind {
             var selector = outlet.selector
 
             var $el = outletElement({selector, $parent, index})
+            if (Array.isArray(cls)) {
+                _bindCollection(control, {outlet, $el, isRestoring: false})
+                continue
+            }
             var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
             responder._$el = $el
             ownElement($el, responder)
@@ -158,21 +163,7 @@ export class Bind {
 
             Object.defineProperty(control, method, {value: responder, writable: true})
 
-            if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
-                Bind.ibOutlet(responder)
-            }
-
-            Bind.ibInspectable(responder)
-
-            if (_overrides(responder, "awakeFromNib")) {
-                responder.awakeFromNib()
-            }
-
-            if (responder["ibactions"] && responder["ibactions"].length > 0) {
-                Bind.ibAction(responder)
-            }
-
-            _appear(responder, {isRestoring: false})
+            _finishOutlet(responder, {isRestoring: false})
         }
     }
 
@@ -190,6 +181,10 @@ export class Bind {
             var selector = outlet.selector
 
             var $el = outletElement({selector, $parent, index})
+            if (Array.isArray(cls)) {
+                _bindCollection(control, {outlet, $el, isRestoring: true})
+                continue
+            }
             var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
             responder._$el = $el
             ownElement($el, responder)
@@ -198,22 +193,74 @@ export class Bind {
 
             Object.defineProperty(control, method, {value: responder, writable: true})
 
-            if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
-                Bind.ibOutletRestore(responder)
-            }
-
-            Bind.ibInspectable(responder)
-
-            if (_overrides(responder, "didMoveToWindow")) {
-                responder.didMoveToWindow()
-            }
-
-            if (responder["ibactions"] && responder["ibactions"].length > 0) {
-                Bind.ibAction(responder, {isRestoring: true})
-            }
-
-            _appear(responder, {isRestoring: true})
+            _finishOutlet(responder, {isRestoring: true})
         }
+    }
+}
+
+
+// What a bound outlet does once it is linked and reachable from its owner, one
+// path for a single outlet and for each element of a collection. A fresh bind
+// awakes it; a restored page, whose prerenderer already awoke it, only tells it
+// it is in the window.
+function _finishOutlet(responder, {isRestoring}) {
+    if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
+        isRestoring ? Bind.ibOutletRestore(responder) : Bind.ibOutlet(responder)
+    }
+    Bind.ibInspectable(responder)
+    var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
+    if (_overrides(responder, hook)) {
+        responder[hook]()
+    }
+    if (responder["ibactions"] && responder["ibactions"].length > 0) {
+        Bind.ibAction(responder, {isRestoring})
+    }
+    _appear(responder, {isRestoring})
+}
+
+
+// Swift's outlet collection: one view per element the selector matched, in
+// document order, the array complete before any element's hooks run so an
+// awakeFromNib can read its siblings. An element without an id is given
+// `<owner id>-<property>-<position>`, as an @IBAction sender is, so each view
+// stays addressable. Refused up front, before anything is bound, when an
+// element is already owned by another outlet of this same owner: one element
+// has one owner, and a collection silently stealing it would leave the first
+// outlet bound to a node it no longer drives.
+function _bindCollection(control, {outlet, $el, isRestoring}) {
+    var elementClass = outletElementClass(outlet)
+    var elements = $el.toArray()
+    for (var element of elements) {
+        _rejectCollectionOverOwned(control, outlet, ownerOf(element))
+    }
+    var responders = elements.map(function(element, position) {
+        var $item = $(element)
+        if (!element.id) { $item.attr("id", _dashed(control.identifier, outlet.method) + "-" + (position + 1)) }
+        var responder = Bind.construct(elementClass, `${control.selector} #${element.id}`, $item)
+        responder._$el = $item
+        ownElement($item, responder)
+        control._link(responder)
+        return responder
+    })
+    Object.defineProperty(control, outlet.method, {value: responders, writable: true})
+    for (var responder of responders) {
+        _finishOutlet(responder, {isRestoring})
+    }
+}
+
+
+// An owner counts as this control's own when the control sits on its responder
+// chain, which holds for an outlet, and for anything bound inside one. The
+// owner a previous cell left on a reused row element does not: that cell is
+// not above the one binding now, so the new cell takes the element over.
+function _rejectCollectionOverOwned(control, outlet, owner) {
+    for (var at = owner; at; at = at.next) {
+        if (at !== control && at !== control.view) { continue }
+        throw new TypeError(
+            `@IBOutlet("${outlet.selector}", [${outletElementClass(outlet).name}]) ${outlet.method} matches an element ` +
+            `${owner.constructor.name} already owns. One element has one owner: give the collection a selector that ` +
+            `leaves that element out, or drop the outlet that holds it.`
+        )
     }
 }
 
