@@ -5,8 +5,9 @@ import { UIControlEvent } from "./uicontrolevent.js"
 import { required, typed, Bool, DateType } from "../utils/required.js"
 
 
-// Wraps a jQuery UI datepicker (jquery-ui must be on the page) in an input the
-// picker inserts into its element when it is empty. In "time" mode it wraps the
+// Wraps a jQuery UI datepicker (jquery-ui must be on the page) over the input
+// its element already holds, as a nib supplies it, or in an input the picker
+// inserts when the element has none. In "time" mode it wraps the
 // ClockPicker 0.0.7 plugin (also a page script) the same way, over the same input.
 export class UIDatePicker extends UIControl {
 
@@ -15,10 +16,14 @@ export class UIDatePicker extends UIControl {
         this._locale = new Locale("en")
         this._mode = "date"
         var inputId = selector.replace(/^#/, "").replace(/[^\w-]/g, "-") + "-uidatepicker"
-        if (this.$el.children().length === 0) {
+        var $existing = this.$el.find("input").first()
+        if ($existing.length === 0) {
             this.$el.append("<input id=\"" + inputId + "\" class=\"input dateinput\" autocomplete=\"off\" readonly=\"readonly\"/>")
         }
-        this.inputSelector = "#" + inputId
+        if ($existing.length > 0 && !$existing.attr("id")) {
+            $existing.attr("id", inputId)
+        }
+        this.inputSelector = "#" + (($existing.length > 0 && $existing.attr("id")) || inputId)
         this._configure()
     }
 
