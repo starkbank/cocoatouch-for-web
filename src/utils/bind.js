@@ -345,6 +345,7 @@ function _dash(property) {
 }
 
 const keyboardPrefix = "keyboard:"
+const priorityFlag = "priority"
 
 function _isKeyboardAction(action) {
     return action.selector.indexOf(keyboardPrefix) !== -1
@@ -410,12 +411,14 @@ var _keyBindings = []
 
 function _bindKeyboardAction(control, action) {
     var keyboardIndex = action.selector.indexOf(keyboardPrefix)
-    var modifiers = action.selector.slice(0, keyboardIndex).split("+").filter(Boolean)
+    var flags = action.selector.slice(0, keyboardIndex).split("+").filter(Boolean)
+    var modifiers = flags.filter(function(flag) { return flag !== priorityFlag })
     control._disposed = false
     _keyBindings.push({
         control: control,
         method: action.method,
         key: action.selector.slice(keyboardIndex + keyboardPrefix.length),
+        wantsPriority: flags.indexOf(priorityFlag) !== -1,
         modifiers: modifiers,
         requiresMeta: modifiers.indexOf("meta") !== -1,
         requiresShift: modifiers.indexOf("shift") !== -1,
@@ -457,12 +460,15 @@ function _matchKind(binding, e, usesCommandKey) {
     return binding.requiresMeta ? "substituted" : "native"
 }
 
-// A text input that is first responder consumes the characters typed into it,
-// so a key command with no modifiers never fires while one has the focus.
+// A text input that is first responder consumes the characters typed into it
+// and the delete key, so a key command with no modifiers on one of those never
+// fires while one has the focus, unless it wantsPriorityOverSystemBehavior.
 const textInputs = /^(input|textarea|select)$/i
+const textConsumedKeys = ["Backspace"]
 
 function _isTypedInto(binding, active) {
-    if (!active || binding.modifiers.length > 0 || binding.key.length !== 1) { return false }
+    if (!active || binding.wantsPriority || binding.modifiers.length > 0) { return false }
+    if (binding.key.length !== 1 && textConsumedKeys.indexOf(binding.key) === -1) { return false }
     return textInputs.test(active.tagName || "") || active.isContentEditable === true
 }
 
@@ -506,7 +512,7 @@ function _dispatchKey(e) {
     })
     matching = _withoutTwins(matching, kinds)
     if (matching.length === 0) { return }
-    e.preventDefault()
+    if (matching.some(function(binding) { return !binding.wantsPriority })) { e.preventDefault() }
     var chain = [], others = []
     for (var binding of matching) {
         var element = active ? _elementOf(binding.control) : null
@@ -517,9 +523,18 @@ function _dispatchKey(e) {
     chain.sort(function(a, b) { return b.depth - a.depth })
     for (var link of chain) {
         var handled = _perform(link.binding, e)
-        if (handled) { return }
+        if (handled) { return _consume(link.binding, e) }
     }
-    for (var other of others) { _perform(other, e) }
+    for (var other of others) {
+        if (_perform(other, e)) { _consume(other, e) }
+    }
+}
+
+// A command that wants priority prevents the system's behaviour only when it
+// acted: a handler that declines, returning false, leaves the key to the text
+// field it was typed into.
+function _consume(binding, e) {
+    if (binding.wantsPriority) { e.preventDefault() }
 }
 
 function _perform(binding, e) {
