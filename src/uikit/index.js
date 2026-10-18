@@ -38,6 +38,7 @@ import { UINavigationBar } from "./uinavigationbar.js"
 import { UINavigationItem } from "./uinavigationitem.js"
 import { UIPasteboard } from "./uipasteboard.js"
 import { UIApplication } from "./uiapplication.js"
+import { UIToolTipInteraction } from "./uitooltipinteraction.js"
 
 
 export {
@@ -86,4 +87,5 @@ export {
      UINavigationItem,
      UIPasteboard,
      UIApplication,
+     UIToolTipInteraction,
 }
