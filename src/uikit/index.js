@@ -36,6 +36,7 @@ import { UIControlState } from "./uicontrolstate.js"
 import { UINavigationController } from "./uinavigationcontroller.js"
 import { UINavigationBar } from "./uinavigationbar.js"
 import { UINavigationItem } from "./uinavigationitem.js"
+import { UIPasteboard } from "./uipasteboard.js"
 
 
 export {
@@ -82,4 +83,5 @@ export {
      UINavigationController,
      UINavigationBar,
      UINavigationItem,
+     UIPasteboard,
 }
