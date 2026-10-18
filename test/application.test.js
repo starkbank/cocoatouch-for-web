@@ -74,3 +74,12 @@ test("a url that is neither a String nor a URL, and a completionHandler that is 
     assert.throws(() => app.canOpenURL({}), (error) => error instanceof TypeError && /UIApplication\.canOpenURL/.test(error.message))
     assert.throws(() => app.open("https://starkbank.com", {completionHandler: "done"}), (error) => error instanceof TypeError && /completionHandler/.test(error.message))
 })
+
+test("a relative address opens as the absolute one it was validated as, mailto and tel unchanged", function() {
+    withWindowOpen(function(calls) {
+        UIApplication.shared.open("/docs/pix")
+        UIApplication.shared.open("mailto:help@starkbank.com")
+        UIApplication.shared.open("tel:+551140000000")
+        assert.deepEqual(calls.map((call) => call[0]), ["http://localhost/docs/pix", "mailto:help@starkbank.com", "tel:+551140000000"])
+    })
+})
