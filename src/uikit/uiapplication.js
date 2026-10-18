@@ -20,8 +20,10 @@ export class UIApplication extends UIResponder {
         return resolvedNavigableURL(String(url)) !== null
     }
 
-    // Opens the address in a new tab with noopener, so the page it opens cannot
-    // reach back to this one. completionHandler gets true once the request was
+    // Opens the resolved address, not the text: window.open resolves a relative
+    // one against the document's base URL, which may differ from the page's
+    // address the check used. It opens in a new tab with noopener, so the page
+    // it opens cannot reach back to this one. completionHandler gets true once the request was
     // made and false when the address is refused. A browser that blocks the
     // popup does not say so, and noopener makes window.open return null, so
     // true means "requested", not "shown". Called synchronously, where Apple's
@@ -37,9 +39,9 @@ export class UIApplication extends UIResponder {
         var signature = "Apple's is open(_ url: URL, options: [OpenExternalURLOptionsKey: Any] = [:], completionHandler: ((Bool) -> Void)? = nil)."
         typed(url, "url", URLType, "UIApplication.open", signature)
         typed(completionHandler, "completionHandler", optional(FunctionType), "UIApplication.open", signature)
-        var isOpenable = this.canOpenURL(url)
-        if (isOpenable) { window.open(String(url), "_blank", "noopener") }
-        if (completionHandler) { completionHandler(isOpenable) }
+        var resolved = resolvedNavigableURL(String(url))
+        if (resolved) { window.open(resolved.href, "_blank", "noopener") }
+        if (completionHandler) { completionHandler(resolved !== null) }
     }
 }
 

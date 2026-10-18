@@ -159,6 +159,14 @@ export class UIDatePicker extends UIControl {
         this._hasClock = true
     }
 
+    // The plugin puts a popover in the body and a resize listener on the window
+    // the first time the clock opens, and keeps both until removed, so a picker
+    // that goes with its controller must remove the clock too.
+    _dispose() {
+        this._removeClock()
+        super._dispose()
+    }
+
     _removeClock() {
         if (!this._hasClock) { return }
         this.$el.clockpicker("remove")
