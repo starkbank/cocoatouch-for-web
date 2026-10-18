@@ -6,13 +6,14 @@ import { required, typed, Bool, DateType } from "../utils/required.js"
 
 
 // Wraps a jQuery UI datepicker (jquery-ui must be on the page) in an input the
-// picker inserts into its element when it is empty.
+// picker inserts into its element when it is empty. In "time" mode it wraps the
+// ClockPicker 0.0.7 plugin (also a page script) the same way, over the same input.
 export class UIDatePicker extends UIControl {
 
     constructor(selector) {
         super(selector)
         this._locale = new Locale("en")
-        this._monthOnly = false
+        this._mode = "date"
         var inputId = selector.replace(/^#/, "").replace(/[^\w-]/g, "-") + "-uidatepicker"
         if (this.$el.children().length === 0) {
             this.$el.append("<input id=\"" + inputId + "\" class=\"input dateinput\" autocomplete=\"off\" readonly=\"readonly\"/>")
@@ -25,11 +26,18 @@ export class UIDatePicker extends UIControl {
         return $(this.inputSelector)
     }
 
+    // In time mode only the hours and minutes count: the clock holds "HH:mm", so
+    // the date reads as that time today and writing a date keeps its time only.
     set date(date) {
+        if (this._mode === "time") {
+            this.$input.prop("value", _clockText(date))
+            return
+        }
         this.$input.datepicker("setDate", date)
     }
 
     get date() {
+        if (this._mode === "time") { return _timeToday(this.$input.prop("value")) }
         return this.$input.datepicker("getDate")
     }
 
@@ -48,7 +56,9 @@ export class UIDatePicker extends UIControl {
 
     set locale(locale) {
         this._locale = locale
-        this.$input.datepicker("option", "dateFormat", datePickerDateFormat(locale))
+        if (this._mode !== "time") {
+            this.$input.datepicker("option", "dateFormat", datePickerDateFormat(locale))
+        }
         this._configure()
     }
 
@@ -56,30 +66,37 @@ export class UIDatePicker extends UIControl {
         return this._locale
     }
 
+    // The clock has no limits, so in time mode the two dates are ignored, and
+    // the destroyed calendar is not asked for them.
     set minimumDate(date) {
+        if (this._mode === "time") { return }
         this.$input.datepicker("option", "minDate", date)
     }
 
     get minimumDate() {
+        if (this._mode === "time") { return null }
         return this.$input.datepicker("option", "minDate")
     }
 
     set maximumDate(date) {
+        if (this._mode === "time") { return }
         this.$input.datepicker("option", "maxDate", date)
     }
 
     get maximumDate() {
+        if (this._mode === "time") { return null }
         return this.$input.datepicker("option", "maxDate")
     }
 
-    // "date" picks a day, "yearAndMonth" hides the calendar and picks a month.
+    // "date" picks a day, "time" (Apple's .time) picks hours and minutes on a
+    // clock, "yearAndMonth" hides the calendar and picks a month.
     set datePickerMode(mode) {
-        this._monthOnly = mode === "yearAndMonth"
+        this._mode = mode === "yearAndMonth" || mode === "time" ? mode : "date"
         this._configure()
     }
 
     get datePickerMode() {
-        return this._monthOnly ? "yearAndMonth" : "date"
+        return this._mode
     }
 
     // A selection is a valueChanged control event, so addTarget, removeTarget
@@ -88,8 +105,13 @@ export class UIDatePicker extends UIControl {
     _configure() {
         var regional = datePickerRegional(this._locale)
         var onSelect = () => this.sendActions({for: UIControlEvent.valueChanged})
+        this._removeClock()
         this.$input.datepicker("destroy")
-        if (!this._monthOnly) {
+        if (this._mode === "time") {
+            this._buildClock()
+            return
+        }
+        if (this._mode === "date") {
             this.$input.datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true, onSelect: onSelect})
             return
         }
@@ -111,4 +133,55 @@ export class UIDatePicker extends UIControl {
             },
         })
     }
+    // ClockPicker is attached to the picker's element, whose input it finds, as
+    // the callers have always done; its own markup and options stay the
+    // plugin's, and a nib may set the rest as data attributes the plugin reads
+    // (data-default, data-donetext), which beat these defaults. The plugin
+    // sends a change event only when the value differs, so valueChanged is
+    // sent from afterDone alone when it did not, and a close with a value is one
+    // valueChanged either way.
+    _buildClock() {
+        if (!$.fn || typeof $.fn.clockpicker !== "function") {
+            throw new TypeError("UIDatePicker.datePickerMode = \"time\" wraps the ClockPicker jQuery plugin, which must be on the page, as the date mode needs jquery-ui.")
+        }
+        var valueBeforeDone = null
+        this.$el.clockpicker({
+            placement: "bottom",
+            align: "left",
+            autoclose: true,
+            ...this.$el.data(),
+            beforeDone: () => { valueBeforeDone = this.$input.prop("value") },
+            afterDone: () => {
+                if (this.$input.prop("value") !== valueBeforeDone) { return }
+                this.sendActions({for: UIControlEvent.valueChanged})
+            },
+        })
+        this._hasClock = true
+    }
+
+    _removeClock() {
+        if (!this._hasClock) { return }
+        this.$el.clockpicker("remove")
+        this._hasClock = false
+    }
+}
+
+
+// "HH:mm", the text ClockPicker writes in 24-hour mode.
+function _clockText(date) {
+    var pad = (number) => (number < 10 ? "0" : "") + number
+    return pad(date.getHours()) + ":" + pad(date.getMinutes())
+}
+
+
+// The time the clock shows as a Date today; null for what the clock cannot have
+// written, so a half-typed field is not read as midnight.
+function _timeToday(text) {
+    var parsed = /^(\d{1,2}):(\d{2})$/.exec(String(text).trim())
+    if (!parsed) { return null }
+    var hours = Number(parsed[1])
+    var minutes = Number(parsed[2])
+    if (hours > 23 || minutes > 59) { return null }
+    var today = new Date()
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0, 0)
 }
