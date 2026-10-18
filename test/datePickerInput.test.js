@@ -56,3 +56,32 @@ test("an outlet-bound picker uses the input its owner's nib supplies, whatever t
         assert.equal($("#birth-field").attr("placeholder"), "dd/mm/aaaa")
     })
 })
+
+test("disposing a calendar picker closes its calendar and destroys the widget, and disposing a clock does not touch the calendar", function() {
+    page("<div id=\"owner\"></div>")
+    var calls = []
+    $.fn.datepicker = function(method) {
+        if (typeof method === "string") { calls.push(method) }
+        return this
+    }
+    $.fn.clockpicker = function() { return this }
+    try {
+        class Owner extends UIView {}
+        Owner.nib = "<div id=\"birth\"><input id=\"birth-field\"></div>"
+        IBOutlet("#birth", UIDatePicker)(Owner.prototype, "picker", {})
+        var owner = new Owner("#owner")
+        calls.length = 0
+        owner._dispose()
+        assert.deepEqual(calls, ["hide", "destroy"])
+
+        page("<div id=\"owner\"></div>")
+        var clockOwner = new Owner("#owner")
+        clockOwner.picker.datePickerMode = "time"
+        calls.length = 0
+        clockOwner._dispose()
+        assert.deepEqual(calls, [])
+    } finally {
+        delete $.fn.datepicker
+        delete $.fn.clockpicker
+    }
+})
