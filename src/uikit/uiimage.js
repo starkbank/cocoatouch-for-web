@@ -25,14 +25,24 @@ export class UIImage extends NSObject {
      */
     constructor({named, systemName, data} = {}) {
         super()
-        var labels = [named, systemName, data].filter((label) => label !== undefined)
+        // A label counts by being there, not by its value: apps pass
+        // {named: item.icon} with an icon that may be missing, and get an empty
+        // image. Destructuring cannot tell {named: undefined} from {}, so the
+        // argument itself is asked.
+        var given = arguments[0] || {}
+        var labels = ["named", "systemName", "data"].filter((label) => hasLabel(given, label))
         if (labels.length !== 1) {
             throw new TypeError(`UIImage takes exactly one of named, systemName and data. ${dataSignature}`)
         }
         this.named = named
         this.systemName = systemName
-        this._dataURL = data === undefined ? undefined : _dataURL(data)
+        this._dataURL = hasLabel(given, "data") ? _dataURL(data) : undefined
     }
+}
+
+
+function hasLabel(options, label) {
+    return Object.prototype.hasOwnProperty.call(options, label)
 }
 
 

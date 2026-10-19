@@ -119,3 +119,24 @@ test("a data image does not read as a symbol", function() {
     new UIImageView("#photo").image = new UIImage({data: bytesOf("gif89")})
     assert.equal(document.getElementById("photo").className, "")
 })
+
+// Apps pass `{named: item.icon}` with an icon that may be missing, and get an
+// empty image: a label counts by being present, not by having a value.
+test("a label present with the value undefined still counts: {named: undefined} is an empty image, as before", function() {
+    var empty = new UIImage({named: undefined})
+    assert.equal(empty.named, undefined)
+    assert.equal(empty.systemName, undefined)
+    assert.equal(new UIImage({systemName: undefined}).systemName, undefined)
+    page("<img id=\"photo\"><div id=\"box\"></div>")
+    assert.doesNotThrow(() => { new UIImageView("#photo").image = empty })
+    assert.doesNotThrow(() => { new UIImageView("#box").image = empty })
+})
+
+test("{data: undefined} is not bytes and throws the TypeError naming UIImage(data:), where {named: undefined} stays lenient", function() {
+    assert.throws(() => new UIImage({data: undefined}), (error) => error instanceof TypeError && /UIImage\(data:\)/.test(error.message))
+    assert.throws(() => new UIImage({data: undefined, named: "/a.png"}), TypeError)
+    assert.throws(() => new UIImage({named: undefined, systemName: "fas fa-x"}), TypeError)
+    assert.throws(() => new UIImage({}), TypeError)
+    assert.throws(() => new UIImage(), TypeError)
+    assert.throws(() => new UIImage(null), TypeError)
+})
