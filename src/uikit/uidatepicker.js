@@ -38,11 +38,20 @@ export class UIDatePicker extends UIControl {
             this.$input.prop("value", _clockText(date))
             return
         }
+        if (this._mode === "yearAndMonth") {
+            this._month = date ? _firstOfMonth(date) : null
+            this.$input.datepicker("setDate", this._month)
+            return
+        }
         this.$input.datepicker("setDate", date)
     }
 
+    // yearAndMonth holds the month that was picked or written, as the first of
+    // it in local time: the widget's text is only "MMMM yyyy", and parsing it
+    // back would depend on the locale's month names.
     get date() {
         if (this._mode === "time") { return _timeToday(this.$input.prop("value")) }
+        if (this._mode === "yearAndMonth") { return this._month ? new Date(this._month.getTime()) : null }
         return this.$input.datepicker("getDate")
     }
 
@@ -97,6 +106,7 @@ export class UIDatePicker extends UIControl {
     // clock, "yearAndMonth" hides the calendar and picks a month.
     set datePickerMode(mode) {
         this._mode = mode === "yearAndMonth" || mode === "time" ? mode : "date"
+        this._month = null
         this._configure()
     }
 
@@ -182,6 +192,12 @@ export class UIDatePicker extends UIControl {
         this.$el.clockpicker("remove")
         this._hasClock = false
     }
+}
+
+
+// The first of the month of `date`, midnight local.
+function _firstOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
 
