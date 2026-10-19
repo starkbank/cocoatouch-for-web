@@ -370,3 +370,29 @@ test("one session object serves enter and every dragover of a drag, and a new dr
     zone.dispatchEvent(dragEvent("dragenter", [pdf]))
     assert.notEqual(seen[4], seen[0])
 })
+
+test("loading a provider again answers the same URL with one registry entry, and a removed one is registered anew", async function() {
+    var before = registeredCount()
+    var urls = []
+    var delegate = recorder({dropInteractionPerformDrop: function(interaction, session) {
+        var provider = session.items[0].itemProvider
+        var load = () => provider.loadFileRepresentation({forTypeIdentifier: UTType.pdf.identifier, completionHandler: (url) => urls.push(url)})
+        load()
+        load()
+        setTimeout(() => {
+            manager.removeItem({at: urls[0]})
+            load()
+        }, 0)
+    }})
+    var {zone} = setup(delegate)
+    zone.dispatchEvent(dragEvent("dragenter", [pdf]))
+    zone.dispatchEvent(dragEvent("drop", [Object.assign({file: file("a.pdf", [1, 2])}, pdf)]))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(urls.length, 3)
+    assert.equal(urls[0].href, urls[1].href)
+    assert.notEqual(urls[2].href, urls[0].href)
+    assert.deepEqual([...await manager.contents({atPath: urls[2].href})], [1, 2])
+    assert.equal(registeredCount(), before + 1)
+    manager.removeItem({at: urls[2]})
+    assert.equal(registeredCount(), before)
+})
