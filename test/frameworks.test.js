@@ -36,7 +36,7 @@ test("CoreAnimation and AVKit follow the same shape", async function() {
 
 test("the webpack aliases point every framework name at an existing entry", function() {
     const aliases = require("../webpack/aliases.cjs")
-    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "PDFKit", "UIKit"])
+    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "PDFKit", "UIKit", "UniformTypeIdentifiers"])
     for (const file of Object.values(aliases)) {
         assert.ok(fs.existsSync(file), file + " does not exist")
         assert.equal(path.basename(path.dirname(file)), "src")
@@ -165,4 +165,9 @@ test("no entry point other than PDFKit's reaches src/pdfkit/ or pdfjs-dist", fun
         assert.deepEqual(problems, [], `${path.relative(repoRoot, root)}`)
         assert.deepEqual(chains, [], `${path.relative(repoRoot, root)} reaches PDFKit`)
     }
+})
+
+test("importing UniformTypeIdentifiers makes UTType ambient and still exports it", async function() {
+    const UniformTypeIdentifiers = await import("../src/UniformTypeIdentifiers.js")
+    assert.equal(globalThis.UTType, UniformTypeIdentifiers.UTType)
 })
