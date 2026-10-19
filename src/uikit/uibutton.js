@@ -81,6 +81,8 @@ export class UIButton extends UIControl {
     // A title already drawn is left alone: a highlight redraw at pointer-down
     // would replace the nodes under the pointer, and the browser, finding no
     // common ancestor of the down and up targets, would never send the click.
+    // The element is part of what was drawn: a view re-resolves its element by
+    // selector once it is disconnected, so the same title may need drawing again.
     _drawTitle() {
         if (this._titleBeforeActivity !== undefined) { return }
         var title = _title(this, _drawnState(this))
@@ -88,8 +90,10 @@ export class UIButton extends UIControl {
         var isMarkup = title instanceof NSAttributedString && title._isMarkup
         var drawn = isMarkup ? title._markup : title instanceof NSAttributedString ? title.string : title
         var key = (isMarkup ? "markup:" : "text:") + drawn
-        if (this._drawnTitle === key) { return }
+        var element = this.$el[0]
+        if (this._drawnTitle === key && this._drawnElement === element) { return }
         this._drawnTitle = key
+        this._drawnElement = element
         if (isMarkup) { setMarkup(this.$el, drawn) }
         if (!isMarkup) { setText(this.$el, drawn) }
     }
