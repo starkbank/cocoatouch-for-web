@@ -79,6 +79,8 @@ Since 1.8.1 a class's outlets are resolved in one walk of its element instead of
 
 Since 1.9.0 an outlet collection is Swift's `@IBOutlet var chips: [UILabel]!`, written with the class in an array: `@IBOutlet(".chip", [UILabel]) chips` binds one `UILabel` per element the selector matches inside the owner, in document order, and `chips` is that array (empty when nothing matches). Each element is bound as a single outlet is: it is a subview of the owner, its own outlets, inspectables, `awakeFromNib` and actions follow, and `restore` rebinds it with `didMoveToWindow`. The array is whole before the first element is awakened, so an element can read its siblings. An element without an id is given `<owner id>-<property>-<position>`. One element has one owner: a collection over an element another outlet of the same owner already holds throws a `TypeError` naming both, before anything is bound; elements a different owner holds, such as the previous cell of a reused row, are taken over as for a single outlet. The array must hold exactly one class.
 
+A class may define accessors named `value`, `get`, `set` or `initializer` beside its outlets and actions. `@IBOutlet` and `@IBAction` hand Babel's legacy decorator transform a plain descriptor (a field's has no initializer, a method keeps its own) instead of the prototype, which the transform reads those four names off, so none of the class's accessors runs while it is defined. `test/fixtures/babel/valueView.js` is a class compiled by the apps' Babel setup that the suite loads to keep this true.
+
 ```js
 export class BannerView extends UIView {
 

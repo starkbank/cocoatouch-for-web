@@ -1,3 +1,6 @@
+import { decoratedDescriptor } from "../utils/decoratedDescriptor.js"
+
+
 // Swift's `@IBOutlet var chips: [UILabel]!` is an outlet collection, written
 // here as the class in an array: `@IBOutlet(".chip", [UILabel]) chips`. The
 // selector then binds every element it matches, in document order.
@@ -16,7 +19,7 @@ export function IBOutlet(selector, cls) {
             method: name,
             target: target,
         })
-        return target
+        return decoratedDescriptor(descriptor)
     }
 }
 
