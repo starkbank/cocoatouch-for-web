@@ -18,10 +18,8 @@ var _default = null
 // minted for a File (UIDocumentPickerViewController, UIDropInteraction), and
 // anything else finds nothing: an empty name, null attributes, null contents,
 // an empty listing. Nothing here makes a request. contents(atPath:) and
-// contentsOfDirectory(atPath:) answer a Promise, where Apple's answer at once,
-// because a browser cannot read a file synchronously; and the listing answers
-// each child's path, which the other methods take, where Apple's answers bare
-// names.
+// contentsOfDirectory(at:) answer a Promise, where Apple's answer at once,
+// because a browser cannot read a file synchronously.
 export class FileManager extends NSObject {
 
     static get default() {
@@ -62,22 +60,28 @@ export class FileManager extends NSObject {
         return entry.file.arrayBuffer().then((buffer) => new Uint8Array(buffer))
     }
 
-    // The paths of a directory's children, registering each as it is listed;
-    // listing again answers the same paths.
+    // The URLs of a directory's children, registering each as it is listed;
+    // listing again answers the same URLs. Properties are not supported, so
+    // includingPropertiesForKeys is null, and options is not taken.
     /**
      * @param {object} options
-     * @param {string} options.atPath
-     * @returns {Promise<string[]>}
+     * @param {URL} options.at
+     * @param {null} options.includingPropertiesForKeys
+     * @returns {Promise<URL[]>}
      */
-    contentsOfDirectory({atPath} = {}) {
-        var path = _path(atPath, "FileManager.contentsOfDirectory", "contentsOfDirectory")
+    contentsOfDirectory({at, includingPropertiesForKeys} = {}) {
+        var signature = "Apple's is contentsOfDirectory(at:includingPropertiesForKeys:options:); write manager.contentsOfDirectory({at: url, includingPropertiesForKeys: null})."
+        required(at, "at", urlType, "FileManager.contentsOfDirectory", signature)
+        if (includingPropertiesForKeys !== null) {
+            throw new TypeError(`FileManager.contentsOfDirectory requires includingPropertiesForKeys, which must be null as no resource keys are supported: ${signature}`)
+        }
+        var path = at.href
         var entry = registered(path)
         if (!entry || entry.kind !== "directory") { return Promise.resolve([]) }
-        if (entry.children) { return Promise.resolve(entry.children.slice()) }
+        if (entry.children) { return Promise.resolve(entry.children.map((child) => new URL(child))) }
         return _readAll(entry.entry).then((children) => Promise.all(children.map(_register))).then((urls) => {
-            var paths = urls.map((url) => url.href)
-            remember(path, paths)
-            return paths.slice()
+            remember(path, urls.map((url) => url.href))
+            return urls
         })
     }
 
