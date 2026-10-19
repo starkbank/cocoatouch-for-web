@@ -6240,7 +6240,6 @@
 }
 
 .ct-pdfview {
-  color-scheme: light dark;
   --pdfViewer-padding-bottom: 0;
   --page-margin: 1px auto -8px;
   --page-border: 9px solid transparent;
