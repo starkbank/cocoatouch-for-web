@@ -55,11 +55,30 @@ test("UTType(filenameExtension:) finds a known type and makes a dynamic one for 
     assert.equal(pem.conforms({to: UTType.image}), false)
 })
 
-test("UTType(mimeType:) finds a known type, and refuses an unknown one", function() {
+test("UTType(mimeType:) finds a known type and makes a dynamic one for a well-formed unknown MIME type", function() {
     assert.equal(new UTType({mimeType: "application/pdf"}).identifier, "com.adobe.pdf")
     assert.equal(new UTType({mimeType: "IMAGE/PNG"}).identifier, "public.png")
     assert.equal(new UTType({mimeType: "text/csv"}).identifier, "public.comma-separated-values-text")
-    assert.throws(() => new UTType({mimeType: "application/x-unknown"}), (error) => error instanceof TypeError && /UTType\(mimeType:\)/.test(error.message))
+    var unknown = new UTType({mimeType: "Application/X-Unknown+json"})
+    assert.equal(unknown.identifier, "dyn.application/x-unknown+json")
+    assert.equal(unknown.preferredMIMEType, "application/x-unknown+json")
+    assert.equal(unknown.preferredFilenameExtension, null)
+    assert.equal(unknown.conforms({to: UTType.item}), true)
+    assert.equal(unknown.conforms({to: UTType.image}), false)
+    assert.equal(unknown.conforms({to: new UTType({mimeType: "application/x-unknown+json"})}), true)
+})
+
+test("UTType(mimeType:) refuses what is not type/subtype", function() {
+    for (var malformed of ["", "pdf", "application/", "/pdf", "a/b/c", "application pdf", "application/pdf; charset=utf-8", 7, null, {}]) {
+        assert.throws(() => new UTType({mimeType: malformed}), (error) => error instanceof TypeError && /UTType\(mimeType:\)/.test(error.message), String(malformed))
+    }
+})
+
+test("a dynamic type from an extension and one from a MIME type are told apart", function() {
+    var byExtension = new UTType({filenameExtension: "pem"})
+    assert.equal(byExtension.preferredMIMEType, null)
+    assert.equal(byExtension.preferredFilenameExtension, "pem")
+    assert.throws(() => new UTType({filenameExtension: "a/b"}), TypeError)
 })
 
 test("a UTType takes exactly one of its labels", function() {

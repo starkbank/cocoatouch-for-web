@@ -26,9 +26,10 @@ var _cache = new Map()
 const initSignature = "Apple's are UTType(filenameExtension:) and UTType(mimeType:); write new UTType({filenameExtension: \"pem\"}) or new UTType({mimeType: \"application/pdf\"})."
 
 
-// UniformTypeIdentifiers' UTType. Apple's two initializers are failable and
-// return nil for an unknown value, which `new` cannot: a filename extension
-// nobody declared is a dynamic type, as Apple's is, and an unknown MIME type
+// UniformTypeIdentifiers' UTType. Apple's two initializers are failable, which
+// `new` cannot be: a filename extension or a well-formed MIME type nobody
+// declared is a dynamic type, as Apple's makes one, and a value that is not
+// even shaped like one (an empty string, a MIME type without a subtype)
 // throws a TypeError.
 export class UTType extends NSObject {
 
@@ -66,12 +67,13 @@ export class UTType extends NSObject {
     get preferredFilenameExtension() {
         var known = table[this._identifier]
         if (known) { return known.extensions.length === 0 ? null : known.extensions[0] }
-        return this._identifier.slice(dynamicPrefix.length)
+        return _isDynamicMime(this._identifier) ? null : this._identifier.slice(dynamicPrefix.length)
     }
 
     get preferredMIMEType() {
         var known = table[this._identifier]
-        return known ? known.mime : null
+        if (known) { return known.mime }
+        return _isDynamicMime(this._identifier) ? this._identifier.slice(dynamicPrefix.length) : null
     }
 
     // conforms(to:): a type conforms to itself and to every type above it.
@@ -88,6 +90,7 @@ export class UTType extends NSObject {
     // Every extension and MIME type that stands for this type, for an input's accept.
     get _acceptTokens() {
         var known = table[this._identifier]
+        if (!known && _isDynamicMime(this._identifier)) { return [this.preferredMIMEType] }
         if (!known) { return ["." + this.preferredFilenameExtension] }
         var tokens = known.extensions.map((extension) => "." + extension)
         if (known.mime) { tokens.push(known.mime) }
@@ -111,7 +114,7 @@ function _make(identifier) {
 }
 
 function _identifierForExtension(extension) {
-    if (typeof extension !== "string" || extension.replace(/^\./, "") === "") {
+    if (typeof extension !== "string" || extension.replace(/^\./, "") === "" || extension.includes("/")) {
         throw new TypeError(`UTType(filenameExtension:) takes a non-empty string: ${initSignature}`)
     }
     var normalized = extension.replace(/^\./, "").toLowerCase()
@@ -121,13 +124,22 @@ function _identifierForExtension(extension) {
     return dynamicPrefix + normalized
 }
 
+// Dynamic identifiers made from a MIME type carry its slash; an extension's never does.
+function _isDynamicMime(identifier) {
+    return identifier.startsWith(dynamicPrefix) && identifier.includes("/")
+}
+
+const mimeShape = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i
+
 function _identifierForMime(mime) {
-    if (typeof mime !== "string") { throw new TypeError(`UTType(mimeType:) takes a string: ${initSignature}`) }
+    if (typeof mime !== "string" || !mimeShape.test(mime)) {
+        throw new TypeError(`UTType(mimeType:) takes a MIME type of the form type/subtype: ${initSignature}`)
+    }
     var normalized = mime.toLowerCase()
     for (var identifier of Object.keys(table)) {
         if (table[identifier].mime === normalized) { return identifier }
     }
-    throw new TypeError(`UTType(mimeType:) knows no type for "${mime}", where Apple's initializer returns nil: ${initSignature}`)
+    return dynamicPrefix + normalized
 }
 
 function _conforms(identifier, ancestor) {
