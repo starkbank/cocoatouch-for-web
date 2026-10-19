@@ -40,3 +40,12 @@ test("IBOutlet and IBAction hand a transform a plain descriptor: a field's has n
     assert.equal(IBAction("#c", UIView)({}, "c", method), method)
     assert.equal(IBAction("#d", UIView)({}, "d", undefined).initializer, undefined)
 })
+
+test("a descriptor that carries get or set, a decorated accessor, is returned untouched", function() {
+    var getter = {get: function() { return 1 }, enumerable: false, configurable: true}
+    var setter = {set: function(value) {}, enumerable: false, configurable: true}
+    assert.equal(IBOutlet("#a", UIView)({}, "a", getter), getter)
+    assert.equal(IBOutlet("#b", UIView)({}, "b", setter), setter)
+    assert.equal(IBAction("#c", UIView)({}, "c", getter), getter)
+    assert.equal(IBAction("#d", UIView)({}, "d", setter), setter)
+})

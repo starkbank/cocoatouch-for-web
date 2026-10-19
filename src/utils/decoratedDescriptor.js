@@ -6,8 +6,9 @@
 // better: Babel would then install the field on the instance after the
 // superclass constructor has bound the outlet, and fail redefining it. A field
 // therefore gets a descriptor with no initializer, which Babel defines on the
-// prototype and skips on the instance, as before; a method keeps its own.
+// prototype and skips on the instance, as before; a method or an accessor
+// keeps its own.
 export function decoratedDescriptor(descriptor) {
-    if (descriptor && "value" in descriptor) { return descriptor }
+    if (descriptor && ("value" in descriptor || "get" in descriptor || "set" in descriptor)) { return descriptor }
     return {configurable: true, enumerable: true, writable: true}
 }
