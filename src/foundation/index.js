@@ -8,6 +8,7 @@ import { Locale } from "./locale.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "./nsuseractivity.js"
 import { NSRange, NSNotFound } from "./nsrange.js"
 import { RunLoop } from "./runloop.js"
+import { FileManager, FileAttributeKey } from "./filemanager.js"
 import { NSAttributedString, NSAttributedStringDocumentType } from "./nsattributedstring.js"
 
 
@@ -22,6 +23,8 @@ export {
     NSUserActivity,
     NSUserActivityTypeBrowsingWeb,
     RunLoop,
+    FileManager,
+    FileAttributeKey,
     NSRange,
     NSNotFound,
     NSAttributedString,
