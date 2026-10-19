@@ -9,6 +9,7 @@ import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "./nsuseractivity.
 import { NSRange, NSNotFound } from "./nsrange.js"
 import { RunLoop } from "./runloop.js"
 import { FileManager, FileAttributeKey } from "./filemanager.js"
+import { NSItemProvider } from "./nsitemprovider.js"
 import { NSAttributedString, NSAttributedStringDocumentType } from "./nsattributedstring.js"
 
 
@@ -25,6 +26,7 @@ export {
     RunLoop,
     FileManager,
     FileAttributeKey,
+    NSItemProvider,
     NSRange,
     NSNotFound,
     NSAttributedString,
