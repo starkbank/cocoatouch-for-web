@@ -38,8 +38,14 @@ export class UIControl extends UIView {
         this._bindHighlight()
     }
 
+    // A control created in code has no element until it is placed, and a
+    // removed one loses its handlers with its element, so the targets bind
+    // again on every placement, each under its own namespace: cleared first,
+    // so a target never fires twice. Removal leaves them for the next one.
     didMoveToSuperview() {
         this._bindHighlight()
+        if (this.superview === null) { return }
+        for (var pair of this._targets()) { this._bindTarget(pair) }
     }
 
     _bindHighlight() {
@@ -113,11 +119,16 @@ export class UIControl extends UIView {
         var control = this
         var event = events[controlEvent]
         var pair = {target: target, action: action, event: event, namespace: event + ".target" + (++_pairCount)}
-        this._targets().push(pair)
-        this.$el.on(pair.namespace, (e) => {
+        pair.handler = (e) => {
             if (e.stopPropagation) { e.stopPropagation() }
             return action.call(target, target, control, e)
-        })
+        }
+        this._targets().push(pair)
+        this._bindTarget(pair)
+    }
+
+    _bindTarget(pair) {
+        this.$el.off(pair.namespace).on(pair.namespace, pair.handler)
     }
 
     // removeTarget(_:action:for:): a null or omitted action removes every

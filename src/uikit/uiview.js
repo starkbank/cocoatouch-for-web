@@ -52,6 +52,13 @@ export class UIView extends UIResponder {
 
     // The element is looked up again when the cached one left the document: an
     // icon font or a re-rendered nib can replace a node while keeping its id.
+    // Only a node that was in the document and left it counts: one built for a
+    // superview that is not in the page yet is the view's element until it
+    // first joins the page, and a lookup would swap it for an empty set. Whether
+    // a node has been in the page is noted when it is adopted, by the _$el
+    // setter, and again at every read, so an outlet's node that was in the
+    // page when it was bound and is replaced before anyone reads it still
+    // counts as having left it.
     // While the framework constructs the view its creator lends the element it
     // already found, so init() and the nib reach it without a document query
     // that a repeated id would answer with the wrong card. An outlet that
@@ -59,11 +66,22 @@ export class UIView extends UIResponder {
     // falls through to the document query: the lend is an optimisation for
     // matches, not a guarantee.
     get $el() {
-        if (!this._$el || this._$el.length === 0 || this._$el[0] && this._$el[0].isConnected === false) {
-            var lent = Bind.elementUnderConstruction(this)
-            this._$el = lent && lent.length > 0 ? lent : $(this.selector)
-        }
+        var node = this._$el && this._$el[0]
+        if (node && node.isConnected === true) { this._wasConnected = true }
+        var isLost = !this._$el || this._$el.length === 0 || node && node.isConnected === false && this._wasConnected === true
+        if (!isLost) { return this._$el }
+        var lent = Bind.elementUnderConstruction(this)
+        this._$el = lent && lent.length > 0 ? lent : $(this.selector)
         return this._$el
+    }
+
+    set _$el(element) {
+        this._cachedElement = element
+        this._wasConnected = !!element && !!element[0] && element[0].isConnected === true
+    }
+
+    get _$el() {
+        return this._cachedElement
     }
 
     // The same layer for the view's whole life, as Apple's. Its field has its
