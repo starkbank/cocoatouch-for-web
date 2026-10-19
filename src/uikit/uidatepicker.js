@@ -47,7 +47,8 @@ export class UIDatePicker extends UIControl {
             return
         }
         if (this._mode === "yearAndMonth") {
-            this._month = date ? _firstOfMonth(date) : null
+            typed(date, "date", DateType, "UIDatePicker.date", "Apple's is var date: Date, never nil; write picker.date = new Date().")
+            this._month = _firstOfMonth(date)
             this.$input.datepicker("setDate", this._month)
             return
         }
@@ -55,11 +56,12 @@ export class UIDatePicker extends UIControl {
     }
 
     // yearAndMonth holds the month that was picked or written, as the first of
-    // it in local time: the widget's text is only "MMMM yyyy", and parsing it
-    // back would depend on the locale's month names.
+    // it in local time, and the current month until one is: Apple's date is
+    // never nil. The widget's text is only "MMMM yyyy", and parsing it back
+    // would depend on the locale's month names.
     get date() {
         if (this._mode === "time") { return _timeToday(this.$input.prop("value")) }
-        if (this._mode === "yearAndMonth") { return this._month ? new Date(this._month.getTime()) : null }
+        if (this._mode === "yearAndMonth") { return new Date(this._month.getTime()) }
         if (this._mode === "dateAndTime") { return _parseLocal(this.$input.prop("value")) }
         return this.$input.datepicker("getDate")
     }
@@ -120,8 +122,10 @@ export class UIDatePicker extends UIControl {
     // clock, "dateAndTime" (Apple's .dateAndTime) picks both in the browser's
     // own control, "yearAndMonth" hides the calendar and picks a month.
     set datePickerMode(mode) {
+        var previous = this._mode
         this._mode = modes.includes(mode) ? mode : "date"
-        this._month = null
+        if (this._mode !== "yearAndMonth") { this._month = null }
+        if (this._mode === "yearAndMonth" && previous !== "yearAndMonth") { this._month = _firstOfMonth(new Date()) }
         this._configure()
     }
 
