@@ -232,7 +232,8 @@ export class UIDatePicker extends UIControl {
             throw new TypeError("UIDatePicker.datePickerMode = \"time\" wraps the ClockPicker jQuery plugin, which must be on the page, as the date mode needs jquery-ui.")
         }
         var valueBeforeDone = null
-        this.$el.clockpicker({
+        var host = this.$el
+        host.clockpicker({
             placement: "bottom",
             align: "left",
             autoclose: true,
@@ -243,7 +244,7 @@ export class UIDatePicker extends UIControl {
                 this.sendActions({for: UIControlEvent.valueChanged})
             },
         })
-        this._hasClock = true
+        this._clock = host.data("clockpicker")
     }
 
     // The plugin puts a popover in the body and a resize listener on the window
@@ -260,10 +261,15 @@ export class UIDatePicker extends UIControl {
         super._dispose()
     }
 
+    // The clock is removed through the plugin's own instance, kept at the
+    // build, never through $el. A controller empties its element before it
+    // disposes its views, and emptying wipes the plugin's data from the picker's
+    // element: $el.clockpicker("remove") would then find no instance, make a
+    // fresh one and leave the popover and the window listener where they were.
     _removeClock() {
-        if (!this._hasClock) { return }
-        this.$el.clockpicker("remove")
-        this._hasClock = false
+        if (!this._clock) { return }
+        this._clock.remove()
+        this._clock = null
     }
 }
 

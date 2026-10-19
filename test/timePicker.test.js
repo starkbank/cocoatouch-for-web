@@ -31,6 +31,9 @@ function withPlugins(run) {
                 if (text !== last) { $wrapper.trigger("change") }
                 option.afterDone()
             }
+            // The real plugin keeps its instance in the wrapper's data, and the
+            // picker removes the clock through that instance.
+            $wrapper.data("clockpicker", {remove() { log.push("clockpicker:remove"); clock.removed = true }})
             clocks.push(clock)
             log.push("clockpicker:init")
             return this
