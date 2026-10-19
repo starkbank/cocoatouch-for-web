@@ -4,9 +4,9 @@ import * as PDFKit from "./pdfkit/index.js"
 // subpath entry stays loadable by `node --test`. A consumer that imports
 // "cocoatouch/pdfkit" and skips this file fails loudly through
 // assertTextLayerStylesheet instead of rendering a misaligned text layer.
-import "pdfjs-dist/web/pdf_viewer.css"
-// After the vendored sheet, at equal specificity, so its :root reset wins.
-import "../styles/pdfkit.css"
+// Not pdfjs-dist's own pdf_viewer.css: that restyles the host app (.sidebar,
+// .page, :root), where this copy of it applies only inside a PDFView's element.
+import "../styles/pdf_viewer.scoped.css"
 
 
 // Swift's `import PDFKit` makes the framework's names ambient. Importing this

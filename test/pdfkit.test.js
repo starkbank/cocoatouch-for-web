@@ -2370,3 +2370,23 @@ test("a worker error logs its message, fails the pending loads, tears the worker
     NotificationCenter.default.removeObserver(observer)
     uninstallPdfjs()
 })
+
+// The viewer stylesheet is scoped to .ct-pdfview, so a view that did not carry
+// the class would render unstyled.
+test("a PDFView adds ct-pdfview to its own element when it binds, keeping the classes the host had", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var host = document.createElement("div")
+    host.id = "scoped-host"
+    host.className = "existing other"
+    document.body.appendChild(host)
+    var view = new PDFView("#scoped-host")
+    view._$el = $(host)
+    view.awakeFromNib()
+    assert.deepEqual([...host.classList].sort(), ["ct-pdfview", "existing", "other"])
+    assert.equal(host.querySelectorAll(":scope > .pdfViewer").length, 1)
+    var second = makeView()
+    assert.equal(second.$el[0].classList.contains("ct-pdfview"), true)
+    assert.equal(document.querySelectorAll(".ct-pdfview").length >= 2, true)
+    host.remove()
+    uninstallPdfjs()
+})
