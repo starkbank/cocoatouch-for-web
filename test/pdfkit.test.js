@@ -309,11 +309,11 @@ async function flush() {
 
 
 // 2. The stylesheet probe, measured on a document-attached element.
-test("an unstyled .textLayer throws naming pdf_viewer.css and pdfjsLib.version", function() {
+test("an unstyled .textLayer throws naming pdf_viewer.scoped.css and pdfjsLib.version", function() {
     installPdfjs({resolve: fakeProxy({numPages: 0, pages: []})})
     document.head.removeChild(_style)
     try {
-        assert.throws(function() { assertTextLayerStylesheet() }, /pdf_viewer\.css.*6\.4\.299/s)
+        assert.throws(function() { assertTextLayerStylesheet() }, /pdf_viewer\.scoped\.css.*6\.4\.299/s)
     } finally {
         document.head.appendChild(_style)
         uninstallPdfjs()
