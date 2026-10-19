@@ -21,7 +21,8 @@ export const scope = ".ct-pdfview"
 export const keyframePrefix = "ct-pdfview-"
 
 const printOnly = /#printContainer|data-pdfjsprinting/
-const documentSelector = /(^|[\s>+~(,])(html|body)(?![\w-])/
+// The document itself is no part of a PDF view: :root wherever it stands, and html and body as type selectors.
+const documentSelector = /:root(?![\w-])|(^|[\s>+~(,])(html|body)(?![\w-])/
 const imageBase = "pdfjs-dist/web/"
 const outputPath = path.join(root, "styles/pdf_viewer.scoped.css")
 

@@ -120,7 +120,6 @@ test("the committed file keeps the :root blocks, scoped, and not the variable pd
     var blocks = topLevelRules(committed).filter((rule) => rule.selector.trim() === scope)
     assert.equal(blocks.length, 8)
     assert.doesNotMatch(committed, /--viewer-container-height\s*:/)
-    assert.match(committed, /color-scheme: light dark/)
 })
 
 test("the committed file references no keyframe by an unprefixed name and no relative image", function() {
@@ -144,4 +143,9 @@ test("every image the committed file names exists in the installed pdfjs-dist", 
     for (var image of images) {
         assert.ok(fs.existsSync(path.join(root, "node_modules", image)), image)
     }
+})
+
+test("a :root in a selector list is dropped like html and body, and what is left of the list is scoped", function() {
+    var out = scoped(":root, .keep { x: y }\n:root .b { x: y }\nhtml:root .c { x: y }\n.d:root { x: y }")
+    assert.deepEqual(topLevelRules(out).map((rule) => rule.selector), [".ct-pdfview .keep"])
 })
