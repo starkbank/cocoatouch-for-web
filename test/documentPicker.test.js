@@ -63,6 +63,7 @@ test("the content types become the input's accept: extension and MIME type, imag
             [[UTType.png, UTType.jpeg], [".png", "image/png", ".jpeg", ".jpg", "image/jpeg"]],
             [[UTType.commaSeparatedText], [".csv", "text/csv"]],
             [[new UTType({filenameExtension: "pem"})], [".pem"]],
+            [[new UTType({mimeType: "application/x-pkcs12"})], ["application/x-pkcs12"]],
         ]
         for (var [types, tokens] of cases) {
             var picker = new UIDocumentPickerViewController({forOpeningContentTypes: types, asCopy: true})
