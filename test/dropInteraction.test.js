@@ -186,10 +186,25 @@ test("canHandle and hasItemsConforming answer from the kinds and MIME types a dr
     assert.deepEqual(answers, [
         [true, false, true, 1],
         [false, true, true, 1],
-        [false, false, true, 2],
+        [true, true, true, 2],
         [false, false, false, 0],
         [false, false, false, 0],
     ])
+})
+
+test("hasItemsConforming is true when any item conforms, and the delegate filters per item", function() {
+    var seen = []
+    var delegate = recorder({dropInteractionCanHandle: function(interaction, session) {
+        seen.push(
+            session.hasItemsConforming({toTypeIdentifiers: [UTType.pdf.identifier]}),
+            session.items.filter((item) => item.itemProvider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier)).length,
+            session.hasItemsConforming({toTypeIdentifiers: [UTType.commaSeparatedText.identifier]}),
+        )
+        return true
+    }})
+    var {zone} = setup(delegate)
+    zone.dispatchEvent(dragEvent("dragenter", [{type: "text/plain"}, pdf, {type: "image/jpeg"}]))
+    assert.deepEqual(seen, [true, 1, false])
 })
 
 test("a session's items carry providers; before the drop a provider answers conformance but loads nothing", function() {

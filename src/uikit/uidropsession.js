@@ -15,7 +15,8 @@ export class UIDropSession extends NSObject {
         this.items = items
     }
 
-    // True when the session has items and each conforms to at least one of the types.
+    // True when any item conforms to any of the types; a delegate that wants only
+    // those items filters them with hasItemConformingToTypeIdentifier.
     /**
      * @param {object} options
      * @param {string[]} options.toTypeIdentifiers
@@ -23,7 +24,6 @@ export class UIDropSession extends NSObject {
      */
     hasItemsConforming({toTypeIdentifiers} = {}) {
         required(toTypeIdentifiers, "toTypeIdentifiers", identifiersType, "UIDropSession.hasItemsConforming", "Apple's is hasItemsConforming(toTypeIdentifiers:); write session.hasItemsConforming({toTypeIdentifiers: [UTType.pdf.identifier]}).")
-        if (this.items.length === 0) { return false }
-        return this.items.every((item) => toTypeIdentifiers.some((identifier) => item.itemProvider.hasItemConformingToTypeIdentifier(identifier)))
+        return this.items.some((item) => toTypeIdentifiers.some((identifier) => item.itemProvider.hasItemConformingToTypeIdentifier(identifier)))
     }
 }
