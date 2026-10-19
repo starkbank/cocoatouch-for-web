@@ -1,8 +1,9 @@
 import { UIScrollView } from "./uiscrollview.js"
+import { UIControl } from "./uicontrol.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
-import { ownElement } from "../utils/elementowner.js"
+import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
@@ -276,6 +277,7 @@ export class UITableView extends UIScrollView {
         rows.off("click.uitableview").on("click.uitableview", function(event) {
             event.stopImmediatePropagation()
             if (!tableView._allowsSelection) { return }
+            if (_isInsideControl(event.target, this)) { return }
             var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
             tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
         })
@@ -310,6 +312,15 @@ export class UITableView extends UIScrollView {
     }
 }
 
+
+// A control in a cell handles its own touch, as on iOS: its action fires and
+// the row stays unselected. The walk stops at the row, whose owner is the cell.
+function _isInsideControl(target, row) {
+    for (var element = target; element && element !== row; element = element.parentElement) {
+        if (ownerOf(element) instanceof UIControl) { return true }
+    }
+    return false
+}
 
 function _row(indexPath) {
     if (indexPath instanceof IndexPath) { return indexPath.row }
