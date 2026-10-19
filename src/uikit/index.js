@@ -40,6 +40,11 @@ import { UIPasteboard } from "./uipasteboard.js"
 import { UIApplication } from "./uiapplication.js"
 import { UIToolTipInteraction } from "./uitooltipinteraction.js"
 import { UIDocumentPickerViewController } from "./uidocumentpickerviewcontroller.js"
+import { UIDropInteraction } from "./uidropinteraction.js"
+import { UIDropSession } from "./uidropsession.js"
+import { UIDragItem } from "./uidragitem.js"
+import { UIDropProposal } from "./uidropproposal.js"
+import { UIDropOperation } from "./uidropoperation.js"
 
 
 export {
@@ -90,4 +95,9 @@ export {
      UIApplication,
      UIToolTipInteraction,
     UIDocumentPickerViewController,
+    UIDropInteraction,
+    UIDropSession,
+    UIDragItem,
+    UIDropProposal,
+    UIDropOperation,
 }

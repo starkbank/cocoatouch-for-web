@@ -135,3 +135,25 @@ function _conforms(identifier, ancestor) {
     var parents = table[identifier] ? table[identifier].parents : ["public.data"]
     return parents.some((parent) => _conforms(parent, ancestor))
 }
+
+
+// The identifier of the type a MIME type names, or null when none is known;
+// what a drag shows of an item before the drop.
+export function identifierForKnownMime(mime) {
+    var normalized = String(mime).toLowerCase()
+    return Object.keys(table).find((identifier) => table[identifier].mime === normalized) || null
+}
+
+// The identifier of the type a file name's extension names; a dynamic one for
+// an extension nobody declared, and null for a name with no extension.
+export function identifierForFileName(name) {
+    var dot = String(name).lastIndexOf(".")
+    if (dot <= 0 || dot === name.length - 1) { return null }
+    return _identifierForExtension(name.slice(dot + 1))
+}
+
+// Whether the type with this identifier conforms to the one named, for any
+// string a caller passes: an identifier nobody declared conforms to itself only.
+export function identifierConforms(identifier, ancestor) {
+    return typeof ancestor === "string" && _conforms(identifier, ancestor)
+}

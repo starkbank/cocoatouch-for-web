@@ -465,6 +465,9 @@ export class UIView extends UIResponder {
     }
 
     _dispose() {
+        for (var interaction of this.interactions) {
+            this.removeInteraction(interaction)
+        }
         for (var view of this.subviews) {
             view._dispose()
         }
