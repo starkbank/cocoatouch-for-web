@@ -60,37 +60,6 @@ test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
     assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
-test("UIButton.showsActivityIndicator draws a spinner over the title and restores it", function() {
-    var button = new UIButton("#send")
-    // Stores and returns the value raw: this double does not model
-    // textContent's escaping, so no test whose subject is escaping may use it.
-    // The indicator moves nodes rather than writing html, so the double models
-    // just the wrapping and unwrapping as string edits; the real moves are in button.test.js.
-    var content = ""
-    var wrapped = {wrapAll: function(wrapper) { content = wrapper.replace("</span>", content + "</span>"); return this }}
-    var unwrap = function(selector) {
-        return {
-            contents: function() { return this },
-            before: function() { return this },
-            remove: function() {
-                if (selector === ".uibutton-activity-title") { content = content.replace(/^<span[^>]*>(.*)<\/span>/, "$1") }
-                if (selector === ".uibutton-activity-indicator") { content = content.replace(/<i [^>]*><\/i>$/, "") }
-                return this
-            },
-        }
-    }
-    button._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return content } content = value; return this }, text: function(value) { if (value === undefined) { return content } content = value; return this }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }, contents: function() { return wrapped }, append: function(markup) { content += markup; return this }, children: unwrap}
-    button.setTitle("Send", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
-    assert.ok(button.showsActivityIndicator)
-    assert.match(button.$el.html(), /fa-spin/)
-    button.showsActivityIndicator = true
-    button.showsActivityIndicator = false
-    assert.equal(button.$el.html(), "Send")
-    assert.ok(!button.showsActivityIndicator)
-})
-
-
 test("addTarget calls the action with the target and the control", function() {
     var button = new UIButton("#b")
     var seen = null
