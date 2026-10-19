@@ -1,6 +1,6 @@
 import { UIResponder } from "./uiresponder.js"
 import { UIColor } from "./uicolor.js"
-import { CALayer } from "../coreanimation/calayer.js"
+import { layerOf } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
@@ -66,8 +66,12 @@ export class UIView extends UIResponder {
         return this._$el
     }
 
+    // The same layer for the view's whole life, as Apple's. Its field has its
+    // own name because a subclass may have a _layer() method, as
+    // AVPlayerViewController does.
     get layer() {
-        return new CALayer(this.selector)
+        if (!this._viewLayer) { this._viewLayer = layerOf(this) }
+        return this._viewLayer
     }
 
     // A view whose activity is browsing a web page is a link to it: the
