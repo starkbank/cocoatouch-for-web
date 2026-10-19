@@ -226,3 +226,19 @@ test("adding without requestAnimationFrame says what is missing", function() {
         if (original) { globalThis.requestAnimationFrame = original }
     }
 })
+
+test("a frame already handed out to an invalidated link calls nothing and throws nothing", function() {
+    withFrames(function(frames) {
+        var ticks = 0
+        var second = null
+        var first = {step: function() { ticks++; second.invalidate() }}
+        var firstLink = new CADisplayLink({target: first, selector: first.step})
+        var other = {step: function() { ticks++ }}
+        second = new CADisplayLink({target: other, selector: other.step})
+        firstLink.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        second.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        assert.doesNotThrow(() => frames.run(10))
+        assert.equal(ticks, 1)
+        assert.equal(frames.pending, 1, "only the first link goes on")
+    })
+})

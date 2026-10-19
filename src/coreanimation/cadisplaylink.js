@@ -115,6 +115,7 @@ export class CADisplayLink extends NSObject {
 
     _tick(milliseconds) {
         this._handle = null
+        if (this._isInvalid) { return }
         var seconds = milliseconds / 1000
         this._duration = this._previous === null ? nominalDuration : seconds - this._previous
         this._previous = seconds
