@@ -44,6 +44,7 @@ test("UIColor(named:) reads the design token, clear is transparent, and labels a
     assert.equal(new UIColor({white: 1}).cgColor, "rgba(255, 255, 255, 1)")
     var css = {}
     var stub = {length: 1, css: function(name, value) { if (value === undefined) { return css[name] || "" } css[name] = value; return this }, html: function() { return this }, text: function() { return "" }}
+    stub[0] = {style: {get color() { return css.color || "" }}}
     var label = new UILabel("#price")
     label._$el = stub
     label.textColor = new UIColor({named: "title-color"})
