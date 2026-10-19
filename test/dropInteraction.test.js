@@ -352,3 +352,21 @@ test("UIDropSession, UIDragItem and NSItemProvider are exported", function() {
     assert.equal(typeof UIDragItem, "function")
     assert.equal(typeof NSItemProvider, "function")
 })
+
+test("one session object serves enter and every dragover of a drag, and a new drag gets a new one", function() {
+    var seen = []
+    var delegate = recorder({
+        dropInteractionSessionDidEnter: (interaction, session) => seen.push(session),
+        dropInteractionSessionDidUpdate: (interaction, session) => { seen.push(session); return null },
+        dropInteractionSessionDidExit: (interaction, session) => seen.push(session),
+    })
+    var {zone} = setup(delegate)
+    zone.dispatchEvent(dragEvent("dragenter", [pdf]))
+    zone.dispatchEvent(dragEvent("dragover", [pdf]))
+    zone.dispatchEvent(dragEvent("dragover", [pdf]))
+    zone.dispatchEvent(dragEvent("dragleave", [pdf]))
+    assert.equal(seen.length, 4)
+    assert.ok(seen.every((session) => session === seen[0]))
+    zone.dispatchEvent(dragEvent("dragenter", [pdf]))
+    assert.notEqual(seen[4], seen[0])
+})
