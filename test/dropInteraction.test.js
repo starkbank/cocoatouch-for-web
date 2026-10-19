@@ -277,10 +277,10 @@ test("a dropped folder is one UTType.folder item whose URL lists its entries, ne
         dropInteractionPerformDrop: function(interaction, session) {
             listing.push(session.items.length, session.items[0].itemProvider.hasItemConformingToTypeIdentifier(UTType.folder.identifier), session.items[0].itemProvider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier))
             session.items[0].itemProvider.loadFileRepresentation({forTypeIdentifier: UTType.folder.identifier, completionHandler: async function(url, error) {
-                var paths = await manager.contentsOfDirectory({atPath: url.href})
-                listing.push(paths.map((path) => manager.displayName({atPath: path})))
-                var nested = await manager.contentsOfDirectory({atPath: paths[1]})
-                listing.push(nested.map((path) => manager.displayName({atPath: path})), url)
+                var children = await manager.contentsOfDirectory({at: url, includingPropertiesForKeys: null})
+                listing.push(children.map((child) => manager.displayName({atPath: child.href})))
+                var nested = await manager.contentsOfDirectory({at: children[1], includingPropertiesForKeys: null})
+                listing.push(nested.map((child) => manager.displayName({atPath: child.href})), url)
             }})
         },
     })
