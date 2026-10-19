@@ -118,3 +118,27 @@ test("every labelled member names its labels and marks optionality", function() 
         })
     })
 })
+
+
+// tsc leaves out a subclass accessor whose type equals the base's, so a
+// declaration that must say something of its own has to have a type of its own:
+// UITextView's delegate is a UITextViewDelegate, and its isScrollEnabled, which
+// is read-write at runtime unlike UIScrollView's, is the inherited boolean pair.
+test("UITextView's declaration types its delegate, and isScrollEnabled is a boolean pair on it", function() {
+    var declaration = fs.readFileSync(path.join(root, "types/uikit/uitextview.d.ts"), "utf8")
+    assert.match(declaration, /set delegate\(delegate: UITextViewDelegate \| null\)/)
+    assert.match(declaration, /get delegate\(\): UITextViewDelegate \| null/)
+    assert.match(declaration, /UITextViewDelegate = \{/)
+    assert.match(declaration, /textViewDidChange\?:/)
+    var scrollView = fs.readFileSync(path.join(root, "types/uikit/uiscrollview.d.ts"), "utf8")
+    assert.match(scrollView, /set isScrollEnabled\(enabled: boolean\)/)
+    assert.match(scrollView, /get isScrollEnabled\(\): boolean/)
+})
+
+test("a UITextView's delegate and isScrollEnabled type check as Apple's do", function() {
+    assert.deepEqual(diagnose("textView.js"), [])
+    var problems = diagnose("textViewWrong.js")
+    assert.equal(problems.length, 2)
+    assert.match(problems[0], /'string' is not assignable to type 'boolean'/)
+    assert.match(problems[1], /'number' is not assignable to type '\(textView: UITextView\) => void'/)
+})

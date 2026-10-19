@@ -5,6 +5,13 @@ import { typed, Bool } from "../utils/required.js"
 var measuringHeight = "0px"
 
 
+/**
+ * @typedef {object} UITextViewDelegate
+ * @property {(textView: UITextView) => void} [textViewDidChange]
+ * @property {(scrollView: UIScrollView) => void} [scrollViewDidScroll]
+ */
+
+
 // UIKit's UITextView, as far as a text area that grows with its text needs:
 // text, delegate.textViewDidChange(_:), isScrollEnabled and the first-responder
 // methods UIView already has. It wraps the xib's <textarea> and reads and
@@ -69,10 +76,12 @@ export class UITextView extends UIScrollView {
 
     // UITextViewDelegate extends UIScrollViewDelegate, so scrollViewDidScroll
     // keeps working beside textViewDidChange(_:).
+    /** @param {UITextViewDelegate|null} delegate */
     set delegate(delegate) {
         super.delegate = delegate
     }
 
+    /** @returns {UITextViewDelegate|null} */
     get delegate() {
         return super.delegate
     }
