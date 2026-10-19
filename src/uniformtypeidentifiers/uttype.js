@@ -17,12 +17,9 @@ const table = Object.freeze({
     "com.adobe.pdf": {parents: ["public.data"], extensions: ["pdf"], mime: "application/pdf"},
     "public.text": {parents: ["public.data"], extensions: [], mime: null},
     "public.comma-separated-values-text": {parents: ["public.text"], extensions: ["csv"], mime: "text/csv"},
-    // No extensions: txt, html and rtf files keep resolving to the dynamic
-    // types they always did, so a site that maps a file name to a MIME type
-    // sees no change; these three exist for the flavours of a paste.
-    "public.plain-text": {parents: ["public.text"], extensions: [], mime: "text/plain"},
-    "public.html": {parents: ["public.text"], extensions: [], mime: "text/html"},
-    "public.rtf": {parents: ["public.text"], extensions: [], mime: "text/rtf"},
+    "public.plain-text": {parents: ["public.text"], extensions: ["txt"], mime: "text/plain"},
+    "public.html": {parents: ["public.text"], extensions: ["html", "htm"], mime: "text/html"},
+    "public.rtf": {parents: ["public.text"], extensions: ["rtf"], mime: "text/rtf"},
 })
 
 const dynamicPrefix = "dyn."

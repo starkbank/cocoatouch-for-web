@@ -23,14 +23,15 @@ test("each constant has Apple's identifier, extension and MIME type", function()
     assert.equal(UTType.pdf, UTType.pdf)
 })
 
-test("plainText, html and rtf carry Apple's identifiers and MIME types and conform to item", function() {
+test("plainText, html and rtf carry Apple's identifiers, extensions and MIME types and conform to item", function() {
     var table = [
-        [UTType.plainText, "public.plain-text", "text/plain"],
-        [UTType.html, "public.html", "text/html"],
-        [UTType.rtf, "public.rtf", "text/rtf"],
+        [UTType.plainText, "public.plain-text", "txt", "text/plain"],
+        [UTType.html, "public.html", "html", "text/html"],
+        [UTType.rtf, "public.rtf", "rtf", "text/rtf"],
     ]
-    for (var [type, identifier, mime] of table) {
+    for (var [type, identifier, extension, mime] of table) {
         assert.equal(type.identifier, identifier)
+        assert.equal(type.preferredFilenameExtension, extension, identifier)
         assert.equal(type.preferredMIMEType, mime, identifier)
         assert.equal(type.conforms({to: UTType.item}), true, identifier)
         assert.equal(type.conforms({to: new UTType({mimeType: "text/csv"})}), false, identifier)
@@ -40,12 +41,29 @@ test("plainText, html and rtf carry Apple's identifiers and MIME types and confo
     assert.equal(UTType.plainText, UTType.plainText)
 })
 
-test("adding the text constants leaves what a filename extension resolves to as it was", function() {
-    for (var extension of ["txt", "html", "htm", "rtf"]) {
+test("a filename extension finds the text types, and so does their MIME type", function() {
+    var table = [
+        ["txt", "public.plain-text", "text/plain"],
+        ["TXT", "public.plain-text", "text/plain"],
+        ["html", "public.html", "text/html"],
+        ["htm", "public.html", "text/html"],
+        [".htm", "public.html", "text/html"],
+        ["rtf", "public.rtf", "text/rtf"],
+    ]
+    for (var [extension, identifier, mime] of table) {
         var type = new UTType({filenameExtension: extension})
-        assert.equal(type.identifier, "dyn." + extension)
-        assert.equal(type.preferredMIMEType, null)
+        assert.equal(type.identifier, identifier, extension)
+        assert.equal(type.preferredMIMEType, mime, extension)
     }
+    assert.equal(new UTType({filenameExtension: "htm"}).preferredFilenameExtension, "html")
+    for (var [, identifier, mime] of table) {
+        assert.equal(new UTType({mimeType: mime}).identifier, identifier, mime)
+    }
+})
+
+test("a text file's extension conforms to item and to no image or pdf", function() {
+    assert.equal(new UTType({filenameExtension: "txt"}).conforms({to: UTType.image}), false)
+    assert.equal(new UTType({filenameExtension: "txt"}).conforms({to: UTType.item}), true)
 })
 
 test("conforms({to}) follows the hierarchy: png and jpeg are images, everything is an item, a folder is no image", function() {
