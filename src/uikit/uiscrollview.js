@@ -32,6 +32,25 @@ export class UIScrollView extends UIView {
         return this._delegate || null
     }
 
+    // Whether the element scrolls, as the stylesheet decides it: either axis
+    // computes to auto or scroll. Like frame it is read-only, because the
+    // stylesheet owns scrollability here and a setter would fight its media
+    // queries. The page's own scroller, html or body, reads true while its
+    // overflow is visible, because the viewport scrolls it then.
+    get isScrollEnabled() {
+        var element = this.$el[0]
+        if (!element) { return false }
+        var style = getComputedStyle(element)
+        var scrolls = (overflow) => overflow === "auto" || overflow === "scroll"
+        if (scrolls(style.overflowX) || scrolls(style.overflowY)) { return true }
+        var isPageScroller = element === document.documentElement || element === document.body
+        return isPageScroller && style.overflowX === "visible" && style.overflowY === "visible"
+    }
+
+    set isScrollEnabled(enabled) {
+        throw new TypeError("UIScrollView.isScrollEnabled is read-only: the stylesheet owns whether an element scrolls, so set overflow in CSS.")
+    }
+
     // The point of the content shown at the view's origin.
     get contentOffset() {
         var element = this.$el[0]
