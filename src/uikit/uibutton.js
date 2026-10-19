@@ -78,16 +78,20 @@ export class UIButton extends UIControl {
     }
 
     // A title is drawn as text unless it is an NSAttributedString carrying markup.
+    // A title already drawn is left alone: a highlight redraw at pointer-down
+    // would replace the nodes under the pointer, and the browser, finding no
+    // common ancestor of the down and up targets, would never send the click.
     _drawTitle() {
         if (this._titleBeforeActivity !== undefined) { return }
         var title = _title(this, _drawnState(this))
         if (title === null) { return }
-        if (title instanceof NSAttributedString) {
-            if (title._isMarkup) { setMarkup(this.$el, title._markup) }
-            if (!title._isMarkup) { setText(this.$el, title.string) }
-            return
-        }
-        setText(this.$el, title)
+        var isMarkup = title instanceof NSAttributedString && title._isMarkup
+        var drawn = isMarkup ? title._markup : title instanceof NSAttributedString ? title.string : title
+        var key = (isMarkup ? "markup:" : "text:") + drawn
+        if (this._drawnTitle === key) { return }
+        this._drawnTitle = key
+        if (isMarkup) { setMarkup(this.$el, drawn) }
+        if (!isMarkup) { setText(this.$el, drawn) }
     }
 
     // setTitleColor(_:for:): the normal state's color is drawn; others are kept for titleColor(for:).
