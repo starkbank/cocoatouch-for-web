@@ -188,3 +188,42 @@ test("disposing a dateAndTime picker removes its binding and leaves the calendar
         assert.equal(opened, 0)
     })
 })
+
+function click(input) {
+    input.dispatchEvent(new window.MouseEvent("click", {bubbles: true}))
+}
+
+// Chrome refuses showPicker() without a user activation or inside a
+// cross-origin frame; the field still works by keyboard, so the click that was
+// refused must not abort the other handlers on it.
+test("a showPicker the browser refuses (NotAllowedError, SecurityError) is swallowed and later click handlers still run", function() {
+    withDatepicker(function() {
+        var picker = nativePicker()
+        var input = document.getElementById("start-field")
+        var ran = []
+        picker.$input.on("click", () => ran.push("input"))
+        picker.addTarget({}, {action: function() { ran.push("target") }, for: UIControlEvent.touchUpInside})
+        var errors = []
+        window.addEventListener("error", (event) => { errors.push(event.error) })
+        for (var name of ["NotAllowedError", "SecurityError"]) {
+            input.showPicker = function() { throw new window.DOMException("refused", name) }
+            ran.length = 0
+            click(input)
+            assert.deepEqual(ran, ["input", "target"], name)
+        }
+        assert.deepEqual(errors, [])
+    })
+})
+
+test("any other error from showPicker still propagates", function() {
+    withDatepicker(function() {
+        var picker = nativePicker()
+        var input = document.getElementById("start-field")
+        var failure = new window.DOMException("not active", "InvalidStateError")
+        input.showPicker = function() { throw failure }
+        var errors = []
+        window.addEventListener("error", (event) => { event.preventDefault(); errors.push(event.error) })
+        click(input)
+        assert.deepEqual(errors, [failure])
+    })
+})
