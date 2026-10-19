@@ -5,6 +5,10 @@ import { setText } from "../utils/text.js"
 // The element's children are the segments; the selected one carries "active".
 export class UISegmentedControl extends UIControl {
 
+    static get noSegment() {
+        return -1
+    }
+
     get numberOfSegments() {
         return this.$el.children().length
     }
@@ -15,8 +19,18 @@ export class UISegmentedControl extends UIControl {
         return index
     }
 
+    // UISegmentedControl.noSegment clears the selection. Any other index that
+    // names no segment is ignored and the selection stays, as Apple's does; it
+    // never reaches eq(), whose negative indices count from the end and would
+    // select the last segment.
     set selectedSegmentIndex(index) {
-        this.$el.children().removeClass("active").eq(index).addClass("active")
+        var segments = this.$el.children()
+        if (index === UISegmentedControl.noSegment) {
+            segments.removeClass("active")
+            return
+        }
+        if (!Number.isInteger(index) || index < 0 || index >= segments.length) { return }
+        segments.removeClass("active").eq(index).addClass("active")
     }
 
     /**
