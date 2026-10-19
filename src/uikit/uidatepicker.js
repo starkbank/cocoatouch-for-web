@@ -8,7 +8,11 @@ import { required, typed, Bool, DateType } from "../utils/required.js"
 // Wraps a jQuery UI datepicker (jquery-ui must be on the page) over the input
 // its element already holds, as a nib supplies it, or in an input the picker
 // inserts when the element has none. In "time" mode it wraps the
-// ClockPicker 0.0.7 plugin (also a page script) the same way, over the same input.
+// ClockPicker 0.0.7 plugin (also a page script) the same way, over the same input;
+// in "dateAndTime" mode it turns that input into the browser's own datetime-local.
+const modes = ["date", "time", "dateAndTime", "yearAndMonth"]
+
+
 export class UIDatePicker extends UIControl {
 
     constructor(selector) {
@@ -38,6 +42,10 @@ export class UIDatePicker extends UIControl {
             this.$input.prop("value", _clockText(date))
             return
         }
+        if (this._mode === "dateAndTime") {
+            this.$input.prop("value", _localText(date))
+            return
+        }
         if (this._mode === "yearAndMonth") {
             this._month = date ? _firstOfMonth(date) : null
             this.$input.datepicker("setDate", this._month)
@@ -52,6 +60,7 @@ export class UIDatePicker extends UIControl {
     get date() {
         if (this._mode === "time") { return _timeToday(this.$input.prop("value")) }
         if (this._mode === "yearAndMonth") { return this._month ? new Date(this._month.getTime()) : null }
+        if (this._mode === "dateAndTime") { return _parseLocal(this.$input.prop("value")) }
         return this.$input.datepicker("getDate")
     }
 
@@ -70,7 +79,7 @@ export class UIDatePicker extends UIControl {
 
     set locale(locale) {
         this._locale = locale
-        if (this._mode !== "time") {
+        if (this._hasCalendar()) {
             this.$input.datepicker("option", "dateFormat", datePickerDateFormat(locale))
         }
         this._configure()
@@ -81,31 +90,37 @@ export class UIDatePicker extends UIControl {
     }
 
     // The clock has no limits, so in time mode the two dates are ignored, and
-    // the destroyed calendar is not asked for them.
+    // the destroyed calendar is not asked for them. The native input's limits
+    // are its min and max, which a mode switch drops with the input's mode.
     set minimumDate(date) {
+        if (this._mode === "dateAndTime") { return this._setLimit("min", date) }
         if (this._mode === "time") { return }
         this.$input.datepicker("option", "minDate", date)
     }
 
     get minimumDate() {
+        if (this._mode === "dateAndTime") { return _parseLocal(this.$input.attr("min")) }
         if (this._mode === "time") { return null }
         return this.$input.datepicker("option", "minDate")
     }
 
     set maximumDate(date) {
+        if (this._mode === "dateAndTime") { return this._setLimit("max", date) }
         if (this._mode === "time") { return }
         this.$input.datepicker("option", "maxDate", date)
     }
 
     get maximumDate() {
+        if (this._mode === "dateAndTime") { return _parseLocal(this.$input.attr("max")) }
         if (this._mode === "time") { return null }
         return this.$input.datepicker("option", "maxDate")
     }
 
     // "date" picks a day, "time" (Apple's .time) picks hours and minutes on a
-    // clock, "yearAndMonth" hides the calendar and picks a month.
+    // clock, "dateAndTime" (Apple's .dateAndTime) picks both in the browser's
+    // own control, "yearAndMonth" hides the calendar and picks a month.
     set datePickerMode(mode) {
-        this._mode = mode === "yearAndMonth" || mode === "time" ? mode : "date"
+        this._mode = modes.includes(mode) ? mode : "date"
         this._month = null
         this._configure()
     }
@@ -121,9 +136,15 @@ export class UIDatePicker extends UIControl {
         var regional = datePickerRegional(this._locale)
         var onSelect = () => this.sendActions({for: UIControlEvent.valueChanged})
         this._removeClock()
+        if (this._mode === "dateAndTime" && this._nativeInput) { return }
+        this._removeNative()
         this.$input.datepicker("destroy")
         if (this._mode === "time") {
             this._buildClock()
+            return
+        }
+        if (this._mode === "dateAndTime") {
+            this._buildNative()
             return
         }
         if (this._mode === "date") {
@@ -148,6 +169,45 @@ export class UIDatePicker extends UIControl {
             },
         })
     }
+    // The browser's datetime-local needs a writable input, and its picker opens
+    // from showPicker(), which a click on any part of the field asks for, as the
+    // calendar icon alone would leave the segments to typing. A selection is the
+    // input's own change event, which reaches the element's valueChanged targets
+    // by bubbling, so none is sent here; writing a date is not a selection.
+    _buildNative() {
+        var input = this.$input[0]
+        this._nativeInput = {type: input.type, readOnly: input.readOnly}
+        input.readOnly = false
+        input.type = "datetime-local"
+        this.$input.on("click.uidatepicker", () => {
+            if (typeof input.showPicker !== "function") { return }
+            input.showPicker()
+        })
+    }
+
+    // The text input comes back as it was, empty: an ISO value is no text for the calendar to parse.
+    _removeNative() {
+        if (!this._nativeInput) { return }
+        var input = this.$input[0]
+        this.$input.off("click.uidatepicker")
+        input.type = this._nativeInput.type
+        input.readOnly = this._nativeInput.readOnly
+        input.value = ""
+        this._nativeInput = null
+    }
+
+    _setLimit(name, date) {
+        if (date === null) {
+            this.$input.removeAttr(name)
+            return
+        }
+        this.$input.attr(name, _localText(date))
+    }
+
+    _hasCalendar() {
+        return this._mode === "date" || this._mode === "yearAndMonth"
+    }
+
     // ClockPicker is attached to the picker's element, whose input it finds, as
     // the callers have always done; its own markup and options stay the
     // plugin's, and a nib may set the rest as data attributes the plugin reads
@@ -180,7 +240,8 @@ export class UIDatePicker extends UIControl {
     // one div the page shares, so an open one is closed with its picker.
     _dispose() {
         this._removeClock()
-        if (this._mode !== "time") {
+        this._removeNative()
+        if (this._hasCalendar()) {
             this.$input.datepicker("hide")
             this.$input.datepicker("destroy")
         }
@@ -192,6 +253,28 @@ export class UIDatePicker extends UIControl {
         this.$el.clockpicker("remove")
         this._hasClock = false
     }
+}
+
+
+// "yyyy-MM-ddTHH:mm" in local time, the value a datetime-local input holds;
+// "" for no date, which clears the field.
+function _localText(date) {
+    if (date === null || isNaN(date.getTime())) { return "" }
+    var pad = (number, width) => String(number).padStart(width, "0")
+    var day = pad(date.getFullYear(), 4) + "-" + pad(date.getMonth() + 1, 2) + "-" + pad(date.getDate(), 2)
+    return day + "T" + pad(date.getHours(), 2) + ":" + pad(date.getMinutes(), 2)
+}
+
+
+// The local Date a datetime-local value names, with its seconds when it has
+// them; null for no value or one that is not a real moment (a 30th of February).
+function _parseLocal(text) {
+    var parsed = /^(\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(text === undefined || text === null ? "" : text).trim())
+    if (!parsed) { return null }
+    var [year, month, day, hours, minutes, seconds] = parsed.slice(1).map((part) => Number(part || 0))
+    var date = new Date(year, month - 1, day, hours, minutes, seconds)
+    var isReal = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day && date.getHours() === hours
+    return isReal ? date : null
 }
 
 
