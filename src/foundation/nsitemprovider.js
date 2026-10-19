@@ -1,6 +1,6 @@
 import { NSObject } from "./nsobject.js"
 import { identifierConforms } from "../uniformtypeidentifiers/uttype.js"
-import { registerFile, registerDirectory } from "./fileregistry.js"
+import { registerFile, registerDirectory, registered } from "./fileregistry.js"
 import { required, typed, StringType, FunctionType } from "../utils/required.js"
 
 
@@ -15,6 +15,7 @@ export class NSItemProvider extends NSObject {
     _name = null
     _file = null
     _entry = null
+    _url = null
 
     // The name without its extension, as Apple's: the file name stays with
     // FileManager.displayName. null while the drag has not shown it.
@@ -49,18 +50,23 @@ export class NSItemProvider extends NSObject {
         Promise.resolve().then(() => completionHandler(answer.url, answer.error))
     }
 
-    // Registers at the call, so an item that never loads leaves nothing held.
+    // Registers at the first call, so an item that never loads leaves nothing
+    // held, and answers the same URL after, one registry entry however often
+    // it is asked; a URL the app removed is registered again.
     _answer(typeIdentifier) {
         if (!this.hasItemConformingToTypeIdentifier(typeIdentifier)) {
             return {url: null, error: new Error(`The item does not conform to ${typeIdentifier}.`)}
         }
+        if (this._url && registered(this._url.href)) { return {url: this._url, error: null} }
         if (this._entry && this._entry.isDirectory) {
-            return {url: registerDirectory({name: this._entry.name, entry: this._entry}), error: null}
+            this._url = registerDirectory({name: this._entry.name, entry: this._entry})
+            return {url: this._url, error: null}
         }
         if (!this._file) {
             return {url: null, error: new Error("The item can be loaded only while the drop is performed.")}
         }
-        return {url: registerFile(this._file), error: null}
+        this._url = registerFile(this._file)
+        return {url: this._url, error: null}
     }
 }
 
