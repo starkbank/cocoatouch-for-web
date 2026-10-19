@@ -57,3 +57,25 @@ test("layer.borderColor still refuses undefined", function() {
     var layer = new UIView("#box").layer
     assert.throws(() => { layer.borderColor = undefined }, TypeError)
 })
+
+// What reads back is the element's own inline value, so a hex is the browser's
+// normalised rgb() and a named token is the var() it was written as.
+test("backgroundColor reads back a hex as its normalised rgb and a named token as written", function() {
+    page("<div id=\"box\"></div>")
+    var view = new UIView("#box")
+    view.backgroundColor = new UIColor({hex: "#ff0000"})
+    assert.equal(view.backgroundColor.cgColor, "rgb(255, 0, 0)")
+    view.backgroundColor = new UIColor({named: "border-primary-default"})
+    assert.equal(view.backgroundColor.cgColor, "var(--border-primary-default)")
+    assert.ok(view.backgroundColor instanceof UIColor)
+})
+
+test("layer.borderColor reads back a hex as its normalised rgb and a named token as written", function() {
+    page("<div id=\"box\"></div>")
+    var layer = new UIView("#box").layer
+    layer.borderColor = new UIColor({hex: "#ff0000"})
+    assert.equal(layer.borderColor.cgColor, "rgb(255, 0, 0)")
+    layer.borderColor = new UIColor({named: "border-primary-default"})
+    assert.equal(layer.borderColor.cgColor, "var(--border-primary-default)")
+    assert.ok(layer.borderColor instanceof UIColor)
+})
