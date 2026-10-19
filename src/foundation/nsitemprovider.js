@@ -16,6 +16,14 @@ export class NSItemProvider extends NSObject {
     _file = null
     _entry = null
     _url = null
+    _flavours = null
+
+    // What the provider holds: the one type of a dropped item, or the flavours
+    // of a paste, in the order the framework registered them.
+    get registeredTypeIdentifiers() {
+        if (this._flavours !== null) { return Object.keys(this._flavours) }
+        return this._identifier === null ? [] : [this._identifier]
+    }
 
     // The name without its extension, as Apple's: the file name stays with
     // FileManager.displayName. null while the drag has not shown it.
@@ -31,7 +39,29 @@ export class NSItemProvider extends NSObject {
      */
     hasItemConformingToTypeIdentifier(typeIdentifier) {
         typed(typeIdentifier, "typeIdentifier", StringType, "NSItemProvider.hasItemConformingToTypeIdentifier", "Apple's is hasItemConformingToTypeIdentifier(_:); write provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier).")
-        return this._identifier !== null && identifierConforms(this._identifier, typeIdentifier)
+        return this.registeredTypeIdentifiers.some((identifier) => identifierConforms(identifier, typeIdentifier))
+    }
+
+    // Only a paste has data to give, and a browser shows a paste's clipboard
+    // for the length of the event alone, so the framework reads it there and
+    // this handler runs before the call returns, where Apple's runs later. The
+    // bytes are UTF-8 and a copy each time. A type the item does not hold, a
+    // dropped file included, answers a null data and an Error.
+    /**
+     * @param {object} options
+     * @param {string} options.forTypeIdentifier
+     * @param {Function} options.completionHandler
+     */
+    loadDataRepresentation({forTypeIdentifier, completionHandler} = {}) {
+        var signature = "Apple's is loadDataRepresentation(forTypeIdentifier:completionHandler:); write provider.loadDataRepresentation({forTypeIdentifier: UTType.html.identifier, completionHandler: (data, error) => {}})."
+        required(forTypeIdentifier, "forTypeIdentifier", StringType, "NSItemProvider.loadDataRepresentation", signature)
+        required(completionHandler, "completionHandler", FunctionType, "NSItemProvider.loadDataRepresentation", signature)
+        var held = this._flavours === null ? undefined : this._flavours[forTypeIdentifier]
+        if (held === undefined) {
+            completionHandler(null, new Error(`The item holds no data for ${forTypeIdentifier}.`))
+            return
+        }
+        completionHandler(held.slice(), null)
     }
 
     // The completion handler gets a registered file: URL (see FileManager) and
@@ -78,5 +108,14 @@ export function itemProviderFor({identifier, name = null, file = null, entry = n
     provider._name = name
     provider._file = file
     provider._entry = entry
+    return provider
+}
+
+
+// A paste's provider: one UTF-8 flavour per type identifier, the bytes already
+// capped by the caller.
+export function itemProviderForFlavours({flavours}) {
+    var provider = new NSItemProvider()
+    provider._flavours = Object.assign(Object.create(null), flavours)
     return provider
 }

@@ -17,6 +17,12 @@ const table = Object.freeze({
     "com.adobe.pdf": {parents: ["public.data"], extensions: ["pdf"], mime: "application/pdf"},
     "public.text": {parents: ["public.data"], extensions: [], mime: null},
     "public.comma-separated-values-text": {parents: ["public.text"], extensions: ["csv"], mime: "text/csv"},
+    // No extensions: txt, html and rtf files keep resolving to the dynamic
+    // types they always did, so a site that maps a file name to a MIME type
+    // sees no change; these three exist for the flavours of a paste.
+    "public.plain-text": {parents: ["public.text"], extensions: [], mime: "text/plain"},
+    "public.html": {parents: ["public.text"], extensions: [], mime: "text/html"},
+    "public.rtf": {parents: ["public.text"], extensions: [], mime: "text/rtf"},
 })
 
 const dynamicPrefix = "dyn."
@@ -55,6 +61,12 @@ export class UTType extends NSObject {
     static get jpeg() { return _constant("public.jpeg") }
 
     static get commaSeparatedText() { return _constant("public.comma-separated-values-text") }
+
+    static get plainText() { return _constant("public.plain-text") }
+
+    static get html() { return _constant("public.html") }
+
+    static get rtf() { return _constant("public.rtf") }
 
     static get item() { return _constant("public.item") }
 

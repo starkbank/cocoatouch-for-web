@@ -3,6 +3,21 @@ import { setText, setMarkup } from "../utils/text.js"
 import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { NSRange } from "../foundation/nsrange.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
+import { itemProviderForFlavours } from "../foundation/nsitemprovider.js"
+import { textPasteItemFor, resultOfTextPasteItem } from "./uitextpasteitem.js"
+import { UTType } from "../uniformtypeidentifiers/uttype.js"
+
+
+// The only flavours a paste hands over, as strings: a clipboard's files, and
+// every flavour not named here, stay with the browser.
+const pasteFlavours = [
+    ["text/plain", UTType.plainText.identifier],
+    ["text/html", UTType.html.identifier],
+    ["text/rtf", UTType.rtf.identifier],
+]
+const pasteFlavourCap = 256 * 1024
+const pasteNamespace = "paste.uitextpaste"
+const utf8Encoder = new TextEncoder()
 
 export class UITextField extends UIControl {
 
@@ -142,6 +157,44 @@ export class UITextField extends UIControl {
         return this._delegate || null
     }
 
+    // UITextPasteDelegate, on the paste event of the field's input: the
+    // listener exists only while a delegate is set. The delegate is asked
+    // synchronously, once per paste, with one item whose provider holds the
+    // plain-text, html and rtf flavours the clipboard carries, each capped at
+    // 256 KiB of UTF-8; the browser's clipboardData and event never leave the
+    // framework. setNoResult consumes the paste, setStringResult consumes it
+    // and inserts that string as text, and setDefaultResult or no result
+    // leaves it to the browser.
+    /** @param {import("./uitextpasteitem.js").UITextPasteDelegate|null} pasteDelegate */
+    set pasteDelegate(pasteDelegate) {
+        this._pasteDelegate = pasteDelegate || null
+        this._bindPaste()
+    }
+
+    get pasteDelegate() {
+        return this._pasteDelegate || null
+    }
+
+    // A control created in code has no element until it is placed, and a
+    // removed one loses its handlers with its element, so the listener binds
+    // again on every placement.
+    didMoveToSuperview() {
+        super.didMoveToSuperview()
+        this._bindPaste()
+    }
+
+    _bindPaste() {
+        if (!this.$el) { return }
+        this.$el.off(pasteNamespace)
+        if (!this._pasteDelegate) { return }
+        this.$el.on(pasteNamespace, (e) => _pasted(this, e))
+    }
+
+    _dispose() {
+        if (this.$el) { this.$el.off(pasteNamespace) }
+        super._dispose()
+    }
+
     set isSecureTextEntry(bool) {
         bool ? this.$el.attr("type", "password") : this.$el.attr("type", "text")
     }
@@ -171,4 +224,55 @@ export class UITextField extends UIControl {
     get textContentType() {
         return this.$el.attr("autocomplete") || ""
     }
+}
+
+
+function _pasted(textField, e) {
+    var delegate = textField._pasteDelegate
+    if (!delegate || !delegate.textPasteConfigurationSupportingTransform) { return }
+    var flavours = _flavoursOf((e.originalEvent || e).clipboardData)
+    if (flavours === null) { return }
+    var item = textPasteItemFor({itemProvider: itemProviderForFlavours({flavours: flavours})})
+    delegate.textPasteConfigurationSupportingTransform(textField, item)
+    var result = resultOfTextPasteItem(item)
+    if (result.kind === "default") { return }
+    e.preventDefault()
+    if (result.kind === "string") { _insert(e.target, result.string) }
+}
+
+// null when the clipboard has none of the three flavours, a file alone included.
+function _flavoursOf(clipboardData) {
+    if (!clipboardData || typeof clipboardData.getData !== "function") { return null }
+    var flavours = {}
+    var count = 0
+    for (var [mimeType, identifier] of pasteFlavours) {
+        var string = clipboardData.getData(mimeType)
+        if (typeof string !== "string" || string === "") { continue }
+        flavours[identifier] = _capped(string)
+        count += 1
+    }
+    return count === 0 ? null : flavours
+}
+
+// A flavour longer than the cap in UTF-16 units is longer in bytes too, so it
+// is cut before it is encoded, and the bytes are cut back to a code point.
+function _capped(string) {
+    var bytes = utf8Encoder.encode(string.length > pasteFlavourCap ? string.slice(0, pasteFlavourCap) : string)
+    if (bytes.length <= pasteFlavourCap) { return bytes }
+    var end = pasteFlavourCap
+    while (end > 0 && (bytes[end] & 0xC0) === 0x80) { end -= 1 }
+    return bytes.slice(0, end)
+}
+
+// An input whose type has no selection (email, number) takes the string at the end.
+function _insert(input, string) {
+    var start = input.selectionStart
+    if (start === null || start === undefined) {
+        input.value = input.value + string
+    }
+    if (start !== null && start !== undefined) {
+        input.setRangeText(string, start, input.selectionEnd, "end")
+    }
+    var view = input.ownerDocument.defaultView
+    input.dispatchEvent(new view.InputEvent("input", {bubbles: true, inputType: "insertFromPaste"}))
 }

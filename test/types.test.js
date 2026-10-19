@@ -142,3 +142,16 @@ test("a UITextView's delegate and isScrollEnabled type check as Apple's do", fun
     assert.match(problems[0], /'string' is not assignable to type 'boolean'/)
     assert.match(problems[1], /'number' is not assignable to type '\(textView: UITextView\) => void'/)
 })
+
+
+// UITextField's paste delegate is a UITextPasteDelegate whose type lives beside
+// UITextPasteItem, so the field's declaration has to import it.
+test("a text field's pasteDelegate and a paste item's results type check as Apple's do", function() {
+    var declaration = fs.readFileSync(path.join(root, "types/uikit/uitextfield.d.ts"), "utf8")
+    assert.match(declaration, /set pasteDelegate\(pasteDelegate: import\("\.\/uitextpasteitem\.js"\)\.UITextPasteDelegate \| null\)/)
+    assert.deepEqual(diagnose("textPaste.js"), [])
+    var problems = diagnose("textPasteWrong.js")
+    assert.equal(problems.length, 2)
+    assert.match(problems[0], /'number' is not assignable to type '\(textPasteConfigurationSupporting: UITextField, item: UITextPasteItem\) => void'/)
+    assert.match(problems[1], /'number' is not assignable to parameter of type 'string'/)
+})
