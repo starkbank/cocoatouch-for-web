@@ -48,7 +48,7 @@ resolve: {
 }
 ```
 
-The same goes for `import "Foundation"`, `import "CoreGraphics"`, `import "CoreAnimation"`, `import "CoreMedia"` and `import "AVKit"`; `import "UIKit"` brings Core Graphics along, as it does in Swift. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"` (PDFKit's names come only from `"cocoatouch/PDFKit"` or `import "PDFKit"`). The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
+The same goes for `import "Foundation"`, `import "CoreGraphics"`, `import "CoreAnimation"`, `import "CoreMedia"`, `import "AVKit"` and `import "UniformTypeIdentifiers"`; `import "UIKit"` brings Core Graphics along, as it does in Swift. Named imports work too, from `"cocoatouch"` or from a framework entry such as `"cocoatouch/UIKit"` (PDFKit's names come only from `"cocoatouch/PDFKit"` or `import "PDFKit"`). The lowercase entries `cocoatouch/uikit` and friends export the same classes without touching globals.
 
 Requirements:
 
@@ -343,6 +343,10 @@ For ESLint, `cocoatouch/eslint/globals` exports the same names as a `globals` ob
 Capture the `<cocoatouch>` inner html after `present`, serve it with `window.__PRERENDERED = true`, and call `controller.restore(controller)` instead of `present`. Outlets and actions rebind to the existing DOM, and views added at runtime through `addSubview` are found again by their `@IBAction` selectors. `restore(_:)` is this framework's hydration entry point, not a UIKit interface; UIKit's vocabulary for it is state restoration, which is where this is headed.
 
 One element has one owner. The owner is recorded as each view is bound, and from then on it supersedes the selector-equality rule that follows: an `@IBAction` that reaches an element a bound view owns, by whatever selector, awakes no second view over it. A registered view class is revived only for an action target no bound responder already answers with that same selector, so an outlet that declares `@IBAction("#logo")` is not shadowed by a page-wide ghost of its own class; a target inside an outlet container that declares no action on it, such as a message view added into `this.messagesView`, is still revived. When a class and its subclass both match the same target, only the most derived is revived. Two limitations remain. Sibling subclasses that declare the same action selectors cannot be told apart by this scan; the fix is `restorationIdentifier`, which is not here yet. And a revived view is constructed with no selector, so its class fields and `init()` run, but `init()` runs against an empty `$el`: work `init()` does on the element, such as `UISearchTextField` appending its input, does not land. A view that touches its element should do so in `awakeFromNib`, which `restore` does not send either; `didMoveToWindow` is the hook a restored view receives.
+
+### UniformTypeIdentifiers
+
+`import "UniformTypeIdentifiers"` brings `UTType`, only what a file picker and a drop zone name. The constants are `UTType.pdf`, `.image`, `.png`, `.jpeg`, `.commaSeparatedText`, `.item` and `.folder`, each with Apple's `identifier` (`com.adobe.pdf`, `public.image`, ...), `preferredFilenameExtension` and `preferredMIMEType` (`null` where a browser has none, as for `image`), and `conforms({to})` follows Apple's hierarchy: `png` and `jpeg` conform to `image`, everything to `item`, `folder` to neither `image` nor `pdf`. `new UTType({filenameExtension: "pem"})` finds a known type (`jpg` is `public.jpeg`, whose preferred extension is `jpeg`) and makes a dynamic one, `dyn.pem`, for an extension nobody declared, as Apple's does. `new UTType({mimeType})` finds a known type; Apple's initializer returns nil for an unknown one, which `new` cannot, so it throws a `TypeError`. Exactly one label is taken.
 
 ## Classes
 

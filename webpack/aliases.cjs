@@ -10,5 +10,6 @@ module.exports = {
     CoreAnimation: path.join(__dirname, "../src/CoreAnimation.js"),
     CoreMedia: path.join(__dirname, "../src/CoreMedia.js"),
     AVKit: path.join(__dirname, "../src/AVKit.js"),
-    PDFKit: path.join(__dirname, "../src/PDFKit.js")
+    PDFKit: path.join(__dirname, "../src/PDFKit.js"),
+    UniformTypeIdentifiers: path.join(__dirname, "../src/UniformTypeIdentifiers.js")
 }
