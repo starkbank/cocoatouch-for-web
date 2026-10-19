@@ -39,6 +39,7 @@ import { UINavigationItem } from "./uinavigationitem.js"
 import { UIPasteboard } from "./uipasteboard.js"
 import { UIApplication } from "./uiapplication.js"
 import { UIToolTipInteraction } from "./uitooltipinteraction.js"
+import { UIDocumentPickerViewController } from "./uidocumentpickerviewcontroller.js"
 
 
 export {
@@ -88,4 +89,5 @@ export {
      UIPasteboard,
      UIApplication,
      UIToolTipInteraction,
+    UIDocumentPickerViewController,
 }
