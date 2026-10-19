@@ -24,6 +24,7 @@ import { UIDevice } from "./uidevice.js"
 import { UIScreen } from "./uiscreen.js"
 import { UIUserInterfaceIdiom } from "./uiuserinterfaceidiom.js"
 import { UIUserInterfaceSizeClass } from "./uiuserinterfacesizeclass.js"
+import { UIUserInterfaceStyle } from "./uiuserinterfacestyle.js"
 import { UITraitCollection } from "./uitraitcollection.js"
 import { UIGestureRecognizer, UITapGestureRecognizer, UIHoverGestureRecognizer } from "./uigesturerecognizer.js"
 import { UISegmentedControl } from "./uisegmentedcontrol.js"
@@ -78,6 +79,7 @@ export {
      UIScreen,
      UIUserInterfaceIdiom,
      UIUserInterfaceSizeClass,
+     UIUserInterfaceStyle,
      UITraitCollection,
      UIGestureRecognizer,
      UITapGestureRecognizer,

@@ -1,4 +1,9 @@
 import { NSObject } from "../foundation/nsobject.js"
+import { UITraitCollection } from "./uitraitcollection.js"
+import { required, instance } from "../utils/required.js"
+
+
+const traitCollectionType = instance(UITraitCollection, "UITraitCollection")
 
 
 // UIKit's UIColor. A color named after a design token resolves through the
@@ -21,6 +26,7 @@ export class UIColor extends NSObject {
         super()
         if (named !== undefined) {
             this._cssValue = `var(--${named})`
+            this._token = named
             return
         }
         if (white !== undefined) {
@@ -54,6 +60,24 @@ export class UIColor extends NSObject {
 
     get hex() {
         return this._cssValue
+    }
+
+    // The concrete color a named token has now, for a canvas, which cannot read
+    // var(--token): a new UIColor holding the root's computed value, read once
+    // per call. A color that is no token is concrete already and comes back as
+    // it is, and so does a token that resolves to nothing. Resolve at load and
+    // again when the theme changes, never in a drawing callback or per frame.
+    /**
+     * @param {object} options
+     * @param {UITraitCollection} options.with
+     * @returns {UIColor}
+     */
+    resolvedColor({with: traitCollection} = {}) {
+        required(traitCollection, "with", traitCollectionType, "UIColor.resolvedColor", "Apple's is resolvedColor(with:); write color.resolvedColor({with: UITraitCollection.current}).")
+        if (this._token === undefined || typeof document === "undefined") { return this }
+        var value = getComputedStyle(document.documentElement).getPropertyValue("--" + this._token).trim()
+        if (value === "") { return this }
+        return new UIColor({hex: value})
     }
 }
 
