@@ -60,7 +60,7 @@ test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
     assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
-test("UIButton.showsActivityIndicator swaps the title for a spinner and restores it", function() {
+test("UIButton.showsActivityIndicator draws a spinner over the title and restores it", function() {
     var button = new UIButton("#send")
     // Stores and returns the value raw: this double does not model
     // textContent's escaping, so no test whose subject is escaping may use it.

@@ -10,7 +10,13 @@ const stateType = enumeration(UIControlState, "UIControl.State")
 const colorType = instance(UIColor, "UIColor")
 const attributedType = instance(NSAttributedString, "NSAttributedString")
 
-const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\"></i>"
+// The title stays in flow so the button keeps its intrinsic size, only hidden:
+// visibility drops it from sight, the tab order and the accessibility tree where
+// display:none or opacity would not both. display:contents keeps the title's
+// nodes laying out as the button's own children, as a flex button with an icon
+// and a gap needs. The spinner is out of flow, centred over the button.
+const activityTitleOpen = "<span class=\"uibutton-activity-title\" style=\"display: contents; visibility: hidden;\">"
+const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\" style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);\"></i>"
 
 
 export class UIButton extends UIControl {
@@ -124,18 +130,24 @@ export class UIButton extends UIControl {
         return new UIColor({hex: this.$el.css("color")})
     }
 
-    // Replaces the title with a spinner and disables the button until turned off.
+    // Draws a spinner over the title and disables the button until turned off.
+    // As in UIButton.Configuration, the button keeps its size meanwhile. The
+    // button becomes the spinner's containing block only when nothing already is.
     set showsActivityIndicator(bool) {
         if (bool) {
             if (this._titleBeforeActivity !== undefined) { return }
             this._titleBeforeActivity = this.$el.html()
+            this._positionedForActivity = _isStatic(this.$el.css("position"))
+            if (this._positionedForActivity) { this.$el.css("position", "relative") }
             this.isEnabled = false
-            setMarkup(this.$el, activityIndicator)
+            setMarkup(this.$el, activityTitleOpen + this._titleBeforeActivity + "</span>" + activityIndicator)
             return
         }
         if (this._titleBeforeActivity === undefined) { return }
         setMarkup(this.$el, this._titleBeforeActivity)
         this._titleBeforeActivity = undefined
+        if (this._positionedForActivity) { this.$el.css("position", "") }
+        this._positionedForActivity = false
         this.isEnabled = true
     }
 
@@ -144,6 +156,10 @@ export class UIButton extends UIControl {
     }
 }
 
+
+function _isStatic(position) {
+    return position === "static" || position === ""
+}
 
 // The drawn title is resolved here rather than through title({for:}): a
 // subclass may declare a `title` member of its own, as a Swift subclass may
