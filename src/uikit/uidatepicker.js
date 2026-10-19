@@ -10,6 +10,10 @@ import { required, typed, Bool, DateType } from "../utils/required.js"
 // inserts when the element has none. In "time" mode it wraps the
 // ClockPicker 0.0.7 plugin (also a page script) the same way, over the same input;
 // in "dateAndTime" mode it turns that input into the browser's own datetime-local.
+// What showPicker() throws when the browser declines to open it, without a user
+// activation or inside a cross-origin frame; the field stays usable by keyboard.
+const refusals = ["NotAllowedError", "SecurityError"]
+
 const modes = ["date", "time", "dateAndTime", "yearAndMonth"]
 
 
@@ -185,7 +189,11 @@ export class UIDatePicker extends UIControl {
         input.type = "datetime-local"
         this.$input.on("click.uidatepicker", () => {
             if (typeof input.showPicker !== "function") { return }
-            input.showPicker()
+            try {
+                input.showPicker()
+            } catch (error) {
+                if (!refusals.includes(error.name)) { throw error }
+            }
         })
     }
 
