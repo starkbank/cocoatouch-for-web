@@ -61,3 +61,30 @@ test("becomeFirstResponder, resignFirstResponder and isFirstResponder act on the
     field.resignFirstResponder()
     assert.equal(field.isFirstResponder, false)
 })
+
+
+// UISearchTextField reads the key off its own input, so the move of
+// UIKeyCommand.inputDelete to the forward Delete key leaves it as it was.
+function pressKey(element, key) {
+    var event = new window.KeyboardEvent("keydown", {key: key, bubbles: true, cancelable: true})
+    element.dispatchEvent(event)
+    return event
+}
+
+test("Backspace in the empty input removes the last token, and forward Delete does not", function() {
+    page("<div id=\"search\"></div>")
+    var field = new UISearchTextField("#search")
+    field.tokens = [new UISearchToken({text: "a"}), new UISearchToken({text: "b"})]
+    var input = field.textField[0]
+    assert.equal(pressKey(input, "Delete").defaultPrevented, false)
+    assert.equal(field.tokens.length, 2)
+    assert.equal(pressKey(input, "Backspace").defaultPrevented, true)
+    assert.deepEqual(field.tokens.map((token) => token.text), ["a"])
+    input.value = "x"
+    assert.equal(pressKey(input, "Backspace").defaultPrevented, false)
+    assert.equal(field.tokens.length, 1)
+    input.value = ""
+    field.allowsDeletingTokens = false
+    assert.equal(pressKey(input, "Backspace").defaultPrevented, false)
+    assert.equal(field.tokens.length, 1)
+})
