@@ -74,8 +74,16 @@ function _scopeRule(rule, setFromScript) {
     if (rule.selectors.some((selector) => selector.trim() === ":root") && rule.selectors.length === 1) {
         // The :root defaults become the view's own. A variable pdf.js sets on
         // the document stays there: a default on .ct-pdfview would shadow it.
+        // color-scheme is not moved at all. pdf.js sets `light dark` on :root
+        // because it assumes it owns the page; on .ct-pdfview it would hand the
+        // view's light-dark() values and the browser's own parts of it
+        // (scrollbars) to the OS theme, which the framework's old
+        // `:root { color-scheme: normal }` reset kept off every page that
+        // imported PDFKit. pdf.js's own `only light` on the text and annotation
+        // layers and `light dark` on its comment widgets are scoped rules of
+        // their own and stay.
         rule.walkDecls((declaration) => {
-            if (setFromScript.has(declaration.prop)) { declaration.remove() }
+            if (setFromScript.has(declaration.prop) || declaration.prop === "color-scheme") { declaration.remove() }
         })
         rule.selector = scope
         return

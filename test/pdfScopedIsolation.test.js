@@ -90,3 +90,11 @@ test("inside a .ct-pdfview the same rules apply: a page is positioned and the vi
         assert.equal(getComputedStyle(document.getElementById("app-page")).position, "static", "an app .page stays static")
     })
 })
+
+test("with the scoped sheet loaded, a .ct-pdfview has a computed color-scheme of normal, as the old reset kept it", function() {
+    page("<div id=\"host\" class=\"ct-pdfview\"><div class=\"pdfViewer\"><div class=\"page\"></div></div></div>")
+    withSheet(scopedCss, function() {
+        assert.equal(getComputedStyle(document.getElementById("host")).getPropertyValue("color-scheme"), "normal")
+        assert.equal(getComputedStyle(document.documentElement).getPropertyValue("color-scheme"), "normal")
+    })
+})

@@ -56,7 +56,7 @@ test(":root blocks move onto .ct-pdfview in their source order, with their media
     var out = scoped(":root { --a: 1; color-scheme: light dark }\n.x { y: z }\n@media (prefers-color-scheme: dark) { :root { --a: 2 } }\n:root { --b: 3 }\n@media screen and (forced-colors: active) { :root { --c: 4 } }")
     var order = []
     postcss.parse(out).walkDecls(function(declaration) { order.push(declaration.prop + "=" + declaration.value.trim()) })
-    assert.deepEqual(order, ["--a=1", "color-scheme=light dark", "y=z", "--a=2", "--b=3", "--c=4"])
+    assert.deepEqual(order, ["--a=1", "y=z", "--a=2", "--b=3", "--c=4"], "color-scheme stays behind: see the next tests")
     assert.deepEqual(topLevelRules(out).map((rule) => rule.selector), [".ct-pdfview", ".ct-pdfview .x", ".ct-pdfview", ".ct-pdfview", ".ct-pdfview"])
     assert.doesNotMatch(out, /:root/)
 })
@@ -148,4 +148,25 @@ test("every image the committed file names exists in the installed pdfjs-dist", 
 test("a :root in a selector list is dropped like html and body, and what is left of the list is scoped", function() {
     var out = scoped(":root, .keep { x: y }\n:root .b { x: y }\nhtml:root .c { x: y }\n.d:root { x: y }")
     assert.deepEqual(topLevelRules(out).map((rule) => rule.selector), [".ct-pdfview .keep"])
+})
+
+test("color-scheme is not moved onto .ct-pdfview, so the view stays light under an OS dark scheme", function() {
+    var out = scoped(":root { color-scheme: light dark; --a: 1 }\n.textLayer { color-scheme: only light }\n@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --a: 2 } }")
+    var schemes = []
+    postcss.parse(out).walkRules((rule) => rule.walkDecls("color-scheme", (declaration) => schemes.push([rule.selector, declaration.value])))
+    assert.deepEqual(schemes, [[".ct-pdfview .textLayer", "only light"]], "pdf.js's own scoped declarations stay")
+    assert.match(out, /--a: 1/)
+})
+
+test("the committed file declares color-scheme only on pdf.js's own layers and widgets, never on .ct-pdfview itself", function() {
+    var count = 0
+    postcss.parse(committed).walkDecls("color-scheme", function(declaration) {
+        var outermost = null
+        for (var node = declaration.parent; node; node = node.parent) { if (node.type === "rule") { outermost = node } }
+        for (var selector of outermost.selectors) {
+            assert.ok(selector.trim().startsWith(scope + " "), "color-scheme on " + selector)
+        }
+        count++
+    })
+    assert.ok(count >= 5, "pdf.js's own scoped declarations are still there")
 })
