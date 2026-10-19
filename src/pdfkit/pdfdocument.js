@@ -62,6 +62,25 @@ function _validateScheme(url) {
     }
 }
 
+function _urlSource(url) {
+    required(url, "url", StringType, "PDFDocument(url:)", "Apple's is PDFDocument(url:); write new PDFDocument({url}).")
+    _validateScheme(url)
+    return {url: url}
+}
+
+// PDFDocument(data:) is bytes and only bytes. pdf.js would read a string as a
+// binary string, and a url handed in as data would reach it without the scheme
+// boundary init(url:) draws, so nothing but a Uint8Array or an ArrayBuffer
+// passes. pdf.js transfers the buffer it is given to its worker, which would
+// detach the caller's bytes, so what it gets is a copy; copying a Uint8Array
+// also drops a Buffer's subclass, which pdf.js refuses, and a view's offset.
+function _copyBytes(data) {
+    var tag = Object.prototype.toString.call(data)
+    if (tag === "[object Uint8Array]") { return new Uint8Array(data) }
+    if (tag === "[object ArrayBuffer]") { return new Uint8Array(data.slice(0)) }
+    throw new TypeError(`PDFDocument(data:) expects a Uint8Array or an ArrayBuffer, got ${data === null ? "null" : typeof data}. Apple's is PDFDocument(data:); write new PDFDocument({data: bytes}).`)
+}
+
 
 // PDFKit's PDFDocument: a parsed PDF, independent of any PDFView showing it,
 // as in PDFKit. Loading is asynchronous — pdf.js has no other way to do it —
@@ -70,16 +89,20 @@ function _validateScheme(url) {
 // fetch that follows is a promise.
 export class PDFDocument {
 
-    // PDFDocument(url:)
+    // PDFDocument(url:) and PDFDocument(data:): the one init is chosen by its
+    // label, and a document built from bytes has no documentURL, as Apple's has none.
     /**
      * @param {object} options
-     * @param {string} options.url
+     * @param {string} [options.url]
+     * @param {Uint8Array|ArrayBuffer} [options.data]
      */
-    constructor({url} = {}) {
-        required(url, "url", StringType, "PDFDocument(url:)", "Apple's is PDFDocument(url:); write new PDFDocument({url}).")
-        _validateScheme(url)
+    constructor({url, data} = {}) {
+        if (url !== undefined && data !== undefined) {
+            throw new TypeError("PDFDocument takes a url or data, not both. Apple's are PDFDocument(url:) and PDFDocument(data:); write new PDFDocument({url}) or new PDFDocument({data}).")
+        }
+        var source = data === undefined ? _urlSource(url) : {data: _copyBytes(data)}
 
-        this._documentURL = url
+        this._documentURL = data === undefined ? url : null
         this._pages = new Map()
         this._pageLabels = null
         this._pageCount = 0
@@ -90,7 +113,7 @@ export class PDFDocument {
         this._isFinding = false
         this._delegate = null
 
-        var opened = openDocument(Object.assign({url: url}, pdfjsRendererOptions(), {isEvalSupported: false}))
+        var opened = openDocument(Object.assign(source, pdfjsRendererOptions(), {isEvalSupported: false}))
         this._loadingTask = opened.loadingTask
         this._loaded = opened.promise
         this._releaseLoad = opened.release
@@ -266,6 +289,10 @@ export class PDFDocument {
         // told about; pdf.js aborts a load destroyed in the same tick.
         if (this._destroyed) { return }
         var name = (reason && reason.name) || "UnknownError"
+        if (this._documentURL === null) {
+            console.error(`PDFDocument(data:) failed to load: ${name}`)
+            return
+        }
         console.error(`PDFDocument(url:) failed to load "${this._documentURL}": ${name}`)
     }
 
