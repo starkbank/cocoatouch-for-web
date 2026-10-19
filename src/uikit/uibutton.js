@@ -15,7 +15,7 @@ const attributedType = instance(NSAttributedString, "NSAttributedString")
 // display:none or opacity would not both. display:contents keeps the title's
 // nodes laying out as the button's own children, as a flex button with an icon
 // and a gap needs. The spinner is out of flow, centred over the button.
-const activityTitleOpen = "<span class=\"uibutton-activity-title\" style=\"display: contents; visibility: hidden;\">"
+const activityTitle = "<span class=\"uibutton-activity-title\" style=\"display: contents; visibility: hidden;\"></span>"
 const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\" style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);\"></i>"
 
 
@@ -55,7 +55,7 @@ export class UIButton extends UIControl {
         this._drawTitle()
     }
 
-    // Nothing is drawn while the activity indicator holds the html, nor when
+    // Nothing is drawn while the activity indicator holds the title, nor when
     // no title was ever set, so a title written in the nib stands.
     /**
      * setAttributedTitle(_:for:): markup for a state, through NSAttributedString's
@@ -90,7 +90,10 @@ export class UIButton extends UIControl {
     // The element is part of what was drawn: a view re-resolves its element by
     // selector once it is disconnected, so the same title may need drawing again.
     _drawTitle() {
-        if (this._titleBeforeActivity !== undefined) { return }
+        if (this._enabledBeforeActivity !== undefined) {
+            this._titlePending = true
+            return
+        }
         var title = _title(this, _drawnState(this))
         if (title === null) { return }
         var isMarkup = title instanceof NSAttributedString && title._isMarkup
@@ -130,29 +133,57 @@ export class UIButton extends UIControl {
         return new UIColor({hex: this.$el.css("color")})
     }
 
+    // Apple's isEnabled is the control's own; while the activity indicator
+    // shows the button is disabled, so what the app assigns then is kept and
+    // takes effect when the indicator turns off.
+    set isEnabled(bool) {
+        if (this._enabledBeforeActivity !== undefined) {
+            this._enabledAfterActivity = bool
+            return
+        }
+        super.isEnabled = bool
+    }
+
+    get isEnabled() {
+        return super.isEnabled
+    }
+
     // Draws a spinner over the title and disables the button until turned off.
     // As in UIButton.Configuration, the button keeps its size meanwhile. The
     // button becomes the spinner's containing block only when nothing already is.
+    // The title's nodes are moved under a wrapper and back, never re-created, so
+    // an outlet to one of them, and the nodes a click needs, stay the same.
     set showsActivityIndicator(bool) {
         if (bool) {
-            if (this._titleBeforeActivity !== undefined) { return }
-            this._titleBeforeActivity = this.$el.html()
+            if (this._enabledBeforeActivity !== undefined) { return }
+            this._enabledBeforeActivity = this.isEnabled
+            this._enabledAfterActivity = undefined
             this._positionedForActivity = _isStatic(this.$el.css("position"))
             if (this._positionedForActivity) { this.$el.css("position", "relative") }
-            this.isEnabled = false
-            setMarkup(this.$el, activityTitleOpen + this._titleBeforeActivity + "</span>" + activityIndicator)
+            super.isEnabled = false
+            this._titlePending = false
+            this.$el.contents().wrapAll(activityTitle)
+            this.$el.append(activityIndicator)
             return
         }
-        if (this._titleBeforeActivity === undefined) { return }
-        setMarkup(this.$el, this._titleBeforeActivity)
-        this._titleBeforeActivity = undefined
+        if (this._enabledBeforeActivity === undefined) { return }
+        var title = this.$el.children(".uibutton-activity-title")
+        title.before(title.contents())
+        title.remove()
+        this.$el.children(".uibutton-activity-indicator").remove()
+        var pending = this._titlePending
+        var enabled = this._enabledAfterActivity === undefined ? this._enabledBeforeActivity : this._enabledAfterActivity
+        this._enabledBeforeActivity = undefined
+        this._enabledAfterActivity = undefined
+        this._titlePending = false
         if (this._positionedForActivity) { this.$el.css("position", "") }
         this._positionedForActivity = false
-        this.isEnabled = true
+        super.isEnabled = enabled
+        if (pending) { this._drawTitle() }
     }
 
     get showsActivityIndicator() {
-        return this._titleBeforeActivity !== undefined
+        return this._enabledBeforeActivity !== undefined
     }
 }
 
