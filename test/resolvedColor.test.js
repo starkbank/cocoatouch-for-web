@@ -1,7 +1,8 @@
 import "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIColor, UITraitCollection, UIUserInterfaceStyle } from "../src/index.js"
+import * as framework from "../src/index.js"
+import { UIColor, UITraitCollection } from "../src/index.js"
 
 
 var root = document.documentElement
@@ -94,61 +95,35 @@ test("the with label is required and must be a UITraitCollection", function() {
     assert.throws(() => color.resolvedColor({with: {userInterfaceStyle: "dark"}}), TypeError)
 })
 
-test("UITraitCollection.current is the page's collection, and a collection can carry its own style", function() {
+test("UITraitCollection.current is the page's collection, with its size classes", function() {
     assert.ok(UITraitCollection.current instanceof UITraitCollection)
     assert.equal(UITraitCollection.current, UITraitCollection.current)
-    assert.equal(new UITraitCollection({userInterfaceStyle: UIUserInterfaceStyle.dark}).userInterfaceStyle, "dark")
-    assert.equal(new UITraitCollection().userInterfaceStyle, "unspecified")
-    assert.deepEqual([UIUserInterfaceStyle.unspecified, UIUserInterfaceStyle.light, UIUserInterfaceStyle.dark], ["unspecified", "light", "dark"])
+    assert.ok(["compact", "regular"].includes(UITraitCollection.current.horizontalSizeClass))
 })
 
-test("current.userInterfaceStyle follows the root's background, the way the theme decides light or dark", function() {
+// A light or dark style would have to be guessed from a background or from
+// prefers-color-scheme; neither is the app's decision, so the framework has no
+// interface style until the app's theme code can set one.
+test("the page's collection has no interface style, and no UIUserInterfaceStyle exists", function() {
     reset()
-    root.style.backgroundColor = "rgb(255, 255, 255)"
-    assert.equal(UITraitCollection.current.userInterfaceStyle, UIUserInterfaceStyle.light)
     root.style.backgroundColor = "rgb(18, 19, 20)"
-    assert.equal(UITraitCollection.current.userInterfaceStyle, UIUserInterfaceStyle.dark)
-    root.style.backgroundColor = "rgba(0, 0, 0, 0)"
-    document.body.style.backgroundColor = "rgb(20, 20, 20)"
-    assert.equal(UITraitCollection.current.userInterfaceStyle, UIUserInterfaceStyle.dark, "a transparent root falls to the body")
-    document.body.style.backgroundColor = "rgb(250, 250, 250)"
-    assert.equal(UITraitCollection.current.userInterfaceStyle, UIUserInterfaceStyle.light)
+    assert.equal(UITraitCollection.current.userInterfaceStyle, undefined)
+    assert.equal("userInterfaceStyle" in UITraitCollection.current, false)
+    assert.equal(new UITraitCollection({userInterfaceStyle: "dark"}).userInterfaceStyle, undefined)
+    assert.equal(framework.UIUserInterfaceStyle, undefined)
     reset()
 })
 
-test("the brightness threshold is the theme's: (299r + 587g + 114b) / 1000 under 128 is dark", function() {
+test("resolvedColor works under any background and reads no style: the root's custom property alone", function() {
     reset()
-    root.style.backgroundColor = "rgb(127, 127, 127)"
-    assert.equal(UITraitCollection.current.userInterfaceStyle, "dark")
-    root.style.backgroundColor = "rgb(128, 128, 128)"
-    assert.equal(UITraitCollection.current.userInterfaceStyle, "light")
+    define("chart-blue", "#0070E0")
+    var named = new UIColor({named: "chart-blue"})
+    var calls = spied(function() {
+        for (var background of ["rgb(255, 255, 255)", "rgb(18, 19, 20)", "rgba(0, 0, 0, 0)"]) {
+            root.style.backgroundColor = background
+            assert.equal(named.resolvedColor({with: UITraitCollection.current}).cgColor, "#0070E0")
+        }
+    })
+    assert.equal(calls.length, 3, "one getComputedStyle call per resolve, none for a style")
     reset()
-})
-
-test("with no background anywhere, the style falls back to prefers-color-scheme, and to light without it", function() {
-    reset()
-    var original = window.matchMedia
-    window.matchMedia = (query) => ({matches: query === "(prefers-color-scheme: dark)"})
-    try {
-        assert.equal(UITraitCollection.current.userInterfaceStyle, "dark")
-        window.matchMedia = () => ({matches: false})
-        assert.equal(UITraitCollection.current.userInterfaceStyle, "light")
-        window.matchMedia = undefined
-        assert.equal(UITraitCollection.current.userInterfaceStyle, "light")
-    } finally {
-        window.matchMedia = original
-    }
-})
-
-test("a root background beats prefers-color-scheme", function() {
-    reset()
-    var original = window.matchMedia
-    window.matchMedia = () => ({matches: true})
-    try {
-        root.style.backgroundColor = "rgb(255, 255, 255)"
-        assert.equal(UITraitCollection.current.userInterfaceStyle, "light")
-    } finally {
-        window.matchMedia = original
-        reset()
-    }
 })
