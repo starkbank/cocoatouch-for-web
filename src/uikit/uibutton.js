@@ -14,9 +14,12 @@ const attributedType = instance(NSAttributedString, "NSAttributedString")
 // visibility drops it from sight, the tab order and the accessibility tree where
 // display:none or opacity would not both. display:contents keeps the title's
 // nodes laying out as the button's own children, as a flex button with an icon
-// and a gap needs. The spinner is out of flow, centred over the button.
+// and a gap needs. The spinner is out of flow: an overlay that fills the button
+// and centres the icon with flex. Font Awesome's fa-spin animates transform on
+// the icon, and a running animation overrides the icon's own transform, so the
+// icon is never positioned; only the overlay, which does not spin, is.
 const activityTitle = "<span class=\"uibutton-activity-title\" style=\"display: contents; visibility: hidden;\"></span>"
-const activityIndicator = "<i class=\"fas fa-circle-notch fa-spin uibutton-activity-indicator\" style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);\"></i>"
+const activityIndicator = "<span class=\"uibutton-activity-indicator\" style=\"position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;\"><i class=\"fas fa-circle-notch fa-spin\"></i></span>"
 
 
 export class UIButton extends UIControl {

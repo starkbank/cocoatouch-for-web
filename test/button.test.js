@@ -104,6 +104,7 @@ function drawn(id) {
         element: element,
         title: element.querySelector(".uibutton-activity-title"),
         spinner: element.querySelector(".uibutton-activity-indicator"),
+        icon: element.querySelector(".uibutton-activity-indicator > .fa-spin"),
     }
 }
 
@@ -132,7 +133,7 @@ test("the hidden title's controls are not focusable while the indicator shows", 
     assert.equal(hidden.parentNode, document.getElementById("b"))
 })
 
-test("the spinner is overlaid, absolutely centred over the button, and takes no room in the flow", function() {
+test("the spinner is an overlay, absolutely filling the button and centring the icon with flex, taking no room in the flow", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
@@ -140,12 +141,49 @@ test("the spinner is overlaid, absolutely centred over the button, and takes no 
     var held = drawn("b")
     assert.ok(held.spinner)
     assert.equal(held.spinner.parentNode, held.element)
+    assert.equal(held.spinner.tagName, "SPAN")
     assert.equal(held.spinner.style.position, "absolute")
-    assert.equal(held.spinner.style.top, "50%")
-    assert.equal(held.spinner.style.left, "50%")
-    assert.equal(held.spinner.style.transform, "translate(-50%, -50%)")
+    assert.match(held.spinner.getAttribute("style"), /inset: 0/)
+    assert.equal(held.spinner.style.display, "flex")
+    assert.equal(held.spinner.style.alignItems, "center")
+    assert.equal(held.spinner.style.justifyContent, "center")
+    assert.equal(held.spinner.style.pointerEvents, "none")
     assert.equal(held.spinner.style.visibility, "")
     assert.equal(held.element.style.position, "relative", "a static button becomes the spinner's containing block")
+    assert.equal(held.spinner.children.length, 1)
+    assert.equal(held.spinner.firstChild, held.icon)
+    assert.ok(held.icon.classList.contains("fas"))
+    assert.ok(held.icon.classList.contains("fa-circle-notch"))
+})
+
+// Font Awesome's fa-spin animates transform on the element that carries it, and
+// a running animation overrides that element's own transform, so a translate
+// there leaves the spinner off centre. The centring belongs to a box that does
+// not spin.
+test("the spinning icon is not the element that centres it, and carries no transform or offsets", function() {
+    page("<button id=\"b\"></button>")
+    var button = new UIButton("#b")
+    button.setTitle("Save", {for: UIControlState.normal})
+    button.showsActivityIndicator = true
+    var held = drawn("b")
+    var spinning = held.element.querySelector(".fa-spin")
+    assert.ok(spinning)
+    assert.notEqual(spinning, held.spinner, "the overlay that centres is not the element that spins")
+    assert.equal(spinning.style.transform, "")
+    assert.equal(spinning.style.translate, "")
+    assert.equal(spinning.style.top, "")
+    assert.equal(spinning.style.left, "")
+    assert.equal(spinning.style.position, "")
+    assert.equal(spinning.getAttribute("style"), null)
+})
+
+test("turning the indicator off removes the overlay and the icon with it", function() {
+    page("<button id=\"b\"></button>")
+    var button = new UIButton("#b")
+    button.setTitle("Save", {for: UIControlState.normal})
+    button.showsActivityIndicator = true
+    button.showsActivityIndicator = false
+    assert.equal(document.querySelectorAll("#b .uibutton-activity-indicator, #b .fa-spin").length, 0)
 })
 
 test("a button already positioned keeps its own positioning while the indicator shows", function() {
