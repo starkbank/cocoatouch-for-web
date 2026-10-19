@@ -6,6 +6,7 @@ import { UITableViewCell } from "./uitableviewcell.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { UITextField } from "./uitextfield.js"
+import { UITextView } from "./uitextview.js"
 import { UIView } from "./uiview.js"
 import { UIControl } from "./uicontrol.js"
 import { UISwitch } from "./uiswitch.js"
@@ -56,6 +57,7 @@ export {
      UITableViewScrollPosition,
      UITableViewCellEditingStyle,
      UITextField,
+     UITextView,
      UIView,
      UIControl,
      UISwitch,
