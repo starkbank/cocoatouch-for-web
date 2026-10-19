@@ -461,10 +461,10 @@ function _matchKind(binding, e, usesCommandKey) {
 }
 
 // A text input that is first responder consumes the characters typed into it
-// and the delete key, so a key command with no modifiers on one of those never
+// and the delete keys, so a key command with no modifiers on one of those never
 // fires while one has the focus, unless it wantsPriorityOverSystemBehavior.
 const textInputs = /^(input|textarea|select)$/i
-const textConsumedKeys = ["Backspace"]
+const textConsumedKeys = ["Backspace", "Delete"]
 
 function _isTypedInto(binding, active) {
     if (!active || binding.wantsPriority || binding.modifiers.length > 0) { return false }
