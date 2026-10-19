@@ -1,4 +1,5 @@
 import { UIResponder } from "./uiresponder.js"
+import { UIColor } from "./uicolor.js"
 import { CALayer } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
@@ -207,8 +208,17 @@ export class UIView extends UIResponder {
         return this.$el.css("display") === "none"
     }
 
+    // Apple's nil is no value of the view's own: the inline value is removed, so
+    // the stylesheet's returns, and reads back as null, which is also what a view
+    // nobody colored reads. Anything else must be a UIColor.
     set backgroundColor(color) {
-        this.$el.css("background-color", color.cgColor)
+        this.$el.css("background-color", color === null ? "" : color.cgColor)
+    }
+
+    get backgroundColor() {
+        var element = this.$el[0]
+        if (!element || !element.style || element.style.backgroundColor === "") { return null }
+        return new UIColor({hex: element.style.backgroundColor})
     }
 
     // The view's affine transform, as the element's CSS transform. Inside
