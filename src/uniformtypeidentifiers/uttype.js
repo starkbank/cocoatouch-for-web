@@ -20,6 +20,9 @@ const table = Object.freeze({
     "com.microsoft.bmp": {parents: ["public.image"], extensions: ["bmp"], mime: "image/bmp"},
     "public.tiff": {parents: ["public.image"], extensions: ["tiff", "tif"], mime: "image/tiff"},
     "public.svg-image": {parents: ["public.image"], extensions: ["svg"], mime: "image/svg+xml"},
+    // Declared by the system though Apple names no UTType constant for it, so it
+    // is found by extension and MIME type and has no static member here either.
+    "public.avif": {parents: ["public.image"], extensions: ["avif"], mime: "image/avif"},
     "public.heif-standard": {parents: ["public.image"], extensions: [], mime: null},
     "public.heic": {parents: ["public.heif-standard"], extensions: ["heic"], mime: "image/heic"},
     "public.heif": {parents: ["public.heif-standard"], extensions: ["heif"], mime: "image/heif"},

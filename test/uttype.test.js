@@ -121,11 +121,33 @@ test("heic and heif are siblings under a standard type, neither the other's subt
     assert.equal(UTType.heif.conforms({to: UTType.image}), true)
 })
 
-test("avif has no named constant on Apple, so it stays a dynamic type, which is no image", function() {
+// Apple names no UTType constant for AVIF, but the system declares public.avif,
+// so UTType(filenameExtension: "avif") and UTType(mimeType: "image/avif") find
+// it, and it conforms to public.image.
+test("avif has no named constant, and is still found by extension and by MIME type as public.avif", function() {
     assert.equal(UTType.avif, undefined)
+    for (var spelling of ["avif", "AVIF", ".avif"]) {
+        var type = new UTType({filenameExtension: spelling})
+        assert.equal(type.identifier, "public.avif", spelling)
+        assert.equal(type.preferredFilenameExtension, "avif", spelling)
+        assert.equal(type.preferredMIMEType, "image/avif", spelling)
+    }
+    for (var mime of ["image/avif", "IMAGE/AVIF"]) {
+        assert.equal(new UTType({mimeType: mime}).identifier, "public.avif", mime)
+    }
+})
+
+test("avif conforms to image and item, and not to pdf or png", function() {
     var type = new UTType({filenameExtension: "avif"})
-    assert.equal(type.identifier, "dyn.avif")
-    assert.equal(type.conforms({to: UTType.image}), false)
+    assert.equal(type.conforms({to: UTType.image}), true)
+    assert.equal(type.conforms({to: UTType.item}), true)
+    assert.equal(type.conforms({to: UTType.pdf}), false)
+    assert.equal(type.conforms({to: UTType.png}), false)
+    assert.equal(UTType.image.conforms({to: type}), false)
+})
+
+test("avifs, the image sequence, stays dynamic", function() {
+    assert.equal(new UTType({filenameExtension: "avifs"}).identifier, "dyn.avifs")
 })
 
 test("the earlier image, pdf and csv types resolve as they did", function() {
