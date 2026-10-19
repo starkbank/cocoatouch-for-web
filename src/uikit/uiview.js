@@ -135,7 +135,8 @@ export class UIView extends UIResponder {
     }
 
     // Unhiding restores the stylesheet's display; a view the stylesheet keeps
-    // hidden until code shows it, like a spinner, becomes a block. Inside
+    // hidden until code shows it, like a spinner, gets the display its element
+    // has by nature: a cell is a table-cell, a span inline, a div a block. Inside
     // UIView.animate the change fades over the animation's duration.
     set isHidden(bool) {
         if (_animation) {
@@ -148,7 +149,7 @@ export class UIView extends UIResponder {
             return
         }
         this.$el.css("display", "")
-        if (this.$el.css("display") === "none") { this.$el.css("display", "block") }
+        if (this.$el.css("display") === "none") { this.$el.css("display", _naturalDisplay(this.$el[0])) }
     }
 
     set alpha(value) {
@@ -475,6 +476,22 @@ export class UIView extends UIResponder {
         super._dispose()
     }
 
+}
+
+
+// What a browser draws an element as when no stylesheet says otherwise.
+const naturalDisplays = Object.freeze({
+    tr: "table-row", td: "table-cell", th: "table-cell", table: "table",
+    thead: "table-header-group", tbody: "table-row-group", tfoot: "table-footer-group",
+    li: "list-item",
+    span: "inline", a: "inline", b: "inline", i: "inline", em: "inline", strong: "inline", small: "inline",
+    label: "inline", code: "inline", abbr: "inline", sub: "inline", sup: "inline", u: "inline", s: "inline", img: "inline",
+    input: "inline-block", button: "inline-block", select: "inline-block", textarea: "inline-block",
+})
+
+function _naturalDisplay(element) {
+    var tag = element && element.tagName ? element.tagName.toLowerCase() : ""
+    return naturalDisplays[tag] || "block"
 }
 
 
