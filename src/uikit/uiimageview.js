@@ -1,4 +1,5 @@
 import { UIView } from "./uiview.js"
+import { imageSource } from "./uiimage.js"
 
 
 const sourceElements = /^(img|video|audio|source|iframe|lottie-player)$/i
@@ -14,14 +15,15 @@ export class UIImageView extends UIView {
             this._setSymbol(image.systemName)
             return
         }
+        var source = imageSource(image)
         var element = this.$el[0]
         if (element && typeof element.tagName === "string" && !sourceElements.test(element.tagName)) {
-            this.$el.css("background-image", `url(${image.named})`)
+            this.$el.css("background-image", `url(${source})`)
             return
         }
-        this.$el.attr("src", image.named)
+        this.$el.attr("src", source)
         if (element && typeof element.load === "function") {
-            element.load(image.named)
+            element.load(source)
         }
     }
 
