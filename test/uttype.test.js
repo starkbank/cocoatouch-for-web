@@ -66,6 +66,76 @@ test("a text file's extension conforms to item and to no image or pdf", function
     assert.equal(new UTType({filenameExtension: "txt"}).conforms({to: UTType.item}), true)
 })
 
+// Identifiers, extensions and MIME types as UniformTypeIdentifiers answers them
+// on a Mac (UTType.gif.preferredFilenameExtension and the like), checked against
+// the SDK's UTCoreTypes.h and a run of UTType itself.
+const imageTypes = [
+    ["gif", "com.compuserve.gif", ["gif"], "image/gif"],
+    ["webP", "org.webmproject.webp", ["webp"], "image/webp"],
+    ["bmp", "com.microsoft.bmp", ["bmp"], "image/bmp"],
+    ["heic", "public.heic", ["heic"], "image/heic"],
+    ["heif", "public.heif", ["heif"], "image/heif"],
+    ["tiff", "public.tiff", ["tiff", "tif"], "image/tiff"],
+    ["svg", "public.svg-image", ["svg"], "image/svg+xml"],
+]
+
+test("each image constant has Apple's identifier, preferred extension and MIME type, and conforms to image", function() {
+    for (var [name, identifier, extensions, mime] of imageTypes) {
+        var type = UTType[name]
+        assert.ok(type instanceof UTType, name)
+        assert.equal(type.identifier, identifier, name)
+        assert.equal(type.preferredFilenameExtension, extensions[0], name)
+        assert.equal(type.preferredMIMEType, mime, name)
+        assert.equal(type.conforms({to: UTType.image}), true, name)
+        assert.equal(type.conforms({to: UTType.item}), true, name)
+        assert.equal(type.conforms({to: UTType.pdf}), false, name)
+        assert.equal(type.conforms({to: UTType.folder}), false, name)
+        assert.equal(UTType.image.conforms({to: type}), false, name)
+        assert.equal(UTType[name], type, name)
+    }
+})
+
+test("an image type is found by every extension it lists, in any case and with a leading dot", function() {
+    for (var [name, identifier, extensions] of imageTypes) {
+        for (var extension of extensions) {
+            for (var spelling of [extension, extension.toUpperCase(), "." + extension]) {
+                var type = new UTType({filenameExtension: spelling})
+                assert.equal(type.identifier, identifier, spelling)
+                assert.equal(type.conforms({to: UTType.image}), true, spelling)
+            }
+        }
+    }
+})
+
+test("an image type is found by its MIME type", function() {
+    for (var [name, identifier, , mime] of imageTypes) {
+        assert.equal(new UTType({mimeType: mime}).identifier, identifier, mime)
+        assert.equal(new UTType({mimeType: mime.toUpperCase()}).identifier, identifier, mime)
+    }
+})
+
+test("heic and heif are siblings under a standard type, neither the other's subtype", function() {
+    assert.equal(UTType.heic.conforms({to: UTType.heif}), false)
+    assert.equal(UTType.heif.conforms({to: UTType.heic}), false)
+    assert.equal(UTType.heic.conforms({to: UTType.image}), true)
+    assert.equal(UTType.heif.conforms({to: UTType.image}), true)
+})
+
+test("avif has no named constant on Apple, so it stays a dynamic type, which is no image", function() {
+    assert.equal(UTType.avif, undefined)
+    var type = new UTType({filenameExtension: "avif"})
+    assert.equal(type.identifier, "dyn.avif")
+    assert.equal(type.conforms({to: UTType.image}), false)
+})
+
+test("the earlier image, pdf and csv types resolve as they did", function() {
+    assert.equal(new UTType({filenameExtension: "jpg"}).identifier, "public.jpeg")
+    assert.equal(new UTType({filenameExtension: "png"}).identifier, "public.png")
+    assert.equal(new UTType({mimeType: "application/pdf"}).identifier, "com.adobe.pdf")
+    assert.equal(new UTType({filenameExtension: "csv"}).identifier, "public.comma-separated-values-text")
+    assert.equal(new UTType({filenameExtension: "pem"}).identifier, "dyn.pem")
+})
+
 test("conforms({to}) follows the hierarchy: png and jpeg are images, everything is an item, a folder is no image", function() {
     assert.equal(UTType.png.conforms({to: UTType.image}), true)
     assert.equal(UTType.jpeg.conforms({to: UTType.image}), true)

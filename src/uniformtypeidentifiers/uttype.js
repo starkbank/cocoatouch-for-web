@@ -15,6 +15,14 @@ const table = Object.freeze({
     "public.png": {parents: ["public.image"], extensions: ["png"], mime: "image/png"},
     "public.jpeg": {parents: ["public.image"], extensions: ["jpeg", "jpg"], mime: "image/jpeg"},
     "com.adobe.pdf": {parents: ["public.data"], extensions: ["pdf"], mime: "application/pdf"},
+    "com.compuserve.gif": {parents: ["public.image"], extensions: ["gif"], mime: "image/gif"},
+    "org.webmproject.webp": {parents: ["public.image"], extensions: ["webp"], mime: "image/webp"},
+    "com.microsoft.bmp": {parents: ["public.image"], extensions: ["bmp"], mime: "image/bmp"},
+    "public.tiff": {parents: ["public.image"], extensions: ["tiff", "tif"], mime: "image/tiff"},
+    "public.svg-image": {parents: ["public.image"], extensions: ["svg"], mime: "image/svg+xml"},
+    "public.heif-standard": {parents: ["public.image"], extensions: [], mime: null},
+    "public.heic": {parents: ["public.heif-standard"], extensions: ["heic"], mime: "image/heic"},
+    "public.heif": {parents: ["public.heif-standard"], extensions: ["heif"], mime: "image/heif"},
     "public.text": {parents: ["public.data"], extensions: [], mime: null},
     "public.comma-separated-values-text": {parents: ["public.text"], extensions: ["csv"], mime: "text/csv"},
     "public.plain-text": {parents: ["public.text"], extensions: ["txt"], mime: "text/plain"},
@@ -56,6 +64,20 @@ export class UTType extends NSObject {
     static get png() { return _constant("public.png") }
 
     static get jpeg() { return _constant("public.jpeg") }
+
+    static get gif() { return _constant("com.compuserve.gif") }
+
+    static get webP() { return _constant("org.webmproject.webp") }
+
+    static get bmp() { return _constant("com.microsoft.bmp") }
+
+    static get heic() { return _constant("public.heic") }
+
+    static get heif() { return _constant("public.heif") }
+
+    static get tiff() { return _constant("public.tiff") }
+
+    static get svg() { return _constant("public.svg-image") }
 
     static get commaSeparatedText() { return _constant("public.comma-separated-values-text") }
 
