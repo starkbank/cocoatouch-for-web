@@ -147,3 +147,98 @@ test("isScrollEnabled cannot be set, and says the stylesheet owns it", function(
     var view = new UIScrollView("#s")
     assert.throws(() => { view.isScrollEnabled = false }, (error) => error instanceof TypeError && /stylesheet/.test(error.message))
 })
+
+
+// scroll does not bubble, so the page scroller's event reaches only the document.
+// The spy counts what this scroll view left on the document: add minus remove.
+function spyOnDocumentScroll() {
+    var add = document.addEventListener
+    var remove = document.removeEventListener
+    var live = new Set()
+    document.addEventListener = function(name, callback, options) {
+        if (name === "scroll") { live.add(callback) }
+        return add.call(this, name, callback, options)
+    }
+    document.removeEventListener = function(name, callback, options) {
+        if (name === "scroll") { live.delete(callback) }
+        return remove.call(this, name, callback, options)
+    }
+    return {
+        live: live,
+        restore: function() {
+            document.addEventListener = add
+            document.removeEventListener = remove
+        }
+    }
+}
+
+test("the page scroller's delegate follows the document, and each reassignment leaves no listener behind", function() {
+    page("<div></div>")
+    var spy = spyOnDocumentScroll()
+    try {
+        var scrollView = new UIScrollView("html")
+        var log = []
+        scrollView.delegate = {scrollViewDidScroll() { log.push("first") }}
+        assert.equal(spy.live.size, 1)
+        scroll(document)
+        scrollView.delegate = {scrollViewDidScroll() { log.push("second") }}
+        assert.equal(spy.live.size, 1)
+        scroll(document)
+        scrollView.delegate = null
+        assert.equal(spy.live.size, 0)
+        scroll(document)
+        assert.deepEqual(log, ["first", "second"])
+    } finally { spy.restore() }
+})
+
+test("an html-bound and a body-bound scroll view both observe the document", function() {
+    page("<div></div>")
+    for (var selector of ["body", "html"]) {
+        var count = 0
+        var scrollView = new UIScrollView(selector)
+        scrollView.delegate = {scrollViewDidScroll(sender) { count += (sender === scrollView ? 1 : 0) }}
+        scroll(document)
+        assert.equal(count, 1, selector)
+        scrollView.delegate = null
+    }
+})
+
+test("an element-bound scroll view is unchanged: it observes its element and leaves the document alone", function() {
+    page("<div id=\"list\"></div>")
+    var spy = spyOnDocumentScroll()
+    try {
+        var scrollView = new UIScrollView("#list")
+        var count = 0
+        scrollView.delegate = {scrollViewDidScroll() { count += 1 }}
+        assert.equal(spy.live.size, 0)
+        scroll(document)
+        assert.equal(count, 0)
+        scroll(scrollView.$el[0])
+        assert.equal(count, 1)
+    } finally { spy.restore() }
+})
+
+test("disposing a page scroller removes its document listener", function() {
+    page("<div></div>")
+    var spy = spyOnDocumentScroll()
+    try {
+        var scrollView = new UIScrollView("html")
+        var count = 0
+        scrollView.delegate = {scrollViewDidScroll() { count += 1 }}
+        assert.equal(spy.live.size, 1)
+        scrollView._dispose()
+        assert.equal(spy.live.size, 0)
+        scroll(document)
+        assert.equal(count, 0)
+    } finally { spy.restore() }
+})
+
+test("a delegate without scrollViewDidScroll leaves the document alone on a page scroller", function() {
+    page("<div></div>")
+    var spy = spyOnDocumentScroll()
+    try {
+        var scrollView = new UIScrollView("html")
+        scrollView.delegate = {}
+        assert.equal(spy.live.size, 0)
+    } finally { spy.restore() }
+})
