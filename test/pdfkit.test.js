@@ -419,6 +419,70 @@ test("PDFDocument(url:) refuses a scheme hidden by a leading space or an embedde
     uninstallPdfjs()
 })
 
+// PDFDocument(data:) takes bytes and only bytes: a string would be read by
+// pdf.js as a binary string, and a url given as data would skip the scheme
+// boundary init(url:) draws.
+test("PDFDocument(data:) hands pdf.js a copy of the bytes with isEvalSupported false and no url, and leaves the caller's bytes attached", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var bytes = new Uint8Array([37, 80, 68, 70, 45])
+    var doc = new PDFDocument({data: bytes})
+    var call = _getDocumentCalls[_getDocumentCalls.length - 1]
+    assert.deepEqual(Object.keys(call).sort(), ["data", "isEvalSupported", "worker"])
+    assert.equal(call.isEvalSupported, false)
+    assert.ok(call.data instanceof Uint8Array)
+    assert.deepEqual([...call.data], [37, 80, 68, 70, 45])
+    assert.notEqual(call.data.buffer, bytes.buffer, "pdf.js transfers the buffer it is given, which would detach the caller's")
+    assert.equal(doc.documentURL, null)
+    uninstallPdfjs()
+})
+
+test("PDFDocument(data:) accepts an ArrayBuffer and a view into a larger buffer, and reads only the view's bytes", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var buffer = new Uint8Array([1, 2, 3, 4, 5, 6]).buffer
+    new PDFDocument({data: buffer})
+    assert.deepEqual([...new Uint8Array(_getDocumentCalls[_getDocumentCalls.length - 1].data)], [1, 2, 3, 4, 5, 6])
+    assert.equal(buffer.byteLength, 6, "the caller's buffer is not detached")
+    new PDFDocument({data: new Uint8Array(buffer, 2, 3)})
+    assert.deepEqual([...new Uint8Array(_getDocumentCalls[_getDocumentCalls.length - 1].data)], [3, 4, 5])
+    uninstallPdfjs()
+})
+
+test("PDFDocument(data:) refuses a string, a url, an array, another view type, null and a number, and reaches pdf.js with none of them", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var refused = ["%PDF-1.7", "data:application/pdf;base64,AAAA", "javascript:alert(1)", "/a.pdf", [37, 80], new Uint16Array(2), new DataView(new ArrayBuffer(2)), {length: 2}, null, 7]
+    for (var data of refused) {
+        assert.throws(function() { new PDFDocument({data: data}) }, TypeError, String(data))
+    }
+    assert.equal(_getDocumentCalls.length, 0)
+    uninstallPdfjs()
+})
+
+test("PDFDocument takes a url or data, never both and never neither, and a url keeps its scheme boundary", function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    assert.throws(function() { new PDFDocument({url: "/a.pdf", data: new Uint8Array(1)}) }, TypeError)
+    assert.throws(function() { new PDFDocument({}) }, TypeError)
+    assert.throws(function() { new PDFDocument() }, TypeError)
+    assert.throws(function() { new PDFDocument({url: "data:application/pdf;base64,x"}) }, TypeError)
+    assert.equal(_getDocumentCalls.length, 0)
+    assert.equal(new PDFDocument({url: "/a.pdf"}).documentURL, "/a.pdf")
+    uninstallPdfjs()
+})
+
+test("a PDFDocument(data:) that fails to load logs the failure without a url and does not throw", async function() {
+    installPdfjs({reject: {name: "InvalidPDFException"}})
+    var logged = []
+    var original = console.error
+    console.error = function(message) { logged.push(message) }
+    try {
+        new PDFDocument({data: new Uint8Array([1, 2, 3])})
+        await flush()
+    } finally {
+        console.error = original
+    }
+    assert.deepEqual(logged, ["PDFDocument(data:) failed to load: InvalidPDFException"])
+    uninstallPdfjs()
+})
+
 // 5. document posts once; pageCount/page(at:) reflect the stub; out of range is null.
 test("setting document posts PDFViewDocumentChanged once; pageCount and page(at:) reflect the stub", async function() {
     installPdfjs({resolve: fakeProxy({numPages: 2, pages: [fakePage([]), fakePage([])]})})
