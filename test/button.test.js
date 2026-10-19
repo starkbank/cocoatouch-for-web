@@ -81,3 +81,14 @@ test("a title the activity indicator hid is drawn again when it is turned off, e
     button.showsActivityIndicator = false
     assert.equal(document.getElementById("b").textContent, "Send")
 })
+
+test("a button whose element was replaced under its selector draws its unchanged title on the new element", function() {
+    page("<div id=\"host\"><button id=\"b\"></button></div>")
+    var button = new UIButton("#b")
+    button.setTitle("Save", {for: UIControlState.normal})
+    assert.equal(document.getElementById("b").textContent, "Save")
+    document.getElementById("host").innerHTML = "<button id=\"b\"></button>"
+    assert.equal(document.getElementById("b").textContent, "")
+    button.setTitle("Save", {for: UIControlState.normal})
+    assert.equal(document.getElementById("b").textContent, "Save")
+})
