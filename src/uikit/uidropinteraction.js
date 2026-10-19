@@ -108,7 +108,7 @@ export class UIDropInteraction extends NSObject {
 
     _over(event) {
         if (!this._session || !this._isInside) { return }
-        var proposal = this._send("dropInteractionSessionDidUpdate", _sessionOf(event, false))
+        var proposal = this._send("dropInteractionSessionDidUpdate", this._session)
         if (!(proposal instanceof UIDropProposal) || !event.dataTransfer) { return }
         if (proposal.operation === UIDropOperation.copy) {
             event.preventDefault()
