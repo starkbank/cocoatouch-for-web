@@ -92,3 +92,58 @@ test("the scroll observer is registered with NotificationCenter against the elem
     scroll(scrollView.$el[0])
     assert.equal(count, 1)
 })
+
+// isScrollEnabled is what the stylesheet decides: read live from the computed
+// overflow, so a media query's change is seen, and read-only like frame.
+function withRule(rule, run) {
+    var style = document.createElement("style")
+    style.textContent = rule
+    document.head.appendChild(style)
+    try { run(style) } finally { style.remove() }
+}
+
+test("isScrollEnabled is true when either axis computes to auto or scroll, and false for hidden and visible", function() {
+    page("<div id=\"s\"></div>")
+    var view = new UIScrollView("#s")
+    var element = document.getElementById("s")
+    var cases = [
+        ["auto", "auto", true], ["scroll", "scroll", true], ["hidden", "hidden", false],
+        ["visible", "visible", false], ["auto", "hidden", true], ["hidden", "scroll", true], ["clip", "clip", false],
+    ]
+    for (var [x, y, expected] of cases) {
+        element.style.overflowX = x
+        element.style.overflowY = y
+        assert.equal(view.isScrollEnabled, expected, x + " " + y)
+    }
+})
+
+test("the page's own scroller reads true while its overflow is visible, because the viewport scrolls it", function() {
+    page("<div></div>")
+    var html = new UIScrollView("html")
+    var body = new UIScrollView("body")
+    assert.equal(html.isScrollEnabled, true)
+    assert.equal(body.isScrollEnabled, true)
+    document.body.style.overflowX = "hidden"
+    document.body.style.overflowY = "hidden"
+    assert.equal(body.isScrollEnabled, false)
+    document.body.style.overflowX = ""
+    document.body.style.overflowY = ""
+})
+
+test("isScrollEnabled follows a stylesheet change as it happens", function() {
+    page("<div id=\"s\"></div>")
+    var view = new UIScrollView("#s")
+    withRule("#s { overflow-x: hidden; overflow-y: hidden; }", function(style) {
+        assert.equal(view.isScrollEnabled, false)
+        style.textContent = "#s { overflow-x: auto; overflow-y: auto; }"
+        assert.equal(view.isScrollEnabled, true)
+        style.textContent = "#s { overflow-x: hidden; overflow-y: hidden; }"
+        assert.equal(view.isScrollEnabled, false)
+    })
+})
+
+test("isScrollEnabled cannot be set, and says the stylesheet owns it", function() {
+    page("<div id=\"s\"></div>")
+    var view = new UIScrollView("#s")
+    assert.throws(() => { view.isScrollEnabled = false }, (error) => error instanceof TypeError && /stylesheet/.test(error.message))
+})
