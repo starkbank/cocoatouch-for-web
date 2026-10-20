@@ -1,15 +1,54 @@
 import { UIResponder } from "./uiresponder.js"
+import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { resolvedNavigableURL } from "../utils/navigableurl.js"
 import { typed, optional, URLType, FunctionType } from "../utils/required.js"
 
 
+const State = Object.freeze({active: 0, inactive: 1, background: 2})
+
+
 // UIApplication.shared: the page's way to hand an address to the browser or
-// another app, as the app does on iOS.
+// another app, as the app does on iOS, and the page's applicationState.
+//
+// The state is the page's visibility, which is all a browser offers of an
+// app's life: a hidden page is `.background` and posts
+// didEnterBackgroundNotification; becoming visible again posts
+// willEnterForegroundNotification while the state is still `.inactive`, then
+// the state is `.active`, as on Apple, where the app is not yet active while
+// that notification is delivered. A browser has no inactive phase of its own,
+// so `.inactive` exists only during that post. A page that loads hidden starts
+// in `.background`. One visibilitychange listener on the document does it, made
+// the first time `shared` is read and kept for the page's life, as the app's
+// is. didBecomeActive, willResignActive, didFinishLaunching, UIScene and the
+// application delegate's callbacks are not published: nothing the page can
+// observe says when they would happen, and a notification posted without that
+// would be a lie.
 export class UIApplication extends UIResponder {
 
+    _applicationState = State.active
+
+    static get State() {
+        return State
+    }
+
+    static get didEnterBackgroundNotification() {
+        return "UIApplicationDidEnterBackgroundNotification"
+    }
+
+    static get willEnterForegroundNotification() {
+        return "UIApplicationWillEnterForegroundNotification"
+    }
+
     static get shared() {
-        if (!_shared) { _shared = new UIApplication() }
+        if (_shared) { return _shared }
+        _shared = new UIApplication()
+        _observeVisibility(_shared)
         return _shared
+    }
+
+    // Read-only, as Apple's: only the page's visibility moves it.
+    get applicationState() {
+        return this._applicationState
     }
 
     // Whether open(_:) would act on the address: http(s), mailto: and tel:, the
@@ -47,3 +86,22 @@ export class UIApplication extends UIResponder {
 
 
 var _shared = null
+
+function _observeVisibility(application) {
+    if (typeof document === "undefined") { return }
+    application._applicationState = document.visibilityState === "hidden" ? State.background : State.active
+    document.addEventListener("visibilitychange", () => _visibilityChanged(application))
+}
+
+function _visibilityChanged(application) {
+    var isHidden = document.visibilityState === "hidden"
+    if (isHidden && application._applicationState !== State.background) {
+        application._applicationState = State.background
+        NotificationCenter.default.post({name: UIApplication.didEnterBackgroundNotification, object: application})
+        return
+    }
+    if (isHidden || application._applicationState !== State.background) { return }
+    application._applicationState = State.inactive
+    NotificationCenter.default.post({name: UIApplication.willEnterForegroundNotification, object: application})
+    application._applicationState = State.active
+}
