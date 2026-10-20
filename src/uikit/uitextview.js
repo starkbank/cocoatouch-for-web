@@ -57,8 +57,8 @@ export class UITextView extends UIScrollView {
         this._fitIfChanged()
     }
 
-    // Unlike UIScrollView's, which is read-only because the stylesheet owns
-    // whether a general scroll view scrolls, a text view owns its own height:
+    // Unlike UIScrollView's, which draws an inline overflow and reads the
+    // computed one, a text view keeps what was set and owns its own height:
     // false sizes it to its content, true leaves the height to the stylesheet.
     get isScrollEnabled() {
         return this._isScrollEnabled !== false

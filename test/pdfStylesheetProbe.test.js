@@ -1,6 +1,7 @@
 import "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
+import fs from "node:fs"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjs.js"
 
 
@@ -19,6 +20,17 @@ test("the probe passes when the scoped rule positions a .textLayer inside a .ct-
 
 test("the probe fails loudly, naming the scoped file and pdfjsLib.version, when no rule reaches it", function() {
     assert.throws(() => assertTextLayerStylesheet(), (error) => error instanceof TypeError && /pdf_viewer\.scoped\.css/.test(error.message) && /6\.4\.299/.test(error.message))
+})
+
+test("every cocoatouch/ path the failure names is one package.json exports, so a consumer can resolve it", function() {
+    var exported = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).exports
+    var message = ""
+    try { assertTextLayerStylesheet() } catch (error) { message = error.message }
+    var named = message.match(/cocoatouch\/[\w./-]+/g) || []
+    assert.notEqual(named.length, 0, "the message points at something the consumer can import")
+    for (var path of named) {
+        assert.ok(Object.hasOwn(exported, "./" + path.slice("cocoatouch/".length)), `${path} is not an export of package.json`)
+    }
 })
 
 test("a rule that cannot reach a .textLayer inside the wrapper does not satisfy the probe, and one that can does", function() {

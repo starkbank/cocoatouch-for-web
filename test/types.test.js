@@ -149,6 +149,9 @@ test("a UITextView's delegate and isScrollEnabled type check as Apple's do", fun
 test("a text field's pasteDelegate and a paste item's results type check as Apple's do", function() {
     var declaration = fs.readFileSync(path.join(root, "types/uikit/uitextfield.d.ts"), "utf8")
     assert.match(declaration, /set pasteDelegate\(pasteDelegate: import\("\.\/uitextpasteitem\.js"\)\.UITextPasteDelegate \| null\)/)
+    var pasteItemDeclaration = fs.readFileSync(path.join(root, "types/uikit/uitextpasteitem.d.ts"), "utf8")
+    assert.match(pasteItemDeclaration, /textPasteConfigurationSupportingTransformPasteItem\?:/)
+    assert.doesNotMatch(pasteItemDeclaration, /textPasteConfigurationSupportingTransform\?:/)
     assert.deepEqual(diagnose("textPaste.js"), [])
     var problems = diagnose("textPasteWrong.js")
     assert.equal(problems.length, 2)

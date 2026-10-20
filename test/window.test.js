@@ -2,7 +2,7 @@ import { page } from "./dom.js"
 import { JSDOM } from "jsdom"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIApplication, UIWindow, UIView, UIScreen } from "../src/index.js"
+import { UIApplication, UIWindow, UIView, UIScreen, NotificationCenter } from "../src/index.js"
 
 
 var keyWindow = UIApplication.shared.keyWindow
@@ -82,6 +82,33 @@ test("a subview added to the window is the last child of body, and has the windo
     assert.deepEqual(keyWindow.subviews, [])
 })
 
+test("the window has no superview, as on Apple: removeFromSuperview and the dispose that follows it do nothing", function() {
+    var heard = []
+    NotificationCenter.default.addObserver(keyWindow, {name: "windowSurvives", selector: () => heard.push("heard")})
+    var body = document.body
+    keyWindow.removeFromSuperview()
+    keyWindow._dispose()
+    assert.equal(keyWindow.$el[0], body)
+    assert.equal(body.isConnected, true, "body stays in the document")
+    assert.equal(document.documentElement.contains(body), true)
+    assert.equal(keyWindow.superview, null)
+    NotificationCenter.default.post({name: "windowSurvives"})
+    assert.deepEqual(heard, ["heard"], "the window's observers survive")
+    NotificationCenter.default.removeObserver(keyWindow, {name: "windowSurvives"})
+    page("<div id=\"card\"></div>")
+    assert.equal(new UIView("#card").window, keyWindow, "and it is still the window of the page")
+    assert.equal(UIApplication.shared.keyWindow, keyWindow)
+})
+
+test("the suite's own addSubview cleanup leaves the key window's subviews empty", function() {
+    var overlay = new UIView()
+    overlay.nib = "<canvas id=\"overlay\"></canvas>"
+    keyWindow.addSubview(overlay)
+    assert.deepEqual(keyWindow.subviews, [overlay])
+    overlay.removeFromSuperview()
+    assert.deepEqual(keyWindow.subviews, [])
+})
+
 test("the window's bounds are the screen's", function() {
     var screen = UIScreen.main.bounds
     assert.ok(screen.width > 0)
@@ -104,6 +131,17 @@ test("the entry evaluated twice on one document makes one window", async functio
         assert.equal(windows.length, 1)
         assert.ok(windows[0] instanceof first.UIWindow)
         assert.equal(application.UIApplication.shared.keyWindow, windows[0])
+    } finally {
+        globalThis.document = original
+    }
+})
+
+test("with no document there is no key window, and windows is empty", function() {
+    var original = globalThis.document
+    globalThis.document = undefined
+    try {
+        assert.equal(UIApplication.shared.keyWindow, null)
+        assert.deepEqual(UIApplication.shared.windows, [])
     } finally {
         globalThis.document = original
     }

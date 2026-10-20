@@ -39,7 +39,7 @@ export class UIPickerView extends UIView {
     }
 
     set delegate(delegate) {
-        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIPickerView.delegate")
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIPickerView.delegate", "1.6.0")
         this._delegate = delegate
         this.$el.off("change.picker").on("change.picker", () => {
             if (delegate && delegate.pickerViewDidSelectRowInComponent) {

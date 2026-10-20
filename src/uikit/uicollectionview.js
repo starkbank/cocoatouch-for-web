@@ -22,7 +22,7 @@ export class UICollectionView extends UIView {
     }
 
     set dataSource(dataSource) {
-        rejectRetiredDelegateNames(dataSource, retiredDataSourceNames, "UICollectionView.dataSource")
+        rejectRetiredDelegateNames(dataSource, retiredDataSourceNames, "UICollectionView.dataSource", "1.6.0")
         this._dataSource = dataSource
         this.reloadData()
     }
@@ -32,7 +32,7 @@ export class UICollectionView extends UIView {
     }
 
     set delegate(delegate) {
-        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UICollectionView.delegate")
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UICollectionView.delegate", "1.6.0")
         this._delegate = delegate
     }
 

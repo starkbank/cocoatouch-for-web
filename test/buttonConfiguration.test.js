@@ -1,8 +1,9 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIButton, UIControlState, UIImage } from "../src/index.js"
-import { NSDirectionalRectEdge } from "../src/uikit/uibuttonconfiguration.js"
+import { UIButton, UIControlState, UIImage, NSDirectionalRectEdge } from "../src/index.js"
+import * as uikit from "../src/uikit/index.js"
+import { NSDirectionalRectEdge as declared } from "../src/uikit/uibuttonconfiguration.js"
 
 
 const Configuration = UIButton.Configuration
@@ -163,4 +164,12 @@ test("each property refuses a value of the wrong type, naming the Swift property
     assert.throws(() => { configuration.showsActivityIndicator = "yes" }, (error) => error instanceof TypeError && /showsActivityIndicator/.test(error.message))
     assert.throws(() => { configuration.imagePlacement = "leading" }, (error) => error instanceof TypeError && /imagePlacement/.test(error.message))
     assert.equal(configuration.showsActivityIndicator, false)
+})
+
+test("NSDirectionalRectEdge is exported by UIKit, the one a configuration's imagePlacement takes", function() {
+    assert.equal(uikit.NSDirectionalRectEdge, declared)
+    assert.deepEqual(Object.keys(NSDirectionalRectEdge).sort(), ["bottom", "leading", "top", "trailing"])
+    var pay = button()
+    pay.configuration.imagePlacement = NSDirectionalRectEdge.bottom
+    assert.equal(pay.configuration.imagePlacement, NSDirectionalRectEdge.bottom)
 })

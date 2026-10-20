@@ -1,6 +1,6 @@
 import { NSObject } from "../foundation/nsobject.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
-import { itemProviderFor } from "../foundation/nsitemprovider.js"
+import { itemProviderFor, fillItemProvider } from "../foundation/nsitemprovider.js"
 import { identifierForKnownMime, identifierForFileName } from "../uniformtypeidentifiers/uttype.js"
 import { UIDragItem } from "./uidragitem.js"
 import { UIDropSession } from "./uidropsession.js"
@@ -19,6 +19,7 @@ const retiredDelegateNames = {dropInteractionCanHandle: "dropInteractionCanHandl
 // prevents it, so the browser never opens a file, and sets the effect.
 const dropEffects = {
     [UIDropOperation.copy]: "copy",
+    [UIDropOperation.move]: "move",
     [UIDropOperation.forbidden]: "none",
     [UIDropOperation.cancel]: "none",
 }
@@ -33,7 +34,8 @@ const decided = new WeakSet()
 // system. The browser's drag events become the delegate's methods:
 //
 //   dragenter  -> dropInteractionCanHandleSession, then dropInteractionSessionDidEnter
-//   dragover   -> dropInteractionSessionDidUpdate; a .copy proposal allows the drop
+//   dragover   -> dropInteractionSessionDidUpdate; a .copy or .move proposal allows the drop,
+//                 and no proposal is .cancel
 //   dragleave  -> dropInteractionSessionDidExit, once however many children it crossed
 //   drop       -> dropInteractionPerformDrop, dropInteractionConcludeDrop, then
 //                 dropInteractionSessionDidEnd
@@ -49,9 +51,9 @@ const decided = new WeakSet()
 // lists it, and an app that wants its files recurses itself.
 // A drag the interaction refuses is swallowed, never left to the browser: its
 // dragover and drop are prevented with dropEffect none, as are those of a
-// .forbidden or .cancel proposal, so the browser does not open the file. In
-// nested views the innermost interaction that accepted the drag decides and
-// handles the drop once; an outer one only ends its session.
+// .forbidden or .cancel proposal, or no proposal at all, so the browser does
+// not open the file. In nested views the innermost interaction that accepted
+// the drag decides and handles the drop once; an outer one only ends its session.
 // A session that left the view ends with the next drop or drag end anywhere on
 // the page, or when another drag enters; the page's drag listeners are on the
 // document only while a session lives.
@@ -73,7 +75,7 @@ export class UIDropInteraction extends NSObject {
         if (delegate === undefined || delegate === null || typeof delegate !== "object") {
             throw new TypeError(`UIDropInteraction(delegate:) requires a delegate object: ${signature}`)
         }
-        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDropInteraction.delegate")
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDropInteraction.delegate", "1.9.0")
         this._delegate = delegate
     }
 
@@ -149,8 +151,9 @@ export class UIDropInteraction extends NSObject {
         if (!this._session || !this._isInside) { return }
         decided.add(event)
         var proposal = this._send("dropInteractionSessionDidUpdate", this._session)
-        this._operation = proposal instanceof UIDropProposal ? proposal.operation : null
-        if (this._operation === null || !event.dataTransfer) { return }
+        // Apple's default when the delegate gives no proposal is .cancel.
+        this._operation = proposal instanceof UIDropProposal ? proposal.operation : UIDropOperation.cancel
+        if (!event.dataTransfer) { return }
         event.preventDefault()
         event.dataTransfer.dropEffect = dropEffects[this._operation]
     }
@@ -234,17 +237,18 @@ function _sessionOf(event) {
 }
 
 // The drop gives the file, and the entry, which says whether the item is a
-// folder: the session's own items take loadable providers, so the object the
-// delegate was shown at enter is the one it performs the drop on.
+// folder: the session's own items, and the providers they hold, gain them in
+// place, so the object the delegate was shown at enter is the one it performs
+// the drop on.
 function _load(session, event) {
-    var providers = _fileItems(event).map(_loadable)
-    session.items.splice(providers.length)
-    providers.forEach((provider, index) => {
+    var loads = _fileItems(event).map(_loadable)
+    session.items.splice(loads.length)
+    loads.forEach((load, index) => {
         if (index < session.items.length) {
-            session.items[index].itemProvider = provider
+            fillItemProvider(session.items[index].itemProvider, load)
             return
         }
-        session.items.push(new UIDragItem({itemProvider: provider}))
+        session.items.push(new UIDragItem({itemProvider: itemProviderFor(load)}))
     })
 }
 
@@ -268,5 +272,5 @@ function _loadable(item) {
     var name = entry ? entry.name : file ? file.name : null
     var isDirectory = Boolean(entry && entry.isDirectory)
     var identifier = isDirectory ? "public.folder" : identifierForKnownMime(item.type) || (name && identifierForFileName(name)) || "public.data"
-    return itemProviderFor({identifier: identifier, name: name, file: file, entry: entry})
+    return {identifier: identifier, name: name, file: file, entry: entry}
 }

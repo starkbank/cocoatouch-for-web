@@ -79,7 +79,8 @@ export class FileManager extends NSObject {
 
     // The URLs of a directory's children, registering each as it is listed;
     // listing again, or while the first listing is still reading, answers the
-    // same URLs. Properties are not supported, so
+    // same URLs, and a folder released by removeItem while it is being read
+    // answers []. Properties are not supported, so
     // includingPropertiesForKeys is null, and options is not taken.
     /**
      * @param {object} options
@@ -119,8 +120,14 @@ function _path(atPath, method, name) {
 function _listing(entry, path) {
     if (listings.has(entry)) { return listings.get(entry) }
     var listing = _readAll(entry.entry).then((children) => Promise.all(children.map(_register))).then((urls) => {
-        remember(path, urls.map((url) => url.href))
-        return urls
+        if (registered(path)) {
+            remember(path, urls.map((url) => url.href))
+            return urls
+        }
+        // removeItem released the folder while it was being read: its children
+        // have no owner, so they go with it and the listing is empty.
+        urls.forEach((url) => forget(url.href))
+        return []
     })
     listings.set(entry, listing)
     var done = () => listings.delete(entry)

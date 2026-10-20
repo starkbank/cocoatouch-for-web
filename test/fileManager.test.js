@@ -225,3 +225,35 @@ test("a shared listing that fails rejects both callers, and the next listing rea
     manager.removeItem({at: root})
     assert.equal(registeredCount(), before)
 })
+
+test("a path released by removeItem during an in-flight listing resolves [] and leaves nothing registered", async function() {
+    var before = registeredCount()
+    var releaseRead = null
+    var entry = directory("D", [fileEntry("a.pdf", [1]), fileEntry("b.pdf", [2])])
+    var createReader = entry.createReader
+    entry.createReader = function() {
+        var reader = createReader()
+        return {readEntries: (done, fail) => { releaseRead = () => reader.readEntries(done, fail) }}
+    }
+    var root = registerDirectory({name: "D", entry})
+    var listing = manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null})
+    manager.removeItem({at: root})
+    releaseRead()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseRead()
+    assert.deepEqual(await listing, [])
+    assert.equal(registeredCount(), before)
+})
+
+test("a path released while the children are being registered resolves [] too, and the children are released", async function() {
+    var before = registeredCount()
+    var pending = []
+    var slow = {isFile: true, isDirectory: false, name: "a.pdf", file: (done) => pending.push(() => done(file("a.pdf", [1])))}
+    var root = registerDirectory({name: "D", entry: directory("D", [slow])})
+    var listing = manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    manager.removeItem({at: root})
+    pending.forEach((release) => release())
+    assert.deepEqual(await listing, [])
+    assert.equal(registeredCount(), before)
+})

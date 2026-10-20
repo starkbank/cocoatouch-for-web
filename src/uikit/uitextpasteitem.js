@@ -8,7 +8,7 @@ const noResult = Object.freeze({kind: "none"})
 
 /**
  * @typedef {object} UITextPasteDelegate
- * @property {(textPasteConfigurationSupporting: UITextField, item: UITextPasteItem) => void} [textPasteConfigurationSupportingTransform]
+ * @property {(textPasteConfigurationSupporting: UITextField, item: UITextPasteItem) => void} [textPasteConfigurationSupportingTransformPasteItem]
  */
 
 

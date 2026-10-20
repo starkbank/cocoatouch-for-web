@@ -72,11 +72,12 @@ function recorder(overrides) {
     return Object.assign(delegate, overrides)
 }
 
-test("UIDropOperation and UIDropProposal are Apple's: cancel, forbidden and copy, and the operation is required", function() {
-    assert.deepEqual(Object.keys(UIDropOperation).sort(), ["cancel", "copy", "forbidden"])
+test("UIDropOperation and UIDropProposal are Apple's: cancel, forbidden, copy and move, and the operation is required", function() {
+    assert.deepEqual(Object.keys(UIDropOperation).sort(), ["cancel", "copy", "forbidden", "move"])
     assert.equal(new UIDropProposal({operation: UIDropOperation.copy}).operation, UIDropOperation.copy)
+    assert.equal(new UIDropProposal({operation: UIDropOperation.move}).operation, UIDropOperation.move)
     assert.throws(() => new UIDropProposal(), (error) => error instanceof TypeError && /UIDropProposal\(operation:\)/.test(error.message))
-    assert.throws(() => new UIDropProposal({operation: "move"}), TypeError)
+    assert.throws(() => new UIDropProposal({operation: "link"}), TypeError)
 })
 
 test("the initializer requires a delegate", function() {
@@ -127,20 +128,20 @@ test("exit fires once for a drag that crosses the view's children", function() {
     assert.deepEqual(delegate.calls, ["canHandle", "enter", "exit"])
 })
 
-test("a copy proposal prevents the dragover and sets dropEffect copy; forbidden and cancel prevent it and set none; no proposal touches nothing", function() {
+test("a copy or move proposal prevents the dragover and sets dropEffect copy or move; forbidden and cancel prevent it and set none; no proposal is cancel, as Apple's default", function() {
     var proposal = null
     var delegate = recorder({dropInteractionSessionDidUpdate: () => proposal})
     var {zone} = setup(delegate)
     zone.dispatchEvent(dragEvent("dragenter", [pdf]))
     var results = []
-    for (var operation of [UIDropOperation.copy, UIDropOperation.forbidden, UIDropOperation.cancel, null]) {
+    for (var operation of [UIDropOperation.copy, UIDropOperation.move, UIDropOperation.forbidden, UIDropOperation.cancel, null]) {
         proposal = operation === null ? undefined : new UIDropProposal({operation: operation})
         var event = dragEvent("dragover", [pdf])
-        event.dataTransfer.dropEffect = "move"
+        event.dataTransfer.dropEffect = "link"
         zone.dispatchEvent(event)
         results.push([event.defaultPrevented, event.dataTransfer.dropEffect])
     }
-    assert.deepEqual(results, [[true, "copy"], [true, "none"], [true, "none"], [false, "move"]])
+    assert.deepEqual(results, [[true, "copy"], [true, "move"], [true, "none"], [true, "none"], [true, "none"]])
 })
 
 test("a view the delegate cannot handle gets only canHandle, and its dragover and drop are swallowed, never left to the browser", function() {
@@ -160,17 +161,37 @@ test("a view the delegate cannot handle gets only canHandle, and its dragover an
     assert.equal(drop.dataTransfer.dropEffect, "none")
 })
 
-test("a delegate without canHandle handles everything, and without a proposal accepts nothing", function() {
+test("a delegate without canHandle handles everything, and without a proposal the drop is cancelled: swallowed, and performDrop never runs", function() {
     var performed = []
     var {zone} = setup({dropInteractionPerformDrop: () => performed.push(1)})
     var enter = dragEvent("dragenter", [pdf])
     zone.dispatchEvent(enter)
     var over = dragEvent("dragover", [pdf])
-    zone.dispatchEvent(over)
+    over.dataTransfer.dropEffect = "copy"
+    var overReachedBrowser = zone.dispatchEvent(over)
+    var drop = dragEvent("drop", [Object.assign({file: file("a.pdf", [1])}, pdf)])
+    drop.dataTransfer.dropEffect = "copy"
+    var dropReachedBrowser = zone.dispatchEvent(drop)
     assert.equal(enter.defaultPrevented, true, "a drag the delegate handles is let in")
-    assert.equal(over.defaultPrevented, false)
-    zone.dispatchEvent(dragEvent("drop", [pdf]))
-    assert.equal(performed.length, 1)
+    assert.equal(overReachedBrowser, false)
+    assert.equal(over.dataTransfer.dropEffect, "none")
+    assert.equal(dropReachedBrowser, false, "the browser never opens the dropped file")
+    assert.equal(drop.dataTransfer.dropEffect, "none")
+    assert.deepEqual(performed, [], "Apple's default proposal is .cancel")
+})
+
+test("an answer that is not a UIDropProposal is a cancel too, and the drop never reaches performDrop", function() {
+    var delegate = recorder({dropInteractionSessionDidUpdate: () => UIDropOperation.copy})
+    var {zone} = setup(delegate)
+    zone.dispatchEvent(dragEvent("dragenter", [pdf]))
+    var over = dragEvent("dragover", [pdf])
+    over.dataTransfer.dropEffect = "copy"
+    zone.dispatchEvent(over)
+    var dropReachedBrowser = zone.dispatchEvent(dragEvent("drop", [pdf]))
+    assert.equal(over.defaultPrevented, true)
+    assert.equal(over.dataTransfer.dropEffect, "none")
+    assert.equal(dropReachedBrowser, false)
+    assert.deepEqual(delegate.calls, ["canHandle", "enter", "end"])
 })
 
 test("canHandle and hasItemsConforming answer from the kinds and MIME types a drag shows before the drop", function() {
@@ -407,7 +428,7 @@ test("loading a provider again answers the same URL with one registry entry, and
 test("a delegate carrying the retired canHandle name is refused, naming the replacement", function() {
     assert.throws(
         () => new UIDropInteraction({delegate: {dropInteractionCanHandle: function() { return true }}}),
-        (error) => error instanceof TypeError && /dropInteractionCanHandle\b/.test(error.message) && /dropInteractionCanHandleSession/.test(error.message),
+        (error) => error instanceof TypeError && /dropInteractionCanHandle\b/.test(error.message) && /dropInteractionCanHandleSession/.test(error.message) && /in cocoatouch 1\.9\.0;/.test(error.message),
     )
     var calls = []
     var {zone} = setup({dropInteractionCanHandleSession: function() { calls.push("canHandleSession"); return true }})
@@ -459,6 +480,50 @@ test("the session at enter shows each file item's type and the count, and the sa
     ]))
     await new Promise((resolve) => setTimeout(resolve, 0))
     assert.deepEqual(seen, [2, [true, false], 2, true, ["atEnter", null, true], ["atDrop", "file:", null]])
+})
+
+test("a provider captured at enter gains its file in place at drop, so performDrop loads it through the captured object", async function() {
+    var captured = []
+    var seen = []
+    var delegate = recorder({
+        dropInteractionCanHandleSession: function(interaction, session) {
+            captured.push(session.items[0].itemProvider)
+            seen.push(["atEnter", captured[0].suggestedName, captured[0].hasItemConformingToTypeIdentifier(UTType.pdf.identifier)])
+            return true
+        },
+        dropInteractionPerformDrop: function(interaction, session) {
+            seen.push(["sameProvider", session.items[0].itemProvider === captured[0], captured[0].suggestedName])
+            captured[0].loadFileRepresentation({forTypeIdentifier: UTType.pdf.identifier, completionHandler: (url, error) => {
+                seen.push(["loaded", url && url.protocol, error])
+                if (url) { manager.removeItem({at: url}) }
+            }})
+        },
+    })
+    var {zone} = setup(delegate)
+    zone.dispatchEvent(dragEvent("dragenter", [pdf]))
+    zone.dispatchEvent(dragEvent("dragover", [pdf]))
+    zone.dispatchEvent(dragEvent("drop", [Object.assign({file: file("a.pdf", [1])}, pdf)]))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.deepEqual(seen, [["atEnter", null, true], ["sameProvider", true, "a"], ["loaded", "file:", null]])
+})
+
+test("a folder dropped over a provider captured at enter makes that provider conform to the folder type", function() {
+    var captured = []
+    var seen = []
+    var delegate = recorder({
+        dropInteractionCanHandleSession: function(interaction, session) {
+            captured.push(session.items[0].itemProvider)
+            return true
+        },
+        dropInteractionPerformDrop: function() {
+            seen.push(captured[0].hasItemConformingToTypeIdentifier(UTType.folder.identifier))
+        },
+    })
+    var {zone} = setup(delegate)
+    zone.dispatchEvent(dragEvent("dragenter", [{type: ""}]))
+    zone.dispatchEvent(dragEvent("dragover", [{type: ""}]))
+    zone.dispatchEvent(dragEvent("drop", [{type: "", entry: directoryEntry("pictures", [])}]))
+    assert.deepEqual(seen, [true])
 })
 
 test("count and size checks run in performDrop, which can refuse without reading a byte", async function() {

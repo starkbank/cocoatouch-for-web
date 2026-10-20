@@ -182,7 +182,7 @@ export class UITextField extends UIControl {
     // whose own beforeinput asks that same question with the clipboard's text.
     /** @param {import("./uitextpasteitem.js").UITextPasteDelegate|null} pasteDelegate */
     set pasteDelegate(pasteDelegate) {
-        rejectRetiredDelegateNames(pasteDelegate, retiredPasteDelegateNames, "UITextField.pasteDelegate")
+        rejectRetiredDelegateNames(pasteDelegate, retiredPasteDelegateNames, "UITextField.pasteDelegate", "1.9.0")
         this._pasteDelegate = pasteDelegate || null
         this._bindPaste()
     }

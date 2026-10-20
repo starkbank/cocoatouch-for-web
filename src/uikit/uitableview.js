@@ -56,7 +56,7 @@ export class UITableView extends UIScrollView {
     // UITableViewDelegate is a UIScrollViewDelegate, so the scroll observation
     // is the scroll view's own, over the same delegate.
     set delegate(delegate) {
-        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UITableView.delegate")
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UITableView.delegate", "1.6.0")
         super.delegate = delegate
     }
 

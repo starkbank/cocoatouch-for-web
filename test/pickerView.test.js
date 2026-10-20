@@ -27,7 +27,7 @@ test("a picker delegate carrying a retired name is refused, naming the replaceme
     page("<select id=\"picker\"></select>")
     var picker = new UIPickerView("#picker")
     picker.dataSource = {pickerViewNumberOfRowsInComponent: function() { return 2 }}
-    assert.throws(() => { picker.delegate = {pickerViewTitleForRow: function() { return "x" }} }, (error) => error instanceof TypeError && /pickerViewTitleForRow\b/.test(error.message) && /pickerViewTitleForRowForComponent/.test(error.message))
+    assert.throws(() => { picker.delegate = {pickerViewTitleForRow: function() { return "x" }} }, (error) => error instanceof TypeError && /pickerViewTitleForRow\b/.test(error.message) && /pickerViewTitleForRowForComponent/.test(error.message) && /in cocoatouch 1\.6\.0;/.test(error.message))
     assert.throws(() => { picker.delegate = {pickerViewDidSelectRow: function() {}} }, (error) => error instanceof TypeError && /pickerViewDidSelectRowInComponent/.test(error.message))
     var picked = []
     picker.delegate = {

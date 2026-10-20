@@ -467,7 +467,7 @@ function changing(log, answer) {
 test("the old textPasteConfigurationSupportingTransform is refused at assignment, naming the Apple method", function() {
     var textField = field()
     var retired = {textPasteConfigurationSupportingTransform(sender, item) { item.setNoResult() }}
-    assert.throws(() => { textField.pasteDelegate = retired }, (error) => error instanceof TypeError && /textPasteConfigurationSupportingTransformPasteItem/.test(error.message) && /UITextField\.pasteDelegate/.test(error.message))
+    assert.throws(() => { textField.pasteDelegate = retired }, (error) => error instanceof TypeError && /textPasteConfigurationSupportingTransformPasteItem/.test(error.message) && /UITextField\.pasteDelegate/.test(error.message) && /in cocoatouch 1\.9\.0;/.test(error.message))
     assert.equal(textField.pasteDelegate, null)
     assert.equal(listenerCount(textField.$el[0]), 0)
 })
