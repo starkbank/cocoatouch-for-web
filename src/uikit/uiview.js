@@ -8,7 +8,7 @@ import { ownElement } from "../utils/elementowner.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
 import { accessibilityStateOf, drawAccessibility, expandedStatusType } from "./uiaccessibility.js"
-import { required, typed, Int } from "../utils/required.js"
+import { required, typed, optional, StringType, Int } from "../utils/required.js"
 
 
 export class UIView extends UIResponder {
@@ -139,6 +139,21 @@ export class UIView extends UIResponder {
     set accessibilityExpandedStatus(status) {
         typed(status, "accessibilityExpandedStatus", expandedStatusType, "UIView.accessibilityExpandedStatus", "Apple's is var accessibilityExpandedStatus: UIAccessibility.ExpandedStatus; write view.accessibilityExpandedStatus = UIAccessibility.ExpandedStatus.expanded.")
         accessibilityStateOf(this).expanded = status
+        drawAccessibility(this)
+    }
+
+    // Drawn as aria-valuetext, which assistive technology reads for a role that has
+    // a value; nil removes it, and so does an empty text, which reads back as nil.
+    get accessibilityValue() {
+        var value = accessibilityStateOf(this).value
+        return value === "" ? null : value
+    }
+
+    /** @param {string|null} value */
+    set accessibilityValue(value) {
+        var text = value === undefined ? null : value
+        typed(text, "accessibilityValue", optional(StringType), "UIView.accessibilityValue", "Apple's is var accessibilityValue: String?.")
+        accessibilityStateOf(this).value = text
         drawAccessibility(this)
     }
 
