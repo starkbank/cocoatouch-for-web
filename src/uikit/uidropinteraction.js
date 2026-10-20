@@ -7,26 +7,51 @@ import { UIDropSession } from "./uidropsession.js"
 import { UIDropProposal } from "./uidropproposal.js"
 import { UIDropOperation } from "./uidropoperation.js"
 import { required, optional, instance } from "../utils/required.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 import { UIView } from "./uiview.js"
 
 
 const viewType = optional(instance(UIView, "UIView"))
 const signature = "Apple's is UIDropInteraction(delegate:); write new UIDropInteraction({delegate}), then view.addInteraction(interaction)."
+const retiredDelegateNames = {dropInteractionCanHandle: "dropInteractionCanHandleSession"}
+
+// What a proposal does to the browser's own handling of the drag: each case
+// prevents it, so the browser never opens a file, and sets the effect.
+const dropEffects = {
+    [UIDropOperation.copy]: "copy",
+    [UIDropOperation.forbidden]: "none",
+    [UIDropOperation.cancel]: "none",
+}
+
+// The dragover and drop events an interaction has already decided, so that in
+// nested views only the innermost accepting one does. The event keeps bubbling:
+// a session left elsewhere ends on the document's drop.
+const decided = new WeakSet()
 
 
 // UIKit's UIDropInteraction over a view's element, for files dropped from the
 // system. The browser's drag events become the delegate's methods:
 //
-//   dragenter  -> dropInteractionCanHandle, then dropInteractionSessionDidEnter
+//   dragenter  -> dropInteractionCanHandleSession, then dropInteractionSessionDidEnter
 //   dragover   -> dropInteractionSessionDidUpdate; a .copy proposal allows the drop
 //   dragleave  -> dropInteractionSessionDidExit, once however many children it crossed
-//   drop       -> dropInteractionPerformDrop, then dropInteractionSessionDidEnd
+//   drop       -> dropInteractionPerformDrop, dropInteractionConcludeDrop, then
+//                 dropInteractionSessionDidEnd
 //
-// A drag the delegate cannot handle is left entirely to the browser. While the
-// drag is over the page the browser shows only each item's kind and MIME type,
-// so canHandle and hasItemsConforming answer from those, and files load only
-// in performDrop. A dropped folder is one item that conforms to UTType.folder:
-// FileManager lists it, and an app that wants its files recurses itself.
+// canHandle runs once, at enter, and the one session object lives to the drop.
+// While the drag is over the page the browser shows only each item's kind and
+// MIME type, so the session's items answer conformance from those and load
+// nothing; the same items load their files in the drop, which is the only time
+// the browser gives them. A delegate that decides by type and count does it in
+// canHandle, and one that needs the files, a size for example, does it in
+// performDrop, where FileManager answers attributesOfItem without reading.
+// A dropped folder is one item that conforms to UTType.folder: FileManager
+// lists it, and an app that wants its files recurses itself.
+// A drag the interaction refuses is swallowed, never left to the browser: its
+// dragover and drop are prevented with dropEffect none, as are those of a
+// .forbidden or .cancel proposal, so the browser does not open the file. In
+// nested views the innermost interaction that accepted the drag decides and
+// handles the drop once; an outer one only ends its session.
 // A session that left the view ends with the next drop or drag end anywhere on
 // the page, or when another drag enters; the page's drag listeners are on the
 // document only while a session lives.
@@ -36,6 +61,8 @@ export class UIDropInteraction extends NSObject {
     _depth = 0
     _session = null
     _isInside = false
+    _isRefused = false
+    _operation = null
 
     /**
      * @param {object} options
@@ -46,6 +73,7 @@ export class UIDropInteraction extends NSObject {
         if (delegate === undefined || delegate === null || typeof delegate !== "object") {
             throw new TypeError(`UIDropInteraction(delegate:) requires a delegate object: ${signature}`)
         }
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDropInteraction.delegate")
         this._delegate = delegate
     }
 
@@ -64,7 +92,11 @@ export class UIDropInteraction extends NSObject {
      */
     willMove({to} = {}) {
         required(to, "to", viewType, "UIDropInteraction.willMove", "Apple's is willMove(to view: UIView?); write willMove({to: view}).")
-        if (to === null) { this._unbind() }
+        if (to === null) {
+            this._unbind()
+            return
+        }
+        if (this._view && this._view !== to) { this._view.removeInteraction(this) }
     }
 
     /**
@@ -97,45 +129,65 @@ export class UIDropInteraction extends NSObject {
         this._depth += 1
         if (this._depth > 1) { return }
         this._end()
-        var session = _sessionOf(event, false)
-        if (!this._canHandle(session)) { return }
+        var session = _sessionOf(event)
+        this._isRefused = !this._canHandle(session)
+        if (this._isRefused) { return }
         event.preventDefault()
         this._session = session
+        this._operation = null
         this._isInside = true
         this._observeDocument()
         this._send("dropInteractionSessionDidEnter", session)
     }
 
     _over(event) {
-        if (!this._session || !this._isInside) { return }
-        var proposal = this._send("dropInteractionSessionDidUpdate", this._session)
-        if (!(proposal instanceof UIDropProposal) || !event.dataTransfer) { return }
-        if (proposal.operation === UIDropOperation.copy) {
-            event.preventDefault()
-            event.dataTransfer.dropEffect = "copy"
+        if (decided.has(event)) { return }
+        if (this._isRefused) {
+            _swallow(event)
+            return
         }
-        if (proposal.operation === UIDropOperation.forbidden) { event.dataTransfer.dropEffect = "none" }
+        if (!this._session || !this._isInside) { return }
+        decided.add(event)
+        var proposal = this._send("dropInteractionSessionDidUpdate", this._session)
+        this._operation = proposal instanceof UIDropProposal ? proposal.operation : null
+        if (this._operation === null || !event.dataTransfer) { return }
+        event.preventDefault()
+        event.dataTransfer.dropEffect = dropEffects[this._operation]
     }
 
     // Exit fires once, when the pointer has left the view and every child of it.
     _leave() {
         this._depth = Math.max(0, this._depth - 1)
-        if (this._depth > 0 || !this._session || !this._isInside) { return }
+        if (this._depth > 0) { return }
+        this._isRefused = false
+        if (!this._session || !this._isInside) { return }
         this._isInside = false
         this._send("dropInteractionSessionDidExit", this._session)
     }
 
     _drop(event) {
         this._depth = 0
+        var wasRefused = this._isRefused
+        this._isRefused = false
+        if (decided.has(event)) {
+            this._end()
+            return
+        }
+        if (wasRefused) {
+            _swallow(event)
+            return
+        }
         if (!this._session || !this._isInside) { return }
-        var session = _sessionOf(event, true)
-        if (!this._canHandle(session)) {
+        decided.add(event)
+        if (this._operation === UIDropOperation.forbidden || this._operation === UIDropOperation.cancel) {
+            _swallow(event)
             this._end()
             return
         }
         event.preventDefault()
-        this._session = session
-        this._send("dropInteractionPerformDrop", session)
+        _load(this._session, event)
+        this._send("dropInteractionPerformDrop", this._session)
+        this._send("dropInteractionConcludeDrop", this._session)
         this._end()
     }
 
@@ -163,7 +215,7 @@ export class UIDropInteraction extends NSObject {
 
     // A delegate without canHandle handles every drop; only an explicit false refuses one.
     _canHandle(session) {
-        return this._send("dropInteractionCanHandle", session) !== false
+        return this._send("dropInteractionCanHandleSession", session) !== false
     }
 
     _send(method, session) {
@@ -173,18 +225,37 @@ export class UIDropInteraction extends NSObject {
 }
 
 
-// The session a drag event shows. Over the page the browser lets a script read
-// each item's kind and MIME type and nothing more; in the drop it also gives
-// the file, and the entry, which says whether the item is a folder. Only files
-// are items.
-function _sessionOf(event, isDrop) {
-    var items = []
-    var list = event.dataTransfer ? Array.from(event.dataTransfer.items || []) : []
-    for (var item of list) {
-        if (item.kind !== "file") { continue }
-        items.push(new UIDragItem(isDrop ? _loadable(item) : _preview(item)))
-    }
+// The session a drag shows at enter. Over the page the browser lets a script
+// read each item's kind and MIME type and nothing more, so the items carry
+// providers that answer conformance and load nothing. Only files are items.
+function _sessionOf(event) {
+    var items = _fileItems(event).map((item) => new UIDragItem({itemProvider: _preview(item)}))
     return new UIDropSession(items)
+}
+
+// The drop gives the file, and the entry, which says whether the item is a
+// folder: the session's own items take loadable providers, so the object the
+// delegate was shown at enter is the one it performs the drop on.
+function _load(session, event) {
+    var providers = _fileItems(event).map(_loadable)
+    session.items.splice(providers.length)
+    providers.forEach((provider, index) => {
+        if (index < session.items.length) {
+            session.items[index].itemProvider = provider
+            return
+        }
+        session.items.push(new UIDragItem({itemProvider: provider}))
+    })
+}
+
+function _fileItems(event) {
+    var list = event.dataTransfer ? Array.from(event.dataTransfer.items || []) : []
+    return list.filter((item) => item.kind === "file")
+}
+
+function _swallow(event) {
+    event.preventDefault()
+    if (event.dataTransfer) { event.dataTransfer.dropEffect = "none" }
 }
 
 function _preview(item) {

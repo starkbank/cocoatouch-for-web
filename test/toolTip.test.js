@@ -95,3 +95,20 @@ test("a view that is not an interaction, a non-String tooltip and a missing to l
     assert.throws(() => { interaction.defaultToolTip = 5 }, TypeError)
     assert.throws(() => interaction.willMove({}), (error) => error instanceof TypeError && /requires a to/.test(error.message))
 })
+
+test("an interaction added to a second view leaves the first: its attribute and entry go, the second draws it", function() {
+    page("<div id=\"a\"></div><div id=\"b\"></div>")
+    var first = new UIView("#a")
+    var second = new UIView("#b")
+    var interaction = new UIToolTipInteraction({defaultToolTip: "Moved"})
+    first.addInteraction(interaction)
+    second.addInteraction(interaction)
+    assert.deepEqual(first.interactions, [])
+    assert.deepEqual(second.interactions, [interaction])
+    assert.equal(interaction.view, second)
+    assert.equal(document.getElementById("a").hasAttribute("tooltip"), false)
+    assert.equal(document.getElementById("b").getAttribute("tooltip"), "Moved")
+    interaction.defaultToolTip = "Later"
+    assert.equal(document.getElementById("a").hasAttribute("tooltip"), false)
+    assert.equal(document.getElementById("b").getAttribute("tooltip"), "Later")
+})
