@@ -26,6 +26,19 @@ const table = Object.freeze({
     "public.heif-standard": {parents: ["public.image"], extensions: [], mime: null},
     "public.heic": {parents: ["public.heif-standard"], extensions: ["heic"], mime: "image/heic"},
     "public.heif": {parents: ["public.heif-standard"], extensions: ["heif"], mime: "image/heif"},
+    "public.content": {parents: ["public.data"], extensions: [], mime: null},
+    "public.composite-content": {parents: ["public.content"], extensions: [], mime: null},
+    "public.spreadsheet": {parents: ["public.content"], extensions: [], mime: null},
+    "public.archive": {parents: ["public.data"], extensions: [], mime: null},
+    "com.pkware.zip-archive": {parents: ["public.archive"], extensions: [], mime: null},
+    "public.zip-archive": {parents: ["com.pkware.zip-archive", "public.archive"], extensions: ["zip"], mime: "application/zip"},
+    "org.openxmlformats.openxml": {parents: ["public.data"], extensions: [], mime: null},
+    "org.oasis-open.opendocument": {parents: ["public.data"], extensions: [], mime: null},
+    "com.microsoft.word.doc": {parents: ["public.composite-content"], extensions: ["doc"], mime: "application/msword"},
+    "org.openxmlformats.wordprocessingml.document": {parents: ["org.openxmlformats.openxml", "public.composite-content"], extensions: ["docx"], mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+    "org.oasis-open.opendocument.text": {parents: ["org.oasis-open.opendocument", "public.composite-content"], extensions: ["odt"], mime: "application/vnd.oasis.opendocument.text"},
+    "com.microsoft.excel.xls": {parents: ["public.spreadsheet", "public.composite-content"], extensions: ["xls"], mime: "application/vnd.ms-excel"},
+    "org.openxmlformats.spreadsheetml.sheet": {parents: ["org.openxmlformats.openxml", "public.spreadsheet", "public.composite-content"], extensions: ["xlsx"], mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
     "public.text": {parents: ["public.data"], extensions: [], mime: null},
     "public.comma-separated-values-text": {parents: ["public.text"], extensions: ["csv"], mime: "text/csv"},
     "public.plain-text": {parents: ["public.text"], extensions: ["txt"], mime: "text/plain"},
@@ -89,6 +102,12 @@ export class UTType extends NSObject {
     static get html() { return _constant("public.html") }
 
     static get rtf() { return _constant("public.rtf") }
+
+    static get zip() { return _constant("public.zip-archive") }
+
+    static get archive() { return _constant("public.archive") }
+
+    static get spreadsheet() { return _constant("public.spreadsheet") }
 
     static get item() { return _constant("public.item") }
 

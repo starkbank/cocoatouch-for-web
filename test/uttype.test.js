@@ -2,6 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { UTType } from "../src/index.js"
+import { identifierConforms } from "../src/uniformtypeidentifiers/uttype.js"
 
 
 test("each constant has Apple's identifier, extension and MIME type", function() {
@@ -148,6 +149,76 @@ test("avif conforms to image and item, and not to pdf or png", function() {
 
 test("avifs, the image sequence, stays dynamic", function() {
     assert.equal(new UTType({filenameExtension: "avifs"}).identifier, "dyn.avifs")
+})
+
+// Identifiers, conformance, extensions and MIME types as UTType answers them on a
+// Mac (UTType(filenameExtension:), UTType(mimeType:) and supertypes). Word,
+// OpenDocument and Excel have no static member on Apple, so they are reached by
+// extension or MIME type; zip, archive and spreadsheet have one. Apple's docx
+// and xlsx conform to org.openxmlformats.openxml, not to the zip type.
+const officeTypes = [
+    ["doc", "com.microsoft.word.doc", "application/msword", ["public.composite-content", "public.content", "public.data", "public.item"]],
+    ["docx", "org.openxmlformats.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ["org.openxmlformats.openxml", "public.composite-content", "public.content", "public.data", "public.item"]],
+    ["odt", "org.oasis-open.opendocument.text", "application/vnd.oasis.opendocument.text", ["org.oasis-open.opendocument", "public.composite-content", "public.content", "public.data", "public.item"]],
+    ["xls", "com.microsoft.excel.xls", "application/vnd.ms-excel", ["public.spreadsheet", "public.composite-content", "public.content", "public.data", "public.item"]],
+    ["xlsx", "org.openxmlformats.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ["org.openxmlformats.openxml", "public.spreadsheet", "public.composite-content", "public.content", "public.data", "public.item"]],
+    ["zip", "public.zip-archive", "application/zip", ["com.pkware.zip-archive", "public.archive", "public.data", "public.item"]],
+]
+
+test("each office and archive extension and MIME type maps to Apple's identifier and back", function() {
+    for (var [extension, identifier, mime] of officeTypes) {
+        for (var spelling of [extension, extension.toUpperCase(), "." + extension]) {
+            var byExtension = new UTType({filenameExtension: spelling})
+            assert.equal(byExtension.identifier, identifier, spelling)
+            assert.equal(byExtension.preferredMIMEType, mime, spelling)
+            assert.equal(byExtension.preferredFilenameExtension, extension, spelling)
+        }
+        var byMime = new UTType({mimeType: mime})
+        assert.equal(byMime.identifier, identifier, mime)
+        assert.equal(byMime.preferredFilenameExtension, extension, mime)
+        assert.equal(new UTType({mimeType: mime.toUpperCase()}).identifier, identifier, mime)
+    }
+})
+
+test("each office and archive type conforms to the types Apple says it does, and to no other of them", function() {
+    var candidates = ["org.openxmlformats.openxml", "org.oasis-open.opendocument", "public.composite-content", "public.content", "public.spreadsheet", "public.archive", "com.pkware.zip-archive", "public.zip-archive", "public.data", "public.item", "public.image", "public.text", "public.folder"]
+    for (var [, identifier, , supertypes] of officeTypes) {
+        assert.equal(identifierConforms(identifier, identifier), true, identifier)
+        for (var candidate of candidates) {
+            if (candidate === identifier) { continue }
+            assert.equal(identifierConforms(identifier, candidate), supertypes.includes(candidate), identifier + " to " + candidate)
+        }
+    }
+})
+
+test("zip, archive and spreadsheet are constants, and the others have none", function() {
+    assert.equal(UTType.zip.identifier, "public.zip-archive")
+    assert.equal(UTType.zip.preferredFilenameExtension, "zip")
+    assert.equal(UTType.zip.preferredMIMEType, "application/zip")
+    assert.equal(UTType.archive.identifier, "public.archive")
+    assert.equal(UTType.spreadsheet.identifier, "public.spreadsheet")
+    assert.equal(UTType.archive.preferredFilenameExtension, null)
+    assert.equal(UTType.archive.preferredMIMEType, null)
+    assert.equal(UTType.spreadsheet.preferredMIMEType, null)
+    assert.equal(UTType.zip.conforms({to: UTType.archive}), true)
+    assert.equal(UTType.zip.conforms({to: UTType.item}), true)
+    assert.equal(UTType.archive.conforms({to: UTType.zip}), false)
+    assert.equal(new UTType({filenameExtension: "xls"}).conforms({to: UTType.spreadsheet}), true)
+    assert.equal(new UTType({filenameExtension: "xlsx"}).conforms({to: UTType.spreadsheet}), true)
+    assert.equal(new UTType({filenameExtension: "docx"}).conforms({to: UTType.spreadsheet}), false)
+    assert.equal(new UTType({filenameExtension: "docx"}).conforms({to: UTType.zip}), false)
+    assert.equal(new UTType({filenameExtension: "zip"}).conforms({to: UTType.archive}), true)
+    for (var name of ["doc", "docx", "odt", "xls", "xlsx", "word", "excel", "openDocumentText"]) { assert.equal(UTType[name], undefined, name) }
+    assert.equal(UTType.zip, UTType.zip)
+})
+
+test("an office document is no image and no text, and a zip is no office document", function() {
+    for (var extension of ["doc", "docx", "odt", "xls", "xlsx", "zip"]) {
+        var type = new UTType({filenameExtension: extension})
+        assert.equal(type.conforms({to: UTType.image}), false, extension)
+        assert.equal(type.conforms({to: UTType.pdf}), false, extension)
+    }
+    assert.equal(new UTType({filenameExtension: "zip"}).conforms({to: new UTType({filenameExtension: "xlsx"})}), false)
 })
 
 test("the earlier image, pdf and csv types resolve as they did", function() {
