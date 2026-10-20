@@ -279,7 +279,11 @@ export class UITableView extends UIScrollView {
             if (!tableView._allowsSelection) { return }
             if (_isInsideControl(event.target, this)) { return }
             var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
-            tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+            if (!tableView._allowsMultipleSelection) {
+                tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+                return
+            }
+            tableView._toggle(indexPath)
         })
         rows.each((index, element) => {
             var indexPath = new IndexPath({row: index})
@@ -294,14 +298,35 @@ export class UITableView extends UIScrollView {
             selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
             selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
                 if (event.target.checked) {
-                    this.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
-                    this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+                    this._userSelect(indexPath)
                     return
                 }
-                this.deselectRow({at: indexPath, animated: false})
-                this._delegateCall("tableViewDidDeselectRowAtIndexPath", indexPath)
+                this._userDeselect(indexPath)
             })
         })
+    }
+
+    // With allowsMultipleSelection a tap toggles, as on Apple: it selects an
+    // unselected row and deselects a selected one, each followed by its delegate
+    // call, through the same path the selection checkbox takes so the two agree.
+    // A single selection keeps its tap as a plain didSelect, which is a known
+    // difference: Apple's would also select the row.
+    _toggle(indexPath) {
+        if (this._selectedRows.indexOf(indexPath.row) !== -1) {
+            this._userDeselect(indexPath)
+            return
+        }
+        this._userSelect(indexPath)
+    }
+
+    _userSelect(indexPath) {
+        this.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
+        this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+    }
+
+    _userDeselect(indexPath) {
+        this.deselectRow({at: indexPath, animated: false})
+        this._delegateCall("tableViewDidDeselectRowAtIndexPath", indexPath)
     }
 
     _delegateCall(method) {
