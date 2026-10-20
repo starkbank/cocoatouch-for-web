@@ -10,6 +10,7 @@ import { UITextContentType } from "./uitextcontenttype.js"
 import { UITextView } from "./uitextview.js"
 import { UITextPasteItem } from "./uitextpasteitem.js"
 import { UIView } from "./uiview.js"
+import { UIAccessibility } from "./uiaccessibility.js"
 import { UIControl } from "./uicontrol.js"
 import { UIColorWell } from "./uicolorwell.js"
 import { UISwitch } from "./uiswitch.js"
@@ -64,6 +65,7 @@ export {
      UITextView,
      UITextPasteItem,
      UIView,
+     UIAccessibility,
      UIControl,
      UIColorWell,
      UISwitch,
