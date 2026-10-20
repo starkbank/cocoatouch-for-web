@@ -95,6 +95,12 @@ export class UIViewController extends UIResponder {
      * @param {Function} [options.completion]
      */
     present(viewController, {animated = false, completion} = {}) {
+        // A controller with no view of its own, such as UIDocumentPickerViewController,
+        // presents itself and leaves the page's root controller in place.
+        if (typeof viewController._presentModally === "function") {
+            viewController._presentModally({animated, completion})
+            return
+        }
         _dismissRootViewController(animated)
         var nib = Build.html(viewController)
         var body = $("cocoatouch")

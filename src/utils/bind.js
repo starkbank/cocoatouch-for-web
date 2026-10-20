@@ -4,6 +4,7 @@ import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { inspectableValue } from "../uikit/ibinspectable.js"
 import { UIDevice } from "../uikit/uidevice.js"
 import { outletIndexFor, outletElement } from "./outletindex.js"
+import { outletElementClass } from "../uikit/iboutlet.js"
 import { ownElement, ownerOf } from "./elementowner.js"
 
 
@@ -113,10 +114,14 @@ export class Bind {
                 }
                 $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
-                    if (control[method]) {
-                        e.preventDefault()
-                        control[method](sender)
-                    }
+                    if (!control[method]) { return }
+                    // A checkbox or radio toggles itself on a click, and the action
+                    // then reads the new state; cancelling the click would undo it.
+                    // Anchors and buttons keep the cancel, which is what stops an
+                    // app action from navigating or submitting a form.
+                    if (!_togglesItself(e.target)) { e.preventDefault() }
+                    if (_isDisabledControl(sender, $target[0])) { return }
+                    control[method](sender)
                 })
             })
         }
@@ -150,6 +155,10 @@ export class Bind {
             var selector = outlet.selector
 
             var $el = outletElement({selector, $parent, index})
+            if (Array.isArray(cls)) {
+                _bindCollection(control, {outlet, $el, isRestoring: false})
+                continue
+            }
             var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
             responder._$el = $el
             ownElement($el, responder)
@@ -158,21 +167,7 @@ export class Bind {
 
             Object.defineProperty(control, method, {value: responder, writable: true})
 
-            if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
-                Bind.ibOutlet(responder)
-            }
-
-            Bind.ibInspectable(responder)
-
-            if (_overrides(responder, "awakeFromNib")) {
-                responder.awakeFromNib()
-            }
-
-            if (responder["ibactions"] && responder["ibactions"].length > 0) {
-                Bind.ibAction(responder)
-            }
-
-            _appear(responder, {isRestoring: false})
+            _finishOutlet(responder, {isRestoring: false})
         }
     }
 
@@ -190,6 +185,10 @@ export class Bind {
             var selector = outlet.selector
 
             var $el = outletElement({selector, $parent, index})
+            if (Array.isArray(cls)) {
+                _bindCollection(control, {outlet, $el, isRestoring: true})
+                continue
+            }
             var responder = Bind.construct(cls, `${control.selector} ${selector}`, $el)
             responder._$el = $el
             ownElement($el, responder)
@@ -198,22 +197,74 @@ export class Bind {
 
             Object.defineProperty(control, method, {value: responder, writable: true})
 
-            if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
-                Bind.ibOutletRestore(responder)
-            }
-
-            Bind.ibInspectable(responder)
-
-            if (_overrides(responder, "didMoveToWindow")) {
-                responder.didMoveToWindow()
-            }
-
-            if (responder["ibactions"] && responder["ibactions"].length > 0) {
-                Bind.ibAction(responder, {isRestoring: true})
-            }
-
-            _appear(responder, {isRestoring: true})
+            _finishOutlet(responder, {isRestoring: true})
         }
+    }
+}
+
+
+// What a bound outlet does once it is linked and reachable from its owner, one
+// path for a single outlet and for each element of a collection. A fresh bind
+// awakes it; a restored page, whose prerenderer already awoke it, only tells it
+// it is in the window.
+function _finishOutlet(responder, {isRestoring}) {
+    if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
+        isRestoring ? Bind.ibOutletRestore(responder) : Bind.ibOutlet(responder)
+    }
+    Bind.ibInspectable(responder)
+    var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
+    if (_overrides(responder, hook)) {
+        responder[hook]()
+    }
+    if (responder["ibactions"] && responder["ibactions"].length > 0) {
+        Bind.ibAction(responder, {isRestoring})
+    }
+    _appear(responder, {isRestoring})
+}
+
+
+// Swift's outlet collection: one view per element the selector matched, in
+// document order, the array complete before any element's hooks run so an
+// awakeFromNib can read its siblings. An element without an id is given
+// `<owner id>-<property>-<position>`, as an @IBAction sender is, so each view
+// stays addressable. Refused up front, before anything is bound, when an
+// element is already owned by another outlet of this same owner: one element
+// has one owner, and a collection silently stealing it would leave the first
+// outlet bound to a node it no longer drives.
+function _bindCollection(control, {outlet, $el, isRestoring}) {
+    var elementClass = outletElementClass(outlet)
+    var elements = $el.toArray()
+    for (var element of elements) {
+        _rejectCollectionOverOwned(control, outlet, ownerOf(element))
+    }
+    var responders = elements.map(function(element, position) {
+        var $item = $(element)
+        if (!element.id) { $item.attr("id", _dashed(control.identifier, outlet.method) + "-" + (position + 1)) }
+        var responder = Bind.construct(elementClass, `${control.selector} #${element.id}`, $item)
+        responder._$el = $item
+        ownElement($item, responder)
+        control._link(responder)
+        return responder
+    })
+    Object.defineProperty(control, outlet.method, {value: responders, writable: true})
+    for (var responder of responders) {
+        _finishOutlet(responder, {isRestoring})
+    }
+}
+
+
+// An owner counts as this control's own when the control sits on its responder
+// chain, which holds for an outlet, and for anything bound inside one. The
+// owner a previous cell left on a reused row element does not: that cell is
+// not above the one binding now, so the new cell takes the element over.
+function _rejectCollectionOverOwned(control, outlet, owner) {
+    for (var at = owner; at; at = at.next) {
+        if (at !== control && at !== control.view) { continue }
+        throw new TypeError(
+            `@IBOutlet("${outlet.selector}", [${outletElementClass(outlet).name}]) ${outlet.method} matches an element ` +
+            `${owner.constructor.name} already owns. One element has one owner: give the collection a selector that ` +
+            `leaves that element out, or drop the outlet that holds it.`
+        )
     }
 }
 
@@ -298,6 +349,7 @@ function _dash(property) {
 }
 
 const keyboardPrefix = "keyboard:"
+const priorityFlag = "priority"
 
 function _isKeyboardAction(action) {
     return action.selector.indexOf(keyboardPrefix) !== -1
@@ -363,12 +415,14 @@ var _keyBindings = []
 
 function _bindKeyboardAction(control, action) {
     var keyboardIndex = action.selector.indexOf(keyboardPrefix)
-    var modifiers = action.selector.slice(0, keyboardIndex).split("+").filter(Boolean)
+    var flags = action.selector.slice(0, keyboardIndex).split("+").filter(Boolean)
+    var modifiers = flags.filter(function(flag) { return flag !== priorityFlag })
     control._disposed = false
     _keyBindings.push({
         control: control,
         method: action.method,
         key: action.selector.slice(keyboardIndex + keyboardPrefix.length),
+        wantsPriority: flags.indexOf(priorityFlag) !== -1,
         modifiers: modifiers,
         requiresMeta: modifiers.indexOf("meta") !== -1,
         requiresShift: modifiers.indexOf("shift") !== -1,
@@ -381,6 +435,28 @@ function _bindKeyboardAction(control, action) {
         _dispatchKey(e)
     }
     NotificationCenter.default.addObserver(control, {selector: selector, name: "keydown", object: document})
+}
+
+function _togglesItself(element) {
+    return !!element && element.tagName === "INPUT" && (element.type === "checkbox" || element.type === "radio")
+}
+
+// A disabled control receives no touches, so no action of it runs; sendActions(for:)
+// is a direct call and does. The sender is one view over the element and an outlet
+// may be another, so the flag is read from both, and a UIControl's isEnabled reads
+// the element's own disabled state. A sender that is no UIControl is never gated.
+function _isDisabledControl(sender, element) {
+    if (!_isControl(sender)) { return false }
+    if (sender._isSendingActions) { return false }
+    var owner = ownerOf(element)
+    if (_isControl(owner) && owner._isSendingActions) { return false }
+    return sender.isEnabled === false
+}
+
+// UIControl is told by its target-action methods: this module is loaded by
+// UIView, which UIControl extends, so it cannot import the class.
+function _isControl(view) {
+    return !!view && typeof view.addTarget === "function" && typeof view.sendActions === "function"
 }
 
 // Command exists on Apple hardware only. Elsewhere the Control key carries the
@@ -410,12 +486,15 @@ function _matchKind(binding, e, usesCommandKey) {
     return binding.requiresMeta ? "substituted" : "native"
 }
 
-// A text input that is first responder consumes the characters typed into it,
-// so a key command with no modifiers never fires while one has the focus.
+// A text input that is first responder consumes the characters typed into it
+// and the delete keys, so a key command with no modifiers on one of those never
+// fires while one has the focus, unless it wantsPriorityOverSystemBehavior.
 const textInputs = /^(input|textarea|select)$/i
+const textConsumedKeys = ["Backspace", "Delete"]
 
 function _isTypedInto(binding, active) {
-    if (!active || binding.modifiers.length > 0 || binding.key.length !== 1) { return false }
+    if (!active || binding.wantsPriority || binding.modifiers.length > 0) { return false }
+    if (binding.key.length !== 1 && textConsumedKeys.indexOf(binding.key) === -1) { return false }
     return textInputs.test(active.tagName || "") || active.isContentEditable === true
 }
 
@@ -459,7 +538,7 @@ function _dispatchKey(e) {
     })
     matching = _withoutTwins(matching, kinds)
     if (matching.length === 0) { return }
-    e.preventDefault()
+    if (matching.some(function(binding) { return !binding.wantsPriority })) { e.preventDefault() }
     var chain = [], others = []
     for (var binding of matching) {
         var element = active ? _elementOf(binding.control) : null
@@ -470,9 +549,18 @@ function _dispatchKey(e) {
     chain.sort(function(a, b) { return b.depth - a.depth })
     for (var link of chain) {
         var handled = _perform(link.binding, e)
-        if (handled) { return }
+        if (handled) { return _consume(link.binding, e) }
     }
-    for (var other of others) { _perform(other, e) }
+    for (var other of others) {
+        if (_perform(other, e)) { _consume(other, e) }
+    }
+}
+
+// A command that wants priority prevents the system's behaviour only when it
+// acted: a handler that declines, returning false, leaves the key to the text
+// field it was typed into.
+function _consume(binding, e) {
+    if (binding.wantsPriority) { e.preventDefault() }
 }
 
 function _perform(binding, e) {

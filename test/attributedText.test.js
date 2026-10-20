@@ -152,14 +152,15 @@ test("the string of a markup attributed string is read without executing the mar
 // With no sanitiser in the path, setMarkup and $el.html are indistinguishable
 // to a test, so the chokepoint is a grep convention; what a test can pin is
 // the behaviour: the spinner is an element, the restored title is text.
-test("the activity indicator renders its spinner as an element and restores the title as text", function() {
+test("the activity indicator renders its spinner as an element, holds the title as text and restores it as text", function() {
     page("<button id=\"send\"></button>")
     var element = document.getElementById("send")
     var button = new UIButton("#send")
     button.setTitle("Send & <go>", {for: UIControlState.normal})
     button.showsActivityIndicator = true
     assert.equal(element.querySelectorAll("i.fa-spin, .fa-spin").length, 1)
-    assert.equal(element.textContent.indexOf("Send"), -1)
+    assert.equal(element.querySelector(".uibutton-activity-title").textContent, "Send & <go>")
+    assert.equal(element.querySelector(".uibutton-activity-title").children.length, 0)
     button.showsActivityIndicator = false
     assert.equal(element.children.length, 0)
     assert.equal(element.textContent, "Send & <go>")

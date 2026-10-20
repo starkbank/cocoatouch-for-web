@@ -31,14 +31,14 @@ function diagnose(fixture) {
 }
 
 test("the build emits a declaration for every framework entry", function() {
-    ;["index", "UIKit", "Foundation", "CoreAnimation", "AVKit", "PDFKit", "globals", "uikit/index", "foundation/index", "pdfkit/index"].forEach(function(name) {
+    ;["index", "UIKit", "Foundation", "CoreAnimation", "AVKit", "PDFKit", "UniformTypeIdentifiers", "globals", "uikit/index", "foundation/index", "pdfkit/index"].forEach(function(name) {
         assert.ok(fs.existsSync(path.join(root, "types", name + ".d.ts")), name + ".d.ts is missing")
     })
 })
 
-test("globals.d.ts and the eslint globals cover every export of the seven frameworks", async function() {
+test("globals.d.ts and the eslint globals cover every export of the eight frameworks", async function() {
     var expected = []
-    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit", "pdfkit"]) {
+    for (var directory of ["uikit", "foundation", "coregraphics", "coreanimation", "coremedia", "avkit", "pdfkit", "uniformtypeidentifiers"]) {
         expected = expected.concat(Object.keys(await import("../src/" + directory + "/index.js")))
     }
     var dts = fs.readFileSync(path.join(root, "types/globals.d.ts"), "utf8")
@@ -101,8 +101,8 @@ test("every labelled member names its labels and marks optionality", function() 
         ["UIPickerView", "numberOfRows", ["inComponent"], []], ["UIPickerView", "selectRow", ["inComponent", "animated"], []], ["UIPickerView", "selectedRow", ["inComponent"], []],
         ["UITableView", "setEditing", ["animated"], []], ["UITableView", "numberOfRows", ["inSection"], []], ["UITableView", "selectRow", ["at", "animated", "scrollPosition"], []], ["UITableView", "deselectRow", ["at", "animated"], []],
         ["UIDatePicker", "setDate", ["animated"], []], ["UIScrollView", "setContentOffset", ["animated"], []], ["UIProgressView", "setProgress", ["animated"], []], ["UISwitch", "setOn", ["animated"], []],
-        ["UIView", "insertSubview", ["at"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
-        ["PDFDocument", "page", ["at"], []], ["PDFDocument", "index", ["for"], []], ["PDFView", "go", ["to"], []], ["PDFView", "setCurrentSelection", ["animate"], []],
+        ["UIView", "insertSubview", ["at"], []], ["UIColor", "resolvedColor", ["with"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
+        ["UIApplication", "open", [], ["options", "completionHandler"]], ["PDFDocument", "page", ["at"], []], ["PDFDocument", "index", ["for"], []], ["PDFView", "go", ["to"], []], ["PDFView", "setCurrentSelection", ["animate"], []],
     ]
     var all = declarations()
     expected.forEach(function([owner, member, required, optional]) {
@@ -117,4 +117,41 @@ test("every labelled member names its labels and marks optionality", function() 
             assert.match(labelled.type, new RegExp("(^|[{;\\s])" + label + "\\?\\s*:"), owner + "." + member + " must mark " + label + " optional: " + labelled.type)
         })
     })
+})
+
+
+// tsc leaves out a subclass accessor whose type equals the base's, so a
+// declaration that must say something of its own has to have a type of its own:
+// UITextView's delegate is a UITextViewDelegate, and its isScrollEnabled, which
+// is read-write at runtime unlike UIScrollView's, is the inherited boolean pair.
+test("UITextView's declaration types its delegate, and isScrollEnabled is a boolean pair on it", function() {
+    var declaration = fs.readFileSync(path.join(root, "types/uikit/uitextview.d.ts"), "utf8")
+    assert.match(declaration, /set delegate\(delegate: UITextViewDelegate \| null\)/)
+    assert.match(declaration, /get delegate\(\): UITextViewDelegate \| null/)
+    assert.match(declaration, /UITextViewDelegate = \{/)
+    assert.match(declaration, /textViewDidChange\?:/)
+    var scrollView = fs.readFileSync(path.join(root, "types/uikit/uiscrollview.d.ts"), "utf8")
+    assert.match(scrollView, /set isScrollEnabled\(enabled: boolean\)/)
+    assert.match(scrollView, /get isScrollEnabled\(\): boolean/)
+})
+
+test("a UITextView's delegate and isScrollEnabled type check as Apple's do", function() {
+    assert.deepEqual(diagnose("textView.js"), [])
+    var problems = diagnose("textViewWrong.js")
+    assert.equal(problems.length, 2)
+    assert.match(problems[0], /'string' is not assignable to type 'boolean'/)
+    assert.match(problems[1], /'number' is not assignable to type '\(textView: UITextView\) => void'/)
+})
+
+
+// UITextField's paste delegate is a UITextPasteDelegate whose type lives beside
+// UITextPasteItem, so the field's declaration has to import it.
+test("a text field's pasteDelegate and a paste item's results type check as Apple's do", function() {
+    var declaration = fs.readFileSync(path.join(root, "types/uikit/uitextfield.d.ts"), "utf8")
+    assert.match(declaration, /set pasteDelegate\(pasteDelegate: import\("\.\/uitextpasteitem\.js"\)\.UITextPasteDelegate \| null\)/)
+    assert.deepEqual(diagnose("textPaste.js"), [])
+    var problems = diagnose("textPasteWrong.js")
+    assert.equal(problems.length, 2)
+    assert.match(problems[0], /'number' is not assignable to type '\(textPasteConfigurationSupporting: UITextField, item: UITextPasteItem\) => void'/)
+    assert.match(problems[1], /'number' is not assignable to parameter of type 'string'/)
 })

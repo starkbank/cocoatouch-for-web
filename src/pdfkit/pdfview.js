@@ -33,6 +33,8 @@ export class PDFView extends UIView {
         pdfjsWorker()
 
         var host = this.$el[0]
+        // The viewer stylesheet applies only inside this class (see PDFKit.js).
+        host.classList.add("ct-pdfview")
         var viewerElement = document.createElement("div")
         viewerElement.className = "pdfViewer"
         host.appendChild(viewerElement)

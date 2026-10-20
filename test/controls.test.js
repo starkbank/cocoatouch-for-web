@@ -60,23 +60,6 @@ test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
     assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
-test("UIButton.showsActivityIndicator swaps the title for a spinner and restores it", function() {
-    var button = new UIButton("#send")
-    // Stores and returns the value raw: this double does not model
-    // textContent's escaping, so no test whose subject is escaping may use it.
-    var content = ""
-    button._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return content } content = value; return this }, text: function(value) { if (value === undefined) { return content } content = value; return this }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
-    button.setTitle("Send", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
-    assert.ok(button.showsActivityIndicator)
-    assert.match(button.$el.html(), /fa-spin/)
-    button.showsActivityIndicator = true
-    button.showsActivityIndicator = false
-    assert.equal(button.$el.html(), "Send")
-    assert.ok(!button.showsActivityIndicator)
-})
-
-
 test("addTarget calls the action with the target and the control", function() {
     var button = new UIButton("#b")
     var seen = null

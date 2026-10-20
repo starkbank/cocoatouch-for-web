@@ -6,8 +6,13 @@ import { UITableViewCell } from "./uitableviewcell.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { UITextField } from "./uitextfield.js"
+import { UITextContentType } from "./uitextcontenttype.js"
+import { UITextView } from "./uitextview.js"
+import { UITextPasteItem } from "./uitextpasteitem.js"
 import { UIView } from "./uiview.js"
+import { UIAccessibility, UIAccessibilityTraits } from "./uiaccessibility.js"
 import { UIControl } from "./uicontrol.js"
+import { UIColorWell } from "./uicolorwell.js"
 import { UISwitch } from "./uiswitch.js"
 import { UIImageView } from "./uiimageview.js"
 import { UIImage } from "./uiimage.js"
@@ -36,6 +41,15 @@ import { UIControlState } from "./uicontrolstate.js"
 import { UINavigationController } from "./uinavigationcontroller.js"
 import { UINavigationBar } from "./uinavigationbar.js"
 import { UINavigationItem } from "./uinavigationitem.js"
+import { UIPasteboard } from "./uipasteboard.js"
+import { UIApplication } from "./uiapplication.js"
+import { UIToolTipInteraction } from "./uitooltipinteraction.js"
+import { UIDocumentPickerViewController } from "./uidocumentpickerviewcontroller.js"
+import { UIDropInteraction } from "./uidropinteraction.js"
+import { UIDropSession } from "./uidropsession.js"
+import { UIDragItem } from "./uidragitem.js"
+import { UIDropProposal } from "./uidropproposal.js"
+import { UIDropOperation } from "./uidropoperation.js"
 
 
 export {
@@ -47,8 +61,14 @@ export {
      UITableViewScrollPosition,
      UITableViewCellEditingStyle,
      UITextField,
+     UITextContentType,
+     UITextView,
+     UITextPasteItem,
      UIView,
+     UIAccessibility,
+     UIAccessibilityTraits,
      UIControl,
+     UIColorWell,
      UISwitch,
      UIImageView,
      UIImage,
@@ -82,4 +102,13 @@ export {
      UINavigationController,
      UINavigationBar,
      UINavigationItem,
+     UIPasteboard,
+     UIApplication,
+     UIToolTipInteraction,
+    UIDocumentPickerViewController,
+    UIDropInteraction,
+    UIDropSession,
+    UIDragItem,
+    UIDropProposal,
+    UIDropOperation,
 }

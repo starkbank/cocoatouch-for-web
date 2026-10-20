@@ -38,12 +38,17 @@ export class UILabel extends UIView {
         return this.$el.text()
     }
 
+    // Apple's nil resets the colour to the default: the inline value is removed,
+    // so the stylesheet's returns, and reads back as null, as a label nobody
+    // coloured does.
     set textColor(color) {
-        this.$el.css("color", color.cgColor)
+        this.$el.css("color", color === null ? "" : color.cgColor)
     }
 
     get textColor() {
-        return new UIColor({hex: this.$el.css("color")})
+        var element = this.$el[0]
+        if (!element || !element.style || element.style.color === "") { return null }
+        return new UIColor({hex: element.style.color})
     }
 
     // Shrinks the font on one line until the text fits, no further than the

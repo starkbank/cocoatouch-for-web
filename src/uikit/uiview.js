@@ -1,12 +1,14 @@
 import { UIResponder } from "./uiresponder.js"
-import { CALayer } from "../coreanimation/calayer.js"
+import { UIColor } from "./uicolor.js"
+import { layerOf } from "../coreanimation/calayer.js"
 import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
-import { required, Int } from "../utils/required.js"
+import { accessibilityStateOf, drawAccessibility, expandedStatusType, traitsType } from "./uiaccessibility.js"
+import { required, typed, optional, StringType, Int } from "../utils/required.js"
 
 
 export class UIView extends UIResponder {
@@ -46,11 +48,18 @@ export class UIView extends UIResponder {
     }
 
     didMoveToSuperview() {
-
+        drawAccessibility(this)
     }
 
     // The element is looked up again when the cached one left the document: an
     // icon font or a re-rendered nib can replace a node while keeping its id.
+    // Only a node that was in the document and left it counts: one built for a
+    // superview that is not in the page yet is the view's element until it
+    // first joins the page, and a lookup would swap it for an empty set. Whether
+    // a node has been in the page is noted when it is adopted, by the _$el
+    // setter, and again at every read, so an outlet's node that was in the
+    // page when it was bound and is replaced before anyone reads it still
+    // counts as having left it.
     // While the framework constructs the view its creator lends the element it
     // already found, so init() and the nib reach it without a document query
     // that a repeated id would answer with the wrong card. An outlet that
@@ -58,15 +67,30 @@ export class UIView extends UIResponder {
     // falls through to the document query: the lend is an optimisation for
     // matches, not a guarantee.
     get $el() {
-        if (!this._$el || this._$el.length === 0 || this._$el[0] && this._$el[0].isConnected === false) {
-            var lent = Bind.elementUnderConstruction(this)
-            this._$el = lent && lent.length > 0 ? lent : $(this.selector)
-        }
+        var node = this._$el && this._$el[0]
+        if (node && node.isConnected === true) { this._wasConnected = true }
+        var isLost = !this._$el || this._$el.length === 0 || node && node.isConnected === false && this._wasConnected === true
+        if (!isLost) { return this._$el }
+        var lent = Bind.elementUnderConstruction(this)
+        this._$el = lent && lent.length > 0 ? lent : $(this.selector)
         return this._$el
     }
 
+    set _$el(element) {
+        this._cachedElement = element
+        this._wasConnected = !!element && !!element[0] && element[0].isConnected === true
+    }
+
+    get _$el() {
+        return this._cachedElement
+    }
+
+    // The same layer for the view's whole life, as Apple's. Its field has its
+    // own name because a subclass may have a _layer() method, as
+    // AVPlayerViewController does.
     get layer() {
-        return new CALayer(this.selector)
+        if (!this._viewLayer) { this._viewLayer = layerOf(this) }
+        return this._viewLayer
     }
 
     // A view whose activity is browsing a web page is a link to it: the
@@ -104,6 +128,49 @@ export class UIView extends UIResponder {
         this._identifier = identifier
     }
 
+    // UIAccessibility.ExpandedStatus, drawn as aria-expanded on the element:
+    // expanded is "true", collapsed "false", and unsupported (the default)
+    // removes it. The status is kept and drawn again whenever the view is placed.
+    get accessibilityExpandedStatus() {
+        return accessibilityStateOf(this).expanded
+    }
+
+    /** @param {number} status one of UIAccessibility.ExpandedStatus */
+    set accessibilityExpandedStatus(status) {
+        typed(status, "accessibilityExpandedStatus", expandedStatusType, "UIView.accessibilityExpandedStatus", "Apple's is var accessibilityExpandedStatus: UIAccessibility.ExpandedStatus; write view.accessibilityExpandedStatus = UIAccessibility.ExpandedStatus.expanded.")
+        accessibilityStateOf(this).expanded = status
+        drawAccessibility(this)
+    }
+
+    // Drawn as aria-valuetext, which assistive technology reads for a role that has
+    // a value; nil removes it, and so does an empty text, which reads back as nil.
+    get accessibilityValue() {
+        var value = accessibilityStateOf(this).value
+        return value === "" ? null : value
+    }
+
+    /** @param {string|null} value */
+    set accessibilityValue(value) {
+        var text = value === undefined ? null : value
+        typed(text, "accessibilityValue", optional(StringType), "UIView.accessibilityValue", "Apple's is var accessibilityValue: String?.")
+        accessibilityStateOf(this).value = text
+        drawAccessibility(this)
+    }
+
+    // UIAccessibilityTraits, an array of the published cases, drawn as roles and
+    // ARIA states where the element needs them (see uiaccessibility.js); the
+    // traits never change a control's isEnabled or isSelected.
+    get accessibilityTraits() {
+        return accessibilityStateOf(this).traits
+    }
+
+    /** @param {string[]} traits cases of UIAccessibilityTraits, or UIAccessibilityTraits.none */
+    set accessibilityTraits(traits) {
+        typed(traits, "accessibilityTraits", traitsType, "UIView.accessibilityTraits", "Apple's is var accessibilityTraits: UIAccessibilityTraits; write view.accessibilityTraits = [UIAccessibilityTraits.button], or UIAccessibilityTraits.none.")
+        accessibilityStateOf(this).traits = Object.freeze([...new Set(traits)])
+        drawAccessibility(this)
+    }
+
     // The label assistive technology reads: aria-label, or alt on an image,
     // which is the attribute a screen reader reads for one.
     get accessibilityLabel() {
@@ -130,7 +197,8 @@ export class UIView extends UIResponder {
     }
 
     // Unhiding restores the stylesheet's display; a view the stylesheet keeps
-    // hidden until code shows it, like a spinner, becomes a block. Inside
+    // hidden until code shows it, like a spinner, gets the display its element
+    // has by nature: a cell is a table-cell, a span inline, a div a block. Inside
     // UIView.animate the change fades over the animation's duration.
     set isHidden(bool) {
         if (_animation) {
@@ -143,7 +211,7 @@ export class UIView extends UIResponder {
             return
         }
         this.$el.css("display", "")
-        if (this.$el.css("display") === "none") { this.$el.css("display", "block") }
+        if (this.$el.css("display") === "none") { this.$el.css("display", _naturalDisplay(this.$el[0])) }
     }
 
     set alpha(value) {
@@ -207,8 +275,17 @@ export class UIView extends UIResponder {
         return this.$el.css("display") === "none"
     }
 
+    // Apple's nil is no value of the view's own: the inline value is removed, so
+    // the stylesheet's returns, and reads back as null, which is also what a view
+    // nobody colored reads. Anything else must be a UIColor.
     set backgroundColor(color) {
-        this.$el.css("background-color", color.cgColor)
+        this.$el.css("background-color", color === null ? "" : color.cgColor)
+    }
+
+    get backgroundColor() {
+        var element = this.$el[0]
+        if (!element || !element.style || element.style.backgroundColor === "") { return null }
+        return new UIColor({hex: element.style.backgroundColor})
     }
 
     // The view's affine transform, as the element's CSS transform. Inside
@@ -258,6 +335,34 @@ export class UIView extends UIResponder {
                 return recognizer.action.call(recognizer.target, recognizer)
             })
         }
+    }
+
+    // UIInteraction objects the view carries, UIToolTipInteraction among them.
+    // The interaction is told it will move to the view and then that it did, and
+    // on removal to nil: that is where it draws and erases its own state. The
+    // list is a copy, as Swift's array is a value.
+    get interactions() {
+        return (this._interactions || []).slice()
+    }
+
+    addInteraction(interaction) {
+        var signature = "Apple's is addInteraction(_ interaction: UIInteraction)."
+        if (!interaction || typeof interaction.willMove !== "function" || typeof interaction.didMove !== "function") {
+            throw new TypeError(`UIView.addInteraction expects a UIInteraction for interaction, got ${interaction === null ? "null" : typeof interaction}. ${signature}`)
+        }
+        if (!this._interactions) { this._interactions = [] }
+        if (this._interactions.indexOf(interaction) !== -1) { return }
+        interaction.willMove({to: this})
+        this._interactions.push(interaction)
+        interaction.didMove({to: this})
+    }
+
+    removeInteraction(interaction) {
+        var index = (this._interactions || []).indexOf(interaction)
+        if (index === -1) { return }
+        interaction.willMove({to: null})
+        this._interactions.splice(index, 1)
+        interaction.didMove({to: null})
     }
 
     layoutSubviews() {
@@ -311,6 +416,7 @@ export class UIView extends UIResponder {
         view._$el = $viewEl
         ownElement($viewEl, view)
         this._link(view)
+        drawAccessibility(view)
         view.didMoveToSuperview()
         view.didMoveToWindow()
         Bind.ibOutlet(view)
@@ -423,6 +529,9 @@ export class UIView extends UIResponder {
     }
 
     _dispose() {
+        for (var interaction of this.interactions) {
+            this.removeInteraction(interaction)
+        }
         for (var view of this.subviews) {
             view._dispose()
         }
@@ -430,6 +539,22 @@ export class UIView extends UIResponder {
         super._dispose()
     }
 
+}
+
+
+// What a browser draws an element as when no stylesheet says otherwise.
+const naturalDisplays = Object.freeze({
+    tr: "table-row", td: "table-cell", th: "table-cell", table: "table",
+    thead: "table-header-group", tbody: "table-row-group", tfoot: "table-footer-group",
+    li: "list-item",
+    span: "inline", a: "inline", b: "inline", i: "inline", em: "inline", strong: "inline", small: "inline",
+    label: "inline", code: "inline", abbr: "inline", sub: "inline", sup: "inline", u: "inline", s: "inline", img: "inline",
+    input: "inline-block", button: "inline-block", select: "inline-block", textarea: "inline-block",
+})
+
+function _naturalDisplay(element) {
+    var tag = element && element.tagName ? element.tagName.toLowerCase() : ""
+    return naturalDisplays[tag] || "block"
 }
 
 

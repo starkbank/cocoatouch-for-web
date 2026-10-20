@@ -9,9 +9,3 @@
     display: flex;
     align-items: center;
 }
-
-/* UIButton.showsActivityIndicator keeps the button's height while it spins. */
-.uibutton-activity-indicator {
-    min-height: 24px;
-    height: 100%;
-}

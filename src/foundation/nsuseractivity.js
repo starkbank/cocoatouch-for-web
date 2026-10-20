@@ -1,4 +1,5 @@
 import { NSObject } from "./nsobject.js"
+import { resolvedNavigableURL } from "../utils/navigableurl.js"
 
 
 // The activity type of browsing a web page, as Foundation names it.
@@ -37,20 +38,10 @@ export class NSUserActivity extends NSObject {
 }
 
 
-// mailto: and tel: execute nothing; the navigation stack's same-origin test
-// keeps them out of history, as it does any foreign address.
-const navigableProtocols = ["http:", "https:", "mailto:", "tel:"]
-
 function _validatedWebpageURL(value) {
     if (value === null || value === undefined) { return null }
     var text = String(value)
-    var resolved
-    try {
-        resolved = new URL(text, typeof window !== "undefined" && window.location ? window.location.href : "http://localhost/")
-    } catch (error) {
-        throw new TypeError(`NSUserActivity.webpageURL must be a relative, http(s), mailto: or tel: url, got ${JSON.stringify(text)}`)
-    }
-    if (navigableProtocols.indexOf(resolved.protocol) === -1) {
+    if (resolvedNavigableURL(text) === null) {
         throw new TypeError(`NSUserActivity.webpageURL must be a relative, http(s), mailto: or tel: url, got ${JSON.stringify(text)}`)
     }
     return value

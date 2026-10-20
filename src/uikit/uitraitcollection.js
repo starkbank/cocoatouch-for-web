@@ -16,6 +16,13 @@ export class UITraitCollection extends NSObject {
         this._verticalSizeClass = verticalSizeClass
     }
 
+    // The page's own collection. It has no interface style: Apple's would be
+    // light or dark, and a page can only guess that from a background or from
+    // prefers-color-scheme, which are not its theme code's decision.
+    static get current() {
+        return currentTraitCollection()
+    }
+
     get horizontalSizeClass() {
         return this._horizontalSizeClass
     }

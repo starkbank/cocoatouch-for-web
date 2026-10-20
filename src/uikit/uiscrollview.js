@@ -1,11 +1,58 @@
 import { UIView } from "./uiview.js"
 import { CGPoint } from "../coregraphics/cgpoint.js"
 import { CGSize } from "../coregraphics/cgsize.js"
+import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { required, typed, Bool, CGPointType } from "../utils/required.js"
 
 
 // UIKit's UIScrollView: an element that scrolls its overflowing content.
 export class UIScrollView extends UIView {
+
+    // UIScrollViewDelegate: scrollViewDidScroll(_:) follows every scroll of the
+    // element, whether the user, the page or setContentOffset moved it. The DOM
+    // event goes through NotificationCenter, as a text field's selectionchange
+    // does, so dismissing the controller releases it with everything else the
+    // view observes. A delegate without the method observes nothing. The page's
+    // own scroller, html or body, is observed on the document: scroll does not
+    // bubble, and the root scroller's event is fired at the document alone.
+    set delegate(delegate) {
+        var scrollView = this
+        var element = this.$el[0]
+        if (this._observedElement) {
+            NotificationCenter.default.removeObserver(this, {name: "scroll", object: this._observedElement})
+            this._observedElement = null
+        }
+        this._delegate = delegate
+        if (!element || !delegate || typeof delegate.scrollViewDidScroll !== "function") { return }
+        var observed = _isPageScroller(element) ? document : element
+        this._observedElement = observed
+        NotificationCenter.default.addObserver(this, {name: "scroll", object: observed, selector: function() {
+            delegate.scrollViewDidScroll(scrollView)
+        }})
+    }
+
+    get delegate() {
+        return this._delegate || null
+    }
+
+    // Whether the element scrolls, as the stylesheet decides it: either axis
+    // computes to auto or scroll. Like frame it is read-only, because the
+    // stylesheet owns scrollability here and a setter would fight its media
+    // queries. The page's own scroller, html or body, reads true while its
+    // overflow is visible, because the viewport scrolls it then.
+    get isScrollEnabled() {
+        var element = this.$el[0]
+        if (!element) { return false }
+        var style = getComputedStyle(element)
+        var scrolls = (overflow) => overflow === "auto" || overflow === "scroll"
+        if (scrolls(style.overflowX) || scrolls(style.overflowY)) { return true }
+        var isPageScroller = element === document.documentElement || element === document.body
+        return isPageScroller && style.overflowX === "visible" && style.overflowY === "visible"
+    }
+
+    set isScrollEnabled(enabled) {
+        throw new TypeError("UIScrollView.isScrollEnabled is read-only: the stylesheet owns whether an element scrolls, so set overflow in CSS.")
+    }
 
     // The point of the content shown at the view's origin.
     get contentOffset() {
@@ -44,4 +91,9 @@ export class UIScrollView extends UIView {
         element.scrollLeft = point.x
         element.scrollTop = point.y
     }
+}
+
+
+function _isPageScroller(element) {
+    return element === document.scrollingElement || element === document.documentElement || element === document.body
 }

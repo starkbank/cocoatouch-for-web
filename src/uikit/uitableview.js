@@ -1,8 +1,9 @@
 import { UIScrollView } from "./uiscrollview.js"
+import { UIControl } from "./uicontrol.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
-import { ownElement } from "../utils/elementowner.js"
+import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
@@ -188,6 +189,9 @@ export class UITableView extends UIScrollView {
         }
         var id = "cell-" + row
         var element = this._body().find("> #" + id)
+        if (reusable && reusable.constructor.nib !== cellClass.nib) {
+            element = this._replaceRow(reusable, {cellClass, id, row})
+        }
         if (element.length === 0) {
             element = $(cellClass.nib || "<tr></tr>").first()
             element.attr("id", id)
@@ -203,6 +207,24 @@ export class UITableView extends UIScrollView {
         cell.awakeFromNib()
         Bind.ibAction(cell)
         return cell
+    }
+
+    // A reuse identifier maps to one class, so a row whose previous cell is not
+    // of the class registered now gets a new cell over the new class's own nib,
+    // not the old cell's element bound to another class. The old cell is
+    // disposed, which releases its outlets, targets and observers, and its
+    // element is replaced in place so the rows keep their order. A class with
+    // the same nib takes the element over, as it always did, and the old cell is
+    // disposed when the reload ends.
+    _replaceRow(stale, {cellClass, id, row}) {
+        this._reusableCells[row] = null
+        var old = stale.$el
+        stale._dispose()
+        var element = $(cellClass.nib || "<tr></tr>").first()
+        element.attr("id", id)
+        old.first().before(element)
+        old.remove()
+        return element
     }
 
     // selectRow(at:animated:scrollPosition:): at: null clears the selection, as
@@ -276,8 +298,13 @@ export class UITableView extends UIScrollView {
         rows.off("click.uitableview").on("click.uitableview", function(event) {
             event.stopImmediatePropagation()
             if (!tableView._allowsSelection) { return }
+            if (_isInsideControl(event.target, this)) { return }
             var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
-            tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+            if (!tableView._allowsMultipleSelection) {
+                tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+                return
+            }
+            tableView._toggle(indexPath)
         })
         rows.each((index, element) => {
             var indexPath = new IndexPath({row: index})
@@ -292,14 +319,35 @@ export class UITableView extends UIScrollView {
             selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
             selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
                 if (event.target.checked) {
-                    this.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
-                    this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+                    this._userSelect(indexPath)
                     return
                 }
-                this.deselectRow({at: indexPath, animated: false})
-                this._delegateCall("tableViewDidDeselectRowAtIndexPath", indexPath)
+                this._userDeselect(indexPath)
             })
         })
+    }
+
+    // With allowsMultipleSelection a tap toggles, as on Apple: it selects an
+    // unselected row and deselects a selected one, each followed by its delegate
+    // call, through the same path the selection checkbox takes so the two agree.
+    // A single selection keeps its tap as a plain didSelect, which is a known
+    // difference: Apple's would also select the row.
+    _toggle(indexPath) {
+        if (this._selectedRows.indexOf(indexPath.row) !== -1) {
+            this._userDeselect(indexPath)
+            return
+        }
+        this._userSelect(indexPath)
+    }
+
+    _userSelect(indexPath) {
+        this.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
+        this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+    }
+
+    _userDeselect(indexPath) {
+        this.deselectRow({at: indexPath, animated: false})
+        this._delegateCall("tableViewDidDeselectRowAtIndexPath", indexPath)
     }
 
     _delegateCall(method) {
@@ -310,6 +358,15 @@ export class UITableView extends UIScrollView {
     }
 }
 
+
+// A control in a cell handles its own touch, as on iOS: its action fires and
+// the row stays unselected. The walk stops at the row, whose owner is the cell.
+function _isInsideControl(target, row) {
+    for (var element = target; element && element !== row; element = element.parentElement) {
+        if (ownerOf(element) instanceof UIControl) { return true }
+    }
+    return false
+}
 
 function _row(indexPath) {
     if (indexPath instanceof IndexPath) { return indexPath.row }

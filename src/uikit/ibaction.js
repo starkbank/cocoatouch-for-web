@@ -1,4 +1,5 @@
 import { Bind } from "../utils/bind.js"
+import { decoratedDescriptor } from "../utils/decoratedDescriptor.js"
 
 
 /** @returns {(target: object, name: string, descriptor?: PropertyDescriptor) => any} */
@@ -12,6 +13,6 @@ export function IBAction(selector, cls) {
             target: target,
         })
         Bind.registerPrototypeForRestore(target)
-        return target
+        return decoratedDescriptor(descriptor)
     }
 }
