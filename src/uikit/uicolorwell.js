@@ -76,6 +76,18 @@ export class UIColorWell extends UIControl {
         return super.isEnabled
     }
 
+    // The app paints its swatch on the well (a background color or image, inline
+    // or from the stylesheet) and the input goes invisible over it, still filling
+    // the well so a click on the swatch opens the chooser.
+    set backgroundColor(color) {
+        super.backgroundColor = color
+        this._drawLayout()
+    }
+
+    get backgroundColor() {
+        return super.backgroundColor
+    }
+
     // The input is found again by its class, so a second view over the same
     // element, or a rebind after the element was placed, adds none.
     _input() {
@@ -94,10 +106,26 @@ export class UIColorWell extends UIControl {
             input.className = inputClass
             element.appendChild(input)
         }
+        this._layOut(element, input)
         $(input).off(namespace).on(namespace, (event) => this._picked(event))
         input.disabled = !this.isEnabled
         this._draw()
         this._drawTitle()
+    }
+
+    // The input's own layout ships with the well, so no stylesheet names it: it
+    // fills the well, which is positioned when nothing else positioned it.
+    _layOut(element, input) {
+        Object.assign(input.style, {position: "absolute", top: "0px", left: "0px", width: "100%", height: "100%", margin: "0px", padding: "0px", border: "0px", cursor: "pointer"})
+        if (getComputedStyle(element).position === "static") { element.style.position = "relative" }
+        this._drawLayout()
+    }
+
+    _drawLayout() {
+        var input = this._input()
+        var element = this.$el && this.$el[0]
+        if (!input || !element) { return }
+        input.style.opacity = _isPainted(element) ? "0" : ""
     }
 
     _draw() {
@@ -138,4 +166,12 @@ export class UIColorWell extends UIControl {
         var alpha = previous ? previous.alpha : 1
         this._selectedColor = alpha === 1 ? new UIColor({hex: input.value.toLowerCase()}) : new UIColor({red: components.red / 255, green: components.green / 255, blue: components.blue / 255, alpha: alpha})
     }
+}
+
+
+function _isPainted(element) {
+    if (element.style.backgroundColor !== "" || element.style.backgroundImage !== "") { return true }
+    var computed = getComputedStyle(element)
+    var color = computed.backgroundColor
+    return (color !== "" && color !== "transparent" && color !== "rgba(0, 0, 0, 0)") || (computed.backgroundImage !== "" && computed.backgroundImage !== "none")
 }
