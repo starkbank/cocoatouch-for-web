@@ -6,6 +6,7 @@ import { UITableViewCell } from "./uitableviewcell.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { UITextField } from "./uitextfield.js"
+import { UITextContentType } from "./uitextcontenttype.js"
 import { UITextView } from "./uitextview.js"
 import { UITextPasteItem } from "./uitextpasteitem.js"
 import { UIView } from "./uiview.js"
@@ -59,6 +60,7 @@ export {
      UITableViewScrollPosition,
      UITableViewCellEditingStyle,
      UITextField,
+     UITextContentType,
      UITextView,
      UITextPasteItem,
      UIView,
