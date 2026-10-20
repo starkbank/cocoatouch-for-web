@@ -51,7 +51,7 @@ export class UIDocumentPickerViewController extends UIViewController {
     }
 
     set delegate(delegate) {
-        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDocumentPickerViewController.delegate")
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDocumentPickerViewController.delegate", "1.9.0")
         this._delegate = delegate || null
     }
 

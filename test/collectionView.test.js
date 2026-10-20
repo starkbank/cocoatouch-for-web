@@ -37,8 +37,8 @@ test("items render once each, in index order", function() {
 test("a collection view data source or delegate carrying a retired name is refused, naming the replacement", function() {
     page("<div id=\"grid\"></div>")
     var collection = new UICollectionView("#grid")
-    assert.throws(() => { collection.dataSource = {numberOfItemsInSection: function() { return 1 }, collectionViewCellForItemAtIndexPath: function() { return null }} }, (error) => error instanceof TypeError && /numberOfItemsInSection/.test(error.message) && /collectionViewNumberOfItemsInSection/.test(error.message))
-    assert.throws(() => { collection.delegate = {collectionViewDidSelectItemAt: function() {}} }, (error) => error instanceof TypeError && /collectionViewDidSelectItemAtIndexPath/.test(error.message))
+    assert.throws(() => { collection.dataSource = {numberOfItemsInSection: function() { return 1 }, collectionViewCellForItemAtIndexPath: function() { return null }} }, (error) => error instanceof TypeError && /numberOfItemsInSection/.test(error.message) && /collectionViewNumberOfItemsInSection/.test(error.message) && /in cocoatouch 1\.6\.0;/.test(error.message))
+    assert.throws(() => { collection.delegate = {collectionViewDidSelectItemAt: function() {}} }, (error) => error instanceof TypeError && /collectionViewDidSelectItemAtIndexPath/.test(error.message) && /in cocoatouch 1\.6\.0;/.test(error.message))
     var selected = []
     collection.delegate = {collectionViewDidSelectItemAtIndexPath: function(collectionView, indexPath) { selected.push(indexPath.row) }}
     collection.dataSource = {

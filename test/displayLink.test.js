@@ -313,3 +313,37 @@ test("a frame that arrives with no time since the last is not an interval", func
         assert.ok(Math.abs(link.duration - 0.016) < 1e-9)
     })
 })
+
+test("in the first frames, before 12 deltas exist, duration is the nominal 1/60, then the smallest delta so far, and a stutter outvoted by the next frame", function() {
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        assert.ok(Math.abs(link.duration - 1 / 60) < 1e-12, "the starting value, before any frame")
+        link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        var seen = []
+        for (var time of [1000, 1033, 1050, 1066, 1300, 1316]) {
+            frames.run(time)
+            seen.push(Math.round(link.duration * 1000))
+        }
+        assert.deepEqual(seen, [17, 33, 17, 16, 16, 16], "nominal, the one delta, then the smallest so far; the 234 ms frame never raises it")
+        assert.ok(link.duration <= 0.017, "five deltas in, far fewer than 12")
+    })
+})
+
+test("with fewer than 12 deltas a stutter after the first interval cannot raise duration, and the window holds 12", function() {
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        var times = frameTimes(3)
+        for (var time of times) { frames.run(time) }
+        var before = link.duration
+        frames.run(times[2] + 500)
+        assert.equal(link.duration, before, "a 500 ms frame cannot raise the estimate")
+        frames.run(times[2] + 500 + 1000 / 60)
+        assert.equal(link.duration, before)
+        var last = times[2] + 500 + 1000 / 60
+        for (var index = 0; index < 12; index++) { frames.run(last += 1000 / 30) }
+        assert.ok(Math.abs(link.duration - 1 / 30) < 1e-6, "twelve slower deltas push the faster ones out of the window")
+    })
+})

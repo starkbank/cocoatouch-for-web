@@ -9,11 +9,11 @@ export class MailViewController extends UIViewController {
 
     viewDidLoad() {
         this.mailField.pasteDelegate = this
-        this.mailField.pasteDelegate = {textPasteConfigurationSupportingTransform(field, item) { item.setNoResult() }}
+        this.mailField.pasteDelegate = {textPasteConfigurationSupportingTransformPasteItem(field, item) { item.setNoResult() }}
         this.mailField.pasteDelegate = null
     }
 
-    textPasteConfigurationSupportingTransform(textField, item) {
+    textPasteConfigurationSupportingTransformPasteItem(textField, item) {
         item.itemProvider.loadDataRepresentation({
             forTypeIdentifier: UTType.html.identifier,
             completionHandler: (data, error) => {},

@@ -1,5 +1,6 @@
 import { UIActivityIndicatorView } from "./uiactivityindicatorview.js"
 import { UIButton } from "./uibutton.js"
+import { NSDirectionalRectEdge } from "./uibuttonconfiguration.js"
 import { UILabel } from "./uilabel.js"
 import { UITableView } from "./uitableview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
@@ -56,6 +57,7 @@ import { UIDropOperation } from "./uidropoperation.js"
 export {
      UIActivityIndicatorView,
      UIButton,
+     NSDirectionalRectEdge,
      UILabel,
      UITableView,
      UITableViewCell,

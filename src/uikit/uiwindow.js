@@ -10,8 +10,8 @@ var _isConstructing = false
 // the page's body. The framework makes the one window when UIKit loads, and
 // UIApplication.shared.keyWindow hands it out, so `new UIWindow()` is refused:
 // Apple's UIWindow(frame:) would make a second screen-sized root over the same
-// body. The window never disposes, so a view added to it stays until the app
-// removes it. rootViewController is not provided.
+// body. The window never disposes and removeFromSuperview does nothing, as it
+// has no superview on Apple; a view added to it stays until the app removes it. rootViewController is not provided.
 export class UIWindow extends UIView {
 
     constructor() {
@@ -26,6 +26,14 @@ export class UIWindow extends UIView {
     get bounds() {
         return UIScreen.main.bounds
     }
+
+    // A window has no superview on Apple, so there is nothing to leave: taking
+    // it out would remove body from the page.
+    removeFromSuperview() {}
+
+    // The window lives as long as the page; disposing it would drop the
+    // observers the framework and the app hold on it.
+    _dispose() {}
 }
 
 

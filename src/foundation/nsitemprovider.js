@@ -8,7 +8,7 @@ import { required, typed, StringType, FunctionType } from "../utils/required.js"
 // UIDragItem carries. The framework makes them; the app asks one whether it
 // conforms to a type and loads it as a file. Before the drop the browser shows
 // only kinds and MIME types, so a provider made then answers conformance and
-// loads nothing; the file, or folder, loads in the drop.
+// loads nothing; the same provider gains its file, or folder, in the drop.
 export class NSItemProvider extends NSObject {
 
     _identifier = null
@@ -104,11 +104,19 @@ export class NSItemProvider extends NSObject {
 // How the framework makes a provider: what it knows of the item at that moment.
 export function itemProviderFor({identifier, name = null, file = null, entry = null}) {
     var provider = new NSItemProvider()
+    fillItemProvider(provider, {identifier: identifier, name: name, file: file, entry: entry})
+    return provider
+}
+
+
+// The drop gives a provider the file it could not hold at enter, in place: the
+// object the delegate captured then is the one that loads in performDrop.
+export function fillItemProvider(provider, {identifier, name = null, file = null, entry = null}) {
     provider._identifier = identifier
     provider._name = name
     provider._file = file
     provider._entry = entry
-    return provider
+    provider._url = null
 }
 
 

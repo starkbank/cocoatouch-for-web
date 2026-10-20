@@ -333,7 +333,7 @@ test("a delegate carrying the retired pick name is refused, naming the replaceme
     var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})
     assert.throws(
         () => { picker.delegate = {documentPickerDidPickDocumentsAt: function() {}} },
-        (error) => error instanceof TypeError && /documentPickerDidPickDocumentsAt\b/.test(error.message) && /documentPickerDidPickDocumentsAtURLs/.test(error.message),
+        (error) => error instanceof TypeError && /documentPickerDidPickDocumentsAt\b/.test(error.message) && /documentPickerDidPickDocumentsAtURLs/.test(error.message) && /in cocoatouch 1\.9\.0;/.test(error.message),
     )
     assert.equal(picker.delegate, null)
 })

@@ -143,6 +143,6 @@ export function assertTextLayerStylesheet() {
     var position = getComputedStyle(probe).position
     document.body.removeChild(wrapper)
     if (position !== "absolute") {
-        throw new TypeError(`PDFKit requires cocoatouch/styles/pdf_viewer.scoped.css to be loaded (pdfjsLib.version ${pdfjsLib.version}): ".ct-pdfview .textLayer" is not positioned absolutely.`)
+        throw new TypeError(`PDFKit's stylesheet pdf_viewer.scoped.css is not loaded (pdfjsLib.version ${pdfjsLib.version}): import "cocoatouch/PDFKit", the entry that loads it. ".ct-pdfview .textLayer" is not positioned absolutely.`)
     }
 }
