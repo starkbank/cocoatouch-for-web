@@ -83,7 +83,13 @@ export class UIControl extends UIView {
         this._stateDidChange()
     }
 
+    // The element's disabled attribute is the one truth, since two views can be
+    // over one element (an outlet and the sender of an @IBAction) and either may
+    // be the one that disabled it; the stored value stands in for an element that
+    // cannot say.
     get isEnabled() {
+        var element = this.$el && this.$el[0]
+        if (element && typeof element.hasAttribute === "function") { return !element.hasAttribute("disabled") }
         return this._isEnabled !== false
     }
 
@@ -121,6 +127,7 @@ export class UIControl extends UIView {
         var pair = {target: target, action: action, event: event, namespace: event + ".target" + (++_pairCount)}
         pair.handler = (e) => {
             if (e.stopPropagation) { e.stopPropagation() }
+            if (!control.isEnabled && !control._isSendingActions) { return }
             return action.call(target, target, control, e)
         }
         this._targets().push(pair)
@@ -164,6 +171,11 @@ export class UIControl extends UIView {
      */
     sendActions({for: controlEvent} = {}) {
         required(controlEvent, "for", eventType, "UIControl.sendActions", "Apple's is sendActions(for:); write sendActions({for: UIControlEvent.touchUpInside}).")
-        this.$el.trigger(events[controlEvent])
+        this._isSendingActions = true
+        try {
+            this.$el.trigger(events[controlEvent])
+        } finally {
+            this._isSendingActions = false
+        }
     }
 }

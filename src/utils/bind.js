@@ -114,10 +114,14 @@ export class Bind {
                 }
                 $target.off("click.ibaction").on("click.ibaction", (e) => {
                     var method = action.method
-                    if (control[method]) {
-                        e.preventDefault()
-                        control[method](sender)
-                    }
+                    if (!control[method]) { return }
+                    // A checkbox or radio toggles itself on a click, and the action
+                    // then reads the new state; cancelling the click would undo it.
+                    // Anchors and buttons keep the cancel, which is what stops an
+                    // app action from navigating or submitting a form.
+                    if (!_togglesItself(e.target)) { e.preventDefault() }
+                    if (_isDisabledControl(sender, $target[0])) { return }
+                    control[method](sender)
                 })
             })
         }
@@ -431,6 +435,28 @@ function _bindKeyboardAction(control, action) {
         _dispatchKey(e)
     }
     NotificationCenter.default.addObserver(control, {selector: selector, name: "keydown", object: document})
+}
+
+function _togglesItself(element) {
+    return !!element && element.tagName === "INPUT" && (element.type === "checkbox" || element.type === "radio")
+}
+
+// A disabled control receives no touches, so no action of it runs; sendActions(for:)
+// is a direct call and does. The sender is one view over the element and an outlet
+// may be another, so the flag is read from both, and a UIControl's isEnabled reads
+// the element's own disabled state. A sender that is no UIControl is never gated.
+function _isDisabledControl(sender, element) {
+    if (!_isControl(sender)) { return false }
+    if (sender._isSendingActions) { return false }
+    var owner = ownerOf(element)
+    if (_isControl(owner) && owner._isSendingActions) { return false }
+    return sender.isEnabled === false
+}
+
+// UIControl is told by its target-action methods: this module is loaded by
+// UIView, which UIControl extends, so it cannot import the class.
+function _isControl(view) {
+    return !!view && typeof view.addTarget === "function" && typeof view.sendActions === "function"
 }
 
 // Command exists on Apple hardware only. Elsewhere the Control key carries the
