@@ -174,3 +174,64 @@ test("a calendar picker disposed after its element left the page closes and dest
         assert.ok(log.includes("hide") && log.includes("destroy"), log.join())
     })
 })
+
+
+// jQuery UI's datepicker keeps its instance in the input's jQuery data and marks the
+// input with a class. Emptying the picker's element wipes the data and leaves the class,
+// and destroy() then reads an instance that is not there: this stand-in fails the same way.
+function withRealisticDatepicker(run) {
+    var log = []
+    $.fn.datepicker = function(method) {
+        if (typeof method === "object") {
+            this.data("datepicker", {append: $("<span>"), options: method}).addClass("hasDatepicker")
+            log.push("init")
+            return this
+        }
+        if (method === "destroy") {
+            if (!this.hasClass("hasDatepicker")) { return this }
+            var instance = this.data("datepicker")
+            instance.append.remove()
+            this.removeData("datepicker").removeClass("hasDatepicker")
+            log.push("destroy")
+            return this
+        }
+        if (method === "getDate") { return null }
+        log.push(method)
+        return this
+    }
+    try { run(log) } finally { delete $.fn.datepicker }
+}
+
+test("a calendar picker disposed after its element was emptied still destroys its widget, and does not throw", function() {
+    withRealisticDatepicker(function(log) {
+        var child = nested("date")
+        var input = document.getElementById("when-input")
+        assert.equal(input.classList.contains("hasDatepicker"), true)
+        log.length = 0
+        child.removeFromParent()
+        assert.equal(input.classList.contains("hasDatepicker"), false)
+        assert.ok(log.includes("destroy"), log.join())
+    })
+})
+
+test("a yearAndMonth picker disposed after its element was emptied destroys its widget too", function() {
+    withRealisticDatepicker(function(log) {
+        var child = nested("yearAndMonth")
+        var input = document.getElementById("when-input")
+        child.removeFromParent()
+        assert.equal(input.classList.contains("hasDatepicker"), false)
+    })
+})
+
+test("switching modes after the widget was built destroys it once and builds the next on the held input", function() {
+    page(markup)
+    withRealisticDatepicker(function(log) {
+        var picker = new UIDatePicker("#start")
+        picker.datePickerMode = "yearAndMonth"
+        picker.datePickerMode = "date"
+        assert.equal(document.getElementById("start-field").classList.contains("hasDatepicker"), true)
+        assert.equal(log.filter((entry) => entry === "destroy").length, 2)
+        picker._dispose()
+        assert.equal(document.getElementById("start-field").classList.contains("hasDatepicker"), false)
+    })
+})
