@@ -7,7 +7,8 @@ import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
-import { required, Int } from "../utils/required.js"
+import { accessibilityStateOf, drawAccessibility, expandedStatusType } from "./uiaccessibility.js"
+import { required, typed, Int } from "../utils/required.js"
 
 
 export class UIView extends UIResponder {
@@ -47,7 +48,7 @@ export class UIView extends UIResponder {
     }
 
     didMoveToSuperview() {
-
+        drawAccessibility(this)
     }
 
     // The element is looked up again when the cached one left the document: an
@@ -125,6 +126,20 @@ export class UIView extends UIResponder {
         this.$el.attr("id", identifier)
         this.selector = "#" + identifier
         this._identifier = identifier
+    }
+
+    // UIAccessibility.ExpandedStatus, drawn as aria-expanded on the element:
+    // expanded is "true", collapsed "false", and unsupported (the default)
+    // removes it. The status is kept and drawn again whenever the view is placed.
+    get accessibilityExpandedStatus() {
+        return accessibilityStateOf(this).expanded
+    }
+
+    /** @param {number} status one of UIAccessibility.ExpandedStatus */
+    set accessibilityExpandedStatus(status) {
+        typed(status, "accessibilityExpandedStatus", expandedStatusType, "UIView.accessibilityExpandedStatus", "Apple's is var accessibilityExpandedStatus: UIAccessibility.ExpandedStatus; write view.accessibilityExpandedStatus = UIAccessibility.ExpandedStatus.expanded.")
+        accessibilityStateOf(this).expanded = status
+        drawAccessibility(this)
     }
 
     // The label assistive technology reads: aria-label, or alt on an image,
@@ -372,6 +387,7 @@ export class UIView extends UIResponder {
         view._$el = $viewEl
         ownElement($viewEl, view)
         this._link(view)
+        drawAccessibility(view)
         view.didMoveToSuperview()
         view.didMoveToWindow()
         Bind.ibOutlet(view)
