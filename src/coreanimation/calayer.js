@@ -36,6 +36,30 @@ export class CALayer {
         return new UIColor({hex: element.style.borderColor})
     }
 
+    // Apple's default is 0, and so is nil: the inline border-width and
+    // border-style are both removed, so the stylesheet's border returns. Above 0
+    // the width is drawn with a solid style, since a width alone draws nothing
+    // on an element whose stylesheet has no border. The layer only ever writes
+    // and reads its own inline values, never the stylesheet's.
+    set borderWidth(width) {
+        if (width !== null && width !== undefined && !(typeof width === "number" && Number.isFinite(width) && width >= 0)) {
+            throw new TypeError("CALayer.borderWidth takes a finite number of 0 or more, or null: Apple's is var borderWidth: CGFloat.")
+        }
+        var $el = this._$el()
+        if (!width) {
+            $el.css("border-width", "").css("border-style", "")
+            return
+        }
+        $el.css("border-width", width + "px").css("border-style", "solid")
+    }
+
+    get borderWidth() {
+        var element = this._$el()[0]
+        if (!element || !element.style || element.style.borderWidth === "") { return 0 }
+        var width = parseFloat(element.style.borderWidth)
+        return Number.isFinite(width) ? width : 0
+    }
+
     // A sublayer that owns an element, like an AVPlayerLayer or a CAGradientLayer,
     // is put inside this layer's element.
     addSublayer(layer) {
