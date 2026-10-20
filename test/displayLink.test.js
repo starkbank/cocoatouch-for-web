@@ -33,13 +33,12 @@ function counter() {
     return target
 }
 
-test("RunLoop.main and RunLoop.Mode are tokens only, and nothing else of Apple's RunLoop is here", function() {
+test("RunLoop.main and RunLoop.Mode are tokens, and run() is not here", function() {
     assert.ok(RunLoop.main instanceof RunLoop)
     assert.equal(RunLoop.main, RunLoop.main)
     assert.notEqual(RunLoop.Mode.default, RunLoop.Mode.common)
     assert.deepEqual(Object.keys(RunLoop.Mode).sort(), ["common", "default"])
     assert.equal(Object.isFrozen(RunLoop.Mode), true)
-    assert.equal(RunLoop.current, undefined)
     assert.equal(typeof RunLoop.main.run, "undefined")
     assert.throws(() => new RunLoop(), TypeError)
 })
@@ -240,5 +239,77 @@ test("a frame already handed out to an invalidated link calls nothing and throws
         assert.doesNotThrow(() => frames.run(10))
         assert.equal(ticks, 1)
         assert.equal(frames.pending, 1, "only the first link goes on")
+    })
+})
+
+test("RunLoop.current is the main run loop, since a page has one thread, and a link can be added to it", function() {
+    assert.equal(RunLoop.current, RunLoop.main)
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        link.add({to: RunLoop.current, forMode: RunLoop.Mode.default})
+        frames.run(1000)
+        assert.equal(target.steps.length, 1)
+    })
+})
+
+// The 60 Hz frames below are 16.667 ms apart; a stutter is one long frame.
+function frameTimes(count, start = 1000) {
+    return Array.from({length: count}, (_, index) => start + index * 1000 / 60)
+}
+
+test("duration stays the display's interval across a stutter instead of the last frame's length", function() {
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        var times = frameTimes(6)
+        for (var time of times) { frames.run(time) }
+        assert.ok(Math.abs(link.duration - 1 / 60) < 1e-6)
+        frames.run(times[5] + 250)
+        assert.ok(Math.abs(link.duration - 1 / 60) < 1e-6, "a 250 ms frame is a stutter, not the refresh interval")
+        frames.run(times[5] + 250 + 1000 / 60)
+        assert.ok(Math.abs(link.duration - 1 / 60) < 1e-6)
+    })
+})
+
+test("targetTimestamp is always timestamp plus duration, so a stutter does not push it past the next frame", function() {
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        var times = frameTimes(5)
+        times.push(times[4] + 400)
+        times.push(times[4] + 400 + 1000 / 60)
+        for (var time of times) {
+            frames.run(time)
+            assert.ok(Math.abs(link.targetTimestamp - (link.timestamp + link.duration)) < 1e-12)
+            assert.ok(link.targetTimestamp - link.timestamp < 0.02, "never a frame and a stutter ahead")
+        }
+    })
+})
+
+test("duration follows the display when its rate changes: the old interval leaves after the recent frames do", function() {
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        var time = 1000
+        for (var index = 0; index < 20; index++) { frames.run(time += 1000 / 120) }
+        assert.ok(Math.abs(link.duration - 1 / 120) < 1e-6)
+        for (index = 0; index < 20; index++) { frames.run(time += 1000 / 60) }
+        assert.ok(Math.abs(link.duration - 1 / 60) < 1e-6)
+    })
+})
+
+test("a frame that arrives with no time since the last is not an interval", function() {
+    withFrames(function(frames) {
+        var target = counter()
+        var link = new CADisplayLink({target, selector: target.step})
+        link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})
+        frames.run(1000)
+        frames.run(1016)
+        frames.run(1016)
+        assert.ok(Math.abs(link.duration - 0.016) < 1e-9)
     })
 })

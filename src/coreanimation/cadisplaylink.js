@@ -8,6 +8,11 @@ const modeType = enumeration(RunLoop.Mode, "RunLoop.Mode")
 // What duration reads until a frame has been measured: a display's usual refresh.
 const nominalDuration = 1 / 60
 
+// How many recent frame deltas duration is estimated from. About a fifth of a
+// second at 60 Hz: long enough for a stutter to be outvoted, short enough for a
+// display that changes its rate to be followed.
+const recentDeltas = 12
+
 const initSignature = "Apple's is CADisplayLink(target:selector:); write new CADisplayLink({target, selector: target.step})."
 const addSignature = "Apple's is add(to:forMode:); write link.add({to: RunLoop.main, forMode: RunLoop.Mode.common})."
 const removeSignature = "Apple's is remove(from:forMode:); write link.remove({from: RunLoop.main, forMode: RunLoop.Mode.common})."
@@ -19,6 +24,11 @@ const removeSignature = "Apple's is remove(from:forMode:); write link.remove({fr
 // has no run loop modes, so every mode behaves alike. The selector receives the
 // link, as Apple's `@objc func step(displayLink:)` does, and `timestamp`,
 // `targetTimestamp` and `duration` are seconds, as Apple's CFTimeIntervals are.
+// `duration` is the display's nominal refresh interval, as Apple's is, which a
+// browser does not report: it is the smallest of the recent frame deltas, since
+// a late frame only makes a delta longer, so a stutter does not move it.
+// `targetTimestamp` is `timestamp + duration`, the next frame as the display
+// would have it.
 export class CADisplayLink extends NSObject {
 
     /**
@@ -37,6 +47,7 @@ export class CADisplayLink extends NSObject {
         this._isPaused = false
         this._handle = null
         this._previous = null
+        this._deltas = []
         this._timestamp = 0
         this._duration = nominalDuration
         this._isInvalid = false
@@ -113,11 +124,24 @@ export class CADisplayLink extends NSObject {
         this._handle = null
     }
 
+    // A frame with no time since the last, a clock that did not advance, is not an
+    // interval and is not counted.
+    _measure(delta) {
+        if (delta <= 0) { return }
+        this._deltas.push(delta)
+        if (this._deltas.length > recentDeltas) { this._deltas.shift() }
+        var shortest = this._deltas[0]
+        for (var recent of this._deltas) {
+            if (recent < shortest) { shortest = recent }
+        }
+        this._duration = shortest
+    }
+
     _tick(milliseconds) {
         this._handle = null
         if (this._isInvalid) { return }
         var seconds = milliseconds / 1000
-        this._duration = this._previous === null ? nominalDuration : seconds - this._previous
+        if (this._previous !== null) { this._measure(seconds - this._previous) }
         this._previous = seconds
         this._timestamp = seconds
         this._update()

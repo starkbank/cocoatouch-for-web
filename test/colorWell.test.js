@@ -179,15 +179,13 @@ test("a value that is not #rrggbb is ignored: no color, no event", function() {
     assert.deepEqual(calls, ["#ff00ff"], "upper case is a valid six-digit hex")
 })
 
-test("a color named after a token is drawn by its resolved value, and one that cannot be drawn leaves the input black", function() {
+test("a color named after a token is drawn by its resolved value, and one the theme does not define throws as resolvedColor does", function() {
     var colorWell = well()
     document.documentElement.style.setProperty("--brand-swatch", "#0070E0")
     try {
         colorWell.selectedColor = new UIColor({named: "brand-swatch"})
         assert.equal(input().value, "#0070e0")
-        colorWell.selectedColor = new UIColor({named: "no-such-token-here"})
-        assert.equal(input().value, "#000000")
-        assert.equal(colorWell.selectedColor.cgColor, "var(--no-such-token-here)")
+        assert.throws(() => { colorWell.selectedColor = new UIColor({named: "no-such-token-here"}) }, (error) => error instanceof TypeError && /--no-such-token-here/.test(error.message))
     } finally {
         document.documentElement.style.removeProperty("--brand-swatch")
     }

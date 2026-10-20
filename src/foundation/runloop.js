@@ -14,8 +14,8 @@ var _main = null
 
 
 // Foundation's RunLoop, as a token: `RunLoop.main` and `RunLoop.Mode` are what
-// CADisplayLink.add(to:forMode:) takes. `current` and `run()` are omitted
-// because a browser's event loop is not one a page can enter or leave.
+// CADisplayLink.add(to:forMode:) takes. `run()` is omitted because a browser's
+// event loop is not one a page can enter or leave.
 export class RunLoop extends NSObject {
 
     // Apple's RunLoop has no public init: the loops come from `main`.
@@ -26,6 +26,11 @@ export class RunLoop extends NSObject {
 
     static get Mode() {
         return runLoopMode
+    }
+
+    // The loop of the calling thread, and a page has one thread: the main loop.
+    static get current() {
+        return RunLoop.main
     }
 
     static get main() {

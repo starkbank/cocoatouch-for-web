@@ -41,9 +41,9 @@ test("layer.borderColor = null removes the inline value so the stylesheet's retu
         var view = new UIView("#box")
         var red = new UIColor({hex: "#ff0000"})
         assert.equal(view.layer.borderColor, null)
-        view.layer.borderColor = red
-        assert.ok(view.layer.borderColor instanceof UIColor)
-        assert.equal(view.layer.borderColor.cgColor, document.getElementById("box").style.borderColor)
+        view.layer.borderColor = red.cgColor
+        assert.equal(typeof view.layer.borderColor, "string")
+        assert.equal(view.layer.borderColor, document.getElementById("box").style.borderColor)
         assert.equal(getComputedStyle(document.getElementById("box")).borderTopColor, "rgb(255, 0, 0)")
         view.layer.borderColor = null
         assert.equal(view.layer.borderColor, null)
@@ -73,11 +73,11 @@ test("backgroundColor reads back a hex as its normalised rgb and a named token a
 test("layer.borderColor reads back a hex as its normalised rgb and a named token as written", function() {
     page("<div id=\"box\"></div>")
     var layer = new UIView("#box").layer
-    layer.borderColor = new UIColor({hex: "#ff0000"})
-    assert.equal(layer.borderColor.cgColor, "rgb(255, 0, 0)")
-    layer.borderColor = new UIColor({named: "border-primary-default"})
-    assert.equal(layer.borderColor.cgColor, "var(--border-primary-default)")
-    assert.ok(layer.borderColor instanceof UIColor)
+    layer.borderColor = new UIColor({hex: "#ff0000"}).cgColor
+    assert.equal(layer.borderColor, "rgb(255, 0, 0)")
+    layer.borderColor = new UIColor({named: "border-primary-default"}).cgColor
+    assert.equal(layer.borderColor, "var(--border-primary-default)")
+    assert.equal(typeof layer.borderColor, "string", "a CGColor here is the stylesheet's string")
 })
 
 test("UILabel.textColor = null removes the inline colour so the stylesheet's returns, and reads the computed colour, never nil", function() {

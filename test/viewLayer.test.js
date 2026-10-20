@@ -18,24 +18,24 @@ test("two views over elements that share an id each colour their own element", f
         view._$el = $(element)
         return view
     })
-    first.layer.borderColor = new UIColor({hex: "#ff0000"})
-    assert.equal(first.layer.borderColor.cgColor, "rgb(255, 0, 0)")
+    first.layer.borderColor = new UIColor({hex: "#ff0000"}).cgColor
+    assert.equal(first.layer.borderColor, "rgb(255, 0, 0)")
     assert.equal(second.layer.borderColor, null)
     assert.equal(document.querySelectorAll(".card")[0].style.borderColor, "rgb(255, 0, 0)")
     assert.equal(document.querySelectorAll(".card")[1].style.borderColor, "")
-    second.layer.borderColor = new UIColor({hex: "#0000ff"})
+    second.layer.borderColor = new UIColor({hex: "#0000ff"}).cgColor
     assert.equal(document.querySelectorAll(".card")[1].style.borderColor, "rgb(0, 0, 255)")
-    assert.equal(first.layer.borderColor.cgColor, "rgb(255, 0, 0)")
+    assert.equal(first.layer.borderColor, "rgb(255, 0, 0)")
 })
 
 test("after the element is replaced under the selector, the same layer writes to the new element", function() {
     page("<div id=\"host\"><div id=\"box\"></div></div>")
     var view = new UIView("#box")
     var layer = view.layer
-    layer.borderColor = new UIColor({hex: "#ff0000"})
+    layer.borderColor = new UIColor({hex: "#ff0000"}).cgColor
     document.getElementById("host").innerHTML = "<div id=\"box\"></div>"
     assert.equal(layer.borderColor, null, "the new element has no colour of its own")
-    layer.borderColor = new UIColor({hex: "#00ff00"})
+    layer.borderColor = new UIColor({hex: "#00ff00"}).cgColor
     assert.equal(document.getElementById("box").style.borderColor, "rgb(0, 255, 0)")
     assert.equal(view.layer, layer)
 })
@@ -56,7 +56,7 @@ test("addSublayer attaches a gradient and a player layer to the view's own eleme
 test("a standalone CALayer(selector) still works through its selector", function() {
     page("<div id=\"box\"></div>")
     var layer = new CALayer("#box")
-    layer.borderColor = new UIColor({hex: "#ff0000"})
+    layer.borderColor = new UIColor({hex: "#ff0000"}).cgColor
     assert.equal(document.getElementById("box").style.borderColor, "rgb(255, 0, 0)")
-    assert.equal(layer.borderColor.cgColor, "rgb(255, 0, 0)")
+    assert.equal(layer.borderColor, "rgb(255, 0, 0)")
 })
