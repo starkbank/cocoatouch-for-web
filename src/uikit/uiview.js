@@ -7,7 +7,7 @@ import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
-import { accessibilityStateOf, drawAccessibility, expandedStatusType } from "./uiaccessibility.js"
+import { accessibilityStateOf, drawAccessibility, expandedStatusType, traitsType } from "./uiaccessibility.js"
 import { required, typed, optional, StringType, Int } from "../utils/required.js"
 
 
@@ -154,6 +154,20 @@ export class UIView extends UIResponder {
         var text = value === undefined ? null : value
         typed(text, "accessibilityValue", optional(StringType), "UIView.accessibilityValue", "Apple's is var accessibilityValue: String?.")
         accessibilityStateOf(this).value = text
+        drawAccessibility(this)
+    }
+
+    // UIAccessibilityTraits, an array of the published cases, drawn as roles and
+    // ARIA states where the element needs them (see uiaccessibility.js); the
+    // traits never change a control's isEnabled or isSelected.
+    get accessibilityTraits() {
+        return accessibilityStateOf(this).traits
+    }
+
+    /** @param {string[]} traits cases of UIAccessibilityTraits, or UIAccessibilityTraits.none */
+    set accessibilityTraits(traits) {
+        typed(traits, "accessibilityTraits", traitsType, "UIView.accessibilityTraits", "Apple's is var accessibilityTraits: UIAccessibilityTraits; write view.accessibilityTraits = [UIAccessibilityTraits.button], or UIAccessibilityTraits.none.")
+        accessibilityStateOf(this).traits = Object.freeze([...new Set(traits)])
         drawAccessibility(this)
     }
 
