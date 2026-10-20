@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UITextField, UISearchTextField, UIView, UIControlEvent, UTType, NSItemProvider } from "../src/index.js"
+import { UITextField, UISearchTextField, UIView, UIControlEvent, UTType, NSItemProvider, NSRange } from "../src/index.js"
 
 
 const plainText = UTType.plainText.identifier
@@ -39,7 +39,7 @@ function field(value = "") {
 // A delegate that records what it was called with and sets `result` on the item.
 function recording(result) {
     var delegate = {calls: []}
-    delegate.textPasteConfigurationSupportingTransform = function(textField, item) {
+    delegate.textPasteConfigurationSupportingTransformPasteItem = function(textField, item) {
         delegate.calls.push({textField, item})
         if (result) { result(item) }
     }
@@ -372,7 +372,7 @@ test("the event and clipboardData never reach the delegate's arguments", functio
     var textField = field()
     var delegate = recording()
     var captured = []
-    delegate.textPasteConfigurationSupportingTransform = function(sender, item) {
+    delegate.textPasteConfigurationSupportingTransformPasteItem = function(sender, item) {
         captured.push(sender, item, item.itemProvider)
     }
     textField.pasteDelegate = delegate
@@ -449,4 +449,132 @@ test("a field created in code binds the paste when it is placed, releases it on 
     assert.equal(listenerCount(textField.$el[0]), 1)
     assert.equal(pasteInto(textField.$el[0], {"text/plain": "x"}).defaultPrevented, true)
     assert.equal(delegate.calls.length, 2)
+})
+
+
+// The paste order: the UITextPasteDelegate transform runs first, then
+// textField(_:shouldChangeCharactersIn:replacementString:) receives the string
+// the paste will insert, and false cancels the insertion.
+function changing(log, answer) {
+    return {
+        textFieldShouldChangeCharactersInRangeReplacementString(textField, range, replacement) {
+            log.push({range, replacement})
+            return typeof answer === "function" ? answer(replacement) : answer
+        },
+    }
+}
+
+test("the old textPasteConfigurationSupportingTransform is refused at assignment, naming the Apple method", function() {
+    var textField = field()
+    var retired = {textPasteConfigurationSupportingTransform(sender, item) { item.setNoResult() }}
+    assert.throws(() => { textField.pasteDelegate = retired }, (error) => error instanceof TypeError && /textPasteConfigurationSupportingTransformPasteItem/.test(error.message) && /UITextField\.pasteDelegate/.test(error.message))
+    assert.equal(textField.pasteDelegate, null)
+    assert.equal(listenerCount(textField.$el[0]), 0)
+})
+
+test("the transform runs first, then shouldChange receives the transformed string and the selection as an NSRange", function() {
+    var textField = field("ab")
+    var order = []
+    var seen = []
+    textField.pasteDelegate = recording((item) => { order.push("transform"); item.setStringResult("a, b") })
+    textField.delegate = {
+        textFieldShouldChangeCharactersInRangeReplacementString(sender, range, replacement) {
+            order.push("shouldChange")
+            seen.push({sender, range, replacement})
+        },
+    }
+    var input = textField.$el[0]
+    input.setSelectionRange(1, 2)
+    pasteInto(input, {"text/plain": "clipboard text"})
+    assert.deepEqual(order, ["transform", "shouldChange"])
+    assert.equal(seen[0].sender, textField)
+    assert.ok(seen[0].range instanceof NSRange)
+    assert.deepEqual([seen[0].range.location, seen[0].range.length], [1, 1])
+    assert.equal(seen[0].replacement, "a, b", "the transformed string, not the clipboard's")
+    assert.equal(textField.text, "aa, b")
+})
+
+test("false from shouldChange cancels the insertion: nothing inserted, no input event, the paste still consumed", function() {
+    var textField = field("12")
+    var log = []
+    var changes = 0
+    textField.addTarget({}, {action() { changes += 1 }, for: UIControlEvent.editingChanged})
+    textField.pasteDelegate = recording((item) => item.setStringResult("999999"))
+    textField.delegate = changing(log, false)
+    var event = pasteInto(textField.$el[0], {"text/plain": "x"})
+    assert.equal(log.length, 1)
+    assert.equal(event.defaultPrevented, true, "the browser must not paste the clipboard's text instead")
+    assert.equal(textField.text, "12")
+    assert.equal(changes, 0)
+})
+
+test("true, and a return that is not exactly false, let the insertion through", function() {
+    var textField = field("")
+    var log = []
+    textField.pasteDelegate = recording((item) => item.setStringResult("7"))
+    for (var answer of [true, undefined, null, 0]) {
+        textField.text = ""
+        textField.delegate = changing(log, answer)
+        pasteInto(textField.$el[0], {"text/plain": "x"})
+        assert.equal(textField.text, "7", String(answer))
+    }
+})
+
+test("a delegate that rules on digits and length stops an amount paste that breaks the rule, and takes one that keeps it", function() {
+    var textField = field("")
+    var rule = (replacement) => /^\d*$/.test(replacement) && replacement.length <= 6
+    textField.delegate = changing([], rule)
+    textField.pasteDelegate = recording((item) => item.setStringResult("12a45"))
+    pasteInto(textField.$el[0], {"text/plain": "x"})
+    assert.equal(textField.text, "")
+    textField.pasteDelegate = recording((item) => item.setStringResult("1234567"))
+    pasteInto(textField.$el[0], {"text/plain": "x"})
+    assert.equal(textField.text, "")
+    textField.pasteDelegate = recording((item) => item.setStringResult("12345"))
+    pasteInto(textField.$el[0], {"text/plain": "x"})
+    assert.equal(textField.text, "12345")
+})
+
+test("a mask on editingChanged still applies to an accepted paste", function() {
+    class AmountField extends UITextField {
+        init() {
+            super.init()
+            this.addTarget(this, {action() { this.$el[0].value = this.$el[0].value.replace(/\D/g, "").replace(/^0+(?=\d)/, "") }, for: UIControlEvent.editingChanged})
+        }
+    }
+    page("<input id=\"amount\">")
+    var amount = new AmountField("#amount")
+    amount.delegate = changing([], true)
+    amount.pasteDelegate = recording((item) => item.setStringResult("R$ 0012"))
+    pasteInto(amount.$el[0], {"text/plain": "x"})
+    assert.equal(amount.text, "12")
+})
+
+test("setNoResult asks shouldChange nothing, and setDefaultResult leaves the browser's own beforeinput to ask it, once", function() {
+    var textField = field("keep")
+    var log = []
+    textField.delegate = changing(log, false)
+    textField.pasteDelegate = recording((item) => item.setNoResult())
+    pasteInto(textField.$el[0], {"text/plain": "x"})
+    assert.equal(log.length, 0)
+    textField.pasteDelegate = recording((item) => item.setDefaultResult())
+    var event = pasteInto(textField.$el[0], {"text/plain": "native"})
+    assert.equal(event.defaultPrevented, false)
+    assert.equal(log.length, 0, "the paste event does not ask: the beforeinput that follows it does")
+    var input = textField.$el[0]
+    input.setSelectionRange(0, 0)
+    var beforeinput = new window.InputEvent("beforeinput", {data: "native", inputType: "insertFromPaste", bubbles: true, cancelable: true})
+    input.dispatchEvent(beforeinput)
+    assert.equal(log.length, 1)
+    assert.equal(log[0].replacement, "native")
+    assert.equal(beforeinput.defaultPrevented, true)
+})
+
+test("a field with a shouldChange delegate and no pasteDelegate pastes through beforeinput alone", function() {
+    var textField = field("")
+    var log = []
+    textField.delegate = changing(log, false)
+    var event = pasteInto(textField.$el[0], {"text/plain": "native"})
+    assert.equal(event.defaultPrevented, false)
+    assert.equal(log.length, 0)
 })

@@ -17,7 +17,7 @@ test("a picker whose element holds an input uses it and adds none", function() {
     page("<div id=\"birth\"><input id=\"birth-field\" class=\"text-field item-stretch\" readonly></div>")
     withDatepicker(function(inits) {
         var picker = new UIDatePicker("#birth")
-        assert.equal(picker.inputSelector, "#birth-field")
+        assert.equal("inputSelector" in picker, false)
         assert.equal($("#birth input").length, 1)
         assert.equal($("#birth input").attr("class"), "text-field item-stretch")
         assert.deepEqual(inits, ["birth-field"])
@@ -28,7 +28,7 @@ test("an input without an id is given the id the picker would have generated", f
     page("<div id=\"birth\"><input class=\"text-field\"></div>")
     withDatepicker(function() {
         var picker = new UIDatePicker("#birth")
-        assert.equal(picker.inputSelector, "#birth-uidatepicker")
+        assert.equal("inputSelector" in picker, false)
         assert.equal($("#birth input").attr("id"), "birth-uidatepicker")
         assert.equal($("#birth input").length, 1)
     })
@@ -38,7 +38,7 @@ test("an element without an input gets one of the picker's own", function() {
     page("<div id=\"birth\"></div>")
     withDatepicker(function() {
         var picker = new UIDatePicker("#birth")
-        assert.equal(picker.inputSelector, "#birth-uidatepicker")
+        assert.equal($("#birth input").attr("id"), "birth-uidatepicker")
         assert.equal($("#birth input").length, 1)
         assert.equal($("#birth input").attr("class"), "input dateinput")
     })
@@ -51,7 +51,8 @@ test("an outlet-bound picker uses the input its owner's nib supplies, whatever t
     IBOutlet("#birth", UIDatePicker)(Owner.prototype, "picker", {})
     withDatepicker(function() {
         var owner = new Owner("#owner")
-        assert.equal(owner.picker.inputSelector, "#birth-field")
+        assert.equal("inputSelector" in owner.picker, false)
+        assert.equal($("#owner input").attr("id"), "birth-field")
         assert.equal($("#owner input").length, 1)
         assert.equal($("#birth-field").attr("placeholder"), "dd/mm/aaaa")
     })
@@ -76,7 +77,7 @@ test("disposing a calendar picker closes its calendar and destroys the widget, a
 
         page("<div id=\"owner\"></div>")
         var clockOwner = new Owner("#owner")
-        clockOwner.picker.datePickerMode = "time"
+        clockOwner.picker.datePickerMode = UIDatePicker.Mode.time
         calls.length = 0
         clockOwner._dispose()
         assert.deepEqual(calls, [])

@@ -5,6 +5,12 @@ import { readFileSync } from "node:fs"
 import { IBOutlet, UIDatePicker, UIView, UIViewController } from "../src/index.js"
 
 
+// The picker keeps its input to itself, so a test reads the one in its element.
+function inputOf(picker) {
+    return $(picker.$el[0]).find("input")
+}
+
+
 // The real ClockPicker 0.0.7 (MIT, vendored as a fixture only), run in the jsdom
 // window like a page script: the stand-ins in timePicker.test.js cannot show what
 // the plugin leaves behind in the body and on the window. Its own file because
@@ -22,7 +28,7 @@ var tick = () => new Promise((resolve) => setTimeout(resolve, 20))
 
 function timeController() {
     class Controller extends UIViewController {
-        viewDidLoad() { this.picker.datePickerMode = "time" }
+        viewDidLoad() { this.picker.datePickerMode = UIDatePicker.Mode.time }
     }
     Controller.nib = "<div id=\"start\" class=\"clockpicker\"></div>"
     IBOutlet("#start", UIDatePicker)(Controller.prototype, "picker", {})
@@ -35,7 +41,7 @@ test("dismissing a controller whose time picker was opened removes the popover a
     controller.present(controller)
     await tick()
     assert.equal(document.querySelectorAll(".clockpicker-popover").length, 0)
-    controller.picker.$input.trigger("focus")
+    inputOf(controller.picker).trigger("focus")
     assert.equal(document.querySelectorAll(".clockpicker-popover").length, 1)
     assert.equal(clockListeners(), 1)
 
@@ -68,7 +74,7 @@ function popovers() {
 // picker that re-resolved its element to remove the clock found nothing.
 function nestedTimePage() {
     class Page extends UIViewController {
-        viewDidLoad() { this.picker.datePickerMode = "time" }
+        viewDidLoad() { this.picker.datePickerMode = UIDatePicker.Mode.time }
     }
     Page.nib = "<div id=\"clock\" class=\"clockpicker\"><input id=\"clock-input\" class=\"input\" value=\"23:59\"></div>"
     IBOutlet("#clock", UIDatePicker)(Page.prototype, "picker", {})
@@ -122,10 +128,10 @@ test("switching time, date, time leaves exactly one popover and one listener onc
     var child = nestedTimePage()
     $("#clock-input").trigger("focus")
     assert.equal(popovers(), 1)
-    child.picker.datePickerMode = "date"
+    child.picker.datePickerMode = UIDatePicker.Mode.date
     assert.equal(popovers(), 0)
     assert.equal(clockListeners(), 0)
-    child.picker.datePickerMode = "time"
+    child.picker.datePickerMode = UIDatePicker.Mode.time
     $("#clock-input").trigger("focus")
     assert.equal(popovers(), 1)
     assert.equal(clockListeners(), 1)

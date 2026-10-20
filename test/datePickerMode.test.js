@@ -1,0 +1,196 @@
+import { page } from "./dom.js"
+import test, { mock } from "node:test"
+import assert from "node:assert/strict"
+import { UIDatePicker, UIControlEvent } from "../src/index.js"
+
+
+// jQuery UI and ClockPicker are page scripts the framework wraps. This
+// stand-in for the calendar keeps a day, as getDate and setDate do, and `pick`
+// drives the widget's callbacks in the order it calls them: beforeShow when it
+// opens, then onSelect when a day is clicked.
+function withCalendar(run) {
+    var widget = {options: {}, date: null}
+    $.fn.datepicker = function(method, name) {
+        if (typeof method === "object") { Object.assign(widget.options, method); return this }
+        if (method === "setDate") { widget.date = name === null ? null : new Date(name.getFullYear(), name.getMonth(), name.getDate()); return this }
+        if (method === "getDate") { return widget.date }
+        return this
+    }
+    mock.timers.enable({apis: ["setTimeout"]})
+    try { run(widget) } finally {
+        mock.timers.tick(200)
+        mock.timers.reset()
+        delete $.fn.datepicker
+    }
+}
+
+function pick(widget, date) {
+    widget.options.beforeShow()
+    widget.date = date
+    widget.options.onSelect()
+}
+
+function pickMonth(widget, year, month) {
+    document.body.insertAdjacentHTML("beforeend", "<div id=\"ui-datepicker-div\"><select class=\"ui-datepicker-month\"><option value=\"" + month + "\" selected>m</option></select><select class=\"ui-datepicker-year\"><option value=\"" + year + "\" selected>y</option></select></div>")
+    widget.options.beforeShow()
+    widget.options.onClose()
+    document.getElementById("ui-datepicker-div").remove()
+}
+
+function counting(picker) {
+    var count = {changes: 0}
+    picker.addTarget({}, {action() { count.changes += 1 }, for: UIControlEvent.valueChanged})
+    return count
+}
+
+
+test("UIDatePicker.Mode is Apple's UIDatePicker.Mode with its raw values, and the default mode is .date", function() {
+    assert.deepEqual({...UIDatePicker.Mode}, {time: 0, date: 1, dateAndTime: 2, countDownTimer: 3, yearAndMonth: 4})
+    assert.equal(Object.isFrozen(UIDatePicker.Mode), true)
+    page("<div id=\"when\"></div>")
+    withCalendar(function() {
+        assert.equal(new UIDatePicker("#when").datePickerMode, UIDatePicker.Mode.date)
+    })
+})
+
+test("a string is refused as the mode, naming the Swift property, and the mode stays", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function() {
+        var picker = new UIDatePicker("#when")
+        for (var text of ["time", "date", "dateAndTime", "yearAndMonth", "countDownTimer", "datetime", ""]) {
+            assert.throws(() => { picker.datePickerMode = text }, (error) => error instanceof TypeError && /UIDatePicker\.datePickerMode/.test(error.message) && /UIDatePicker\.Mode/.test(error.message), JSON.stringify(text))
+        }
+        assert.throws(() => { picker.datePickerMode = null }, TypeError)
+        assert.throws(() => { picker.datePickerMode = 9 }, TypeError)
+        assert.equal(picker.datePickerMode, UIDatePicker.Mode.date)
+    })
+})
+
+test(".countDownTimer is Apple's case, and a page has no control for it, so assigning it says so and keeps the mode", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function() {
+        var picker = new UIDatePicker("#when")
+        assert.throws(() => { picker.datePickerMode = UIDatePicker.Mode.countDownTimer }, (error) => error instanceof TypeError && /countDownTimer/.test(error.message))
+        assert.equal(picker.datePickerMode, UIDatePicker.Mode.date)
+    })
+})
+
+test("the picker does not publish its input: no inputSelector and no $input on the instance", function() {
+    page("<div id=\"when\"><input id=\"when-field\"></div>")
+    withCalendar(function() {
+        var picker = new UIDatePicker("#when")
+        assert.equal("inputSelector" in picker, false)
+        assert.equal("$input" in picker, false)
+        assert.equal(picker.inputSelector, undefined)
+        assert.equal(picker.$input, undefined)
+    })
+})
+
+test("valueChanged is sent when the user picks a different day, and not when the pick leaves the date as it was", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function(widget) {
+        var picker = new UIDatePicker("#when")
+        var count = counting(picker)
+        pick(widget, new Date(2026, 2, 4))
+        assert.equal(count.changes, 1)
+        pick(widget, new Date(2026, 2, 4))
+        assert.equal(count.changes, 1, "the same day again")
+        pick(widget, new Date(2026, 2, 5))
+        assert.equal(count.changes, 2)
+        pick(widget, new Date(2026, 2, 4))
+        assert.equal(count.changes, 3)
+    })
+})
+
+test("a day written from code is the date the next pick is compared with, and writing sends nothing", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function(widget) {
+        var picker = new UIDatePicker("#when")
+        var count = counting(picker)
+        picker.date = new Date(2026, 2, 4, 15, 30)
+        assert.equal(count.changes, 0)
+        pick(widget, new Date(2026, 2, 4))
+        assert.equal(count.changes, 0, "the same day as the one written, whatever its time")
+        pick(widget, new Date(2026, 2, 6))
+        assert.equal(count.changes, 1)
+        picker.date = null
+        pick(widget, new Date(2026, 2, 6))
+        assert.equal(count.changes, 2, "the field was cleared, so this is a change")
+    })
+})
+
+test("a disabled picker does not open its calendar, a selection that arrives anyway sends nothing, and sendActions keeps Apple's direct-call semantics", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function(widget) {
+        var picker = new UIDatePicker("#when")
+        var count = counting(picker)
+        picker.isEnabled = false
+        assert.equal(widget.options.beforeShow(), false, "jQuery UI shows nothing when beforeShow says false")
+        widget.date = new Date(2026, 2, 4)
+        widget.options.onSelect()
+        assert.equal(count.changes, 0)
+        picker.sendActions({for: UIControlEvent.valueChanged})
+        assert.equal(count.changes, 1, "a direct call is the app's own")
+        picker.isEnabled = true
+        assert.notEqual(widget.options.beforeShow(), false)
+        pick(widget, new Date(2026, 2, 5))
+        assert.equal(count.changes, 2)
+    })
+})
+
+test("yearAndMonth sends valueChanged for a different month only, and a disabled picker does not open", function() {
+    page("<div id=\"expiry\"></div>")
+    withCalendar(function(widget) {
+        var picker = new UIDatePicker("#expiry")
+        picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
+        var count = counting(picker)
+        pickMonth(widget, "2026", "5")
+        assert.equal(count.changes, 1)
+        pickMonth(widget, "2026", "5")
+        assert.equal(count.changes, 1, "the same month")
+        picker.isEnabled = false
+        assert.equal(widget.options.beforeShow(), false, "never opened, so never closed with a month")
+        assert.equal(count.changes, 1)
+        picker.isEnabled = true
+        pickMonth(widget, "2026", "7")
+        assert.equal(count.changes, 2)
+    })
+})
+
+test("a change the clock or the native input commits on a disabled picker reaches no target", function() {
+    page("<div id=\"clock\" class=\"clockpicker\"></div><div id=\"native\"><input id=\"native-field\"></div>")
+    var done = null
+    $.fn.datepicker = function() { return this }
+    $.fn.clockpicker = function(option) {
+        if (typeof option !== "object") { return this }
+        var wrapper = this
+        done = (text) => { wrapper.find("input").prop("value", text); wrapper.trigger("change") }
+        wrapper.data("clockpicker", {remove() {}})
+        return this
+    }
+    try {
+        var clock = new UIDatePicker("#clock")
+        clock.datePickerMode = UIDatePicker.Mode.time
+        var clockCount = counting(clock)
+        clock.isEnabled = false
+        done("10:30")
+        assert.equal(clockCount.changes, 0)
+        clock.isEnabled = true
+        done("11:30")
+        assert.equal(clockCount.changes, 1)
+        var native = new UIDatePicker("#native")
+        native.datePickerMode = UIDatePicker.Mode.dateAndTime
+        var nativeCount = counting(native)
+        native.isEnabled = false
+        var input = document.getElementById("native-field")
+        input.value = "2026-06-02T13:15"
+        input.dispatchEvent(new window.Event("change", {bubbles: true}))
+        assert.equal(nativeCount.changes, 0)
+        native.isEnabled = true
+        input.dispatchEvent(new window.Event("change", {bubbles: true}))
+        assert.equal(nativeCount.changes, 1)
+    } finally {
+        delete $.fn.datepicker
+        delete $.fn.clockpicker
+    }
+})

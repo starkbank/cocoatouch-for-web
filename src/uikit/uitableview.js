@@ -53,9 +53,11 @@ export class UITableView extends UIScrollView {
         return this._dataSource
     }
 
+    // UITableViewDelegate is a UIScrollViewDelegate, so the scroll observation
+    // is the scroll view's own, over the same delegate.
     set delegate(delegate) {
         rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UITableView.delegate")
-        this._delegate = delegate
+        super.delegate = delegate
     }
 
     get delegate() {
@@ -301,7 +303,7 @@ export class UITableView extends UIScrollView {
             if (_isInsideControl(event.target, this)) { return }
             var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
             if (!tableView._allowsMultipleSelection) {
-                tableView._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+                tableView._selectOnly(indexPath)
                 return
             }
             tableView._toggle(indexPath)
@@ -327,11 +329,20 @@ export class UITableView extends UIScrollView {
         })
     }
 
+    // A single selection's tap selects the row, as Apple's does: the row that
+    // was selected before it is told it was deselected, then the tapped row is
+    // told it was selected. A tap on the selected row is told again and
+    // deselects nothing.
+    _selectOnly(indexPath) {
+        var previous = this.indexPathForSelectedRow
+        this.selectRow({at: indexPath, animated: false, scrollPosition: UITableViewScrollPosition.none})
+        if (previous !== null && previous.row !== indexPath.row) { this._delegateCall("tableViewDidDeselectRowAtIndexPath", previous) }
+        this._delegateCall("tableViewDidSelectRowAtIndexPath", indexPath)
+    }
+
     // With allowsMultipleSelection a tap toggles, as on Apple: it selects an
     // unselected row and deselects a selected one, each followed by its delegate
     // call, through the same path the selection checkbox takes so the two agree.
-    // A single selection keeps its tap as a plain didSelect, which is a known
-    // difference: Apple's would also select the row.
     _toggle(indexPath) {
         if (this._selectedRows.indexOf(indexPath.row) !== -1) {
             this._userDeselect(indexPath)

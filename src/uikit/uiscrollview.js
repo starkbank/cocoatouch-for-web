@@ -35,11 +35,9 @@ export class UIScrollView extends UIView {
         return this._delegate || null
     }
 
-    // Whether the element scrolls, as the stylesheet decides it: either axis
-    // computes to auto or scroll. Like frame it is read-only, because the
-    // stylesheet owns scrollability here and a setter would fight its media
-    // queries. The page's own scroller, html or body, reads true while its
-    // overflow is visible, because the viewport scrolls it then.
+    // Whether the element scrolls, read from the computed style: either axis
+    // computes to auto or scroll. The page's own scroller, html or body, reads
+    // true while its overflow is visible, because the viewport scrolls it then.
     get isScrollEnabled() {
         var element = this.$el[0]
         if (!element) { return false }
@@ -50,8 +48,14 @@ export class UIScrollView extends UIView {
         return isPageScroller && style.overflowX === "visible" && style.overflowY === "visible"
     }
 
+    // false draws an inline overflow of hidden on both axes; true removes it, so
+    // the stylesheet's overflow returns, and a stylesheet that hides it still
+    // reads false afterwards. The axes are written one by one because the
+    // getter reads them one by one.
+    /** @param {boolean} enabled */
     set isScrollEnabled(enabled) {
-        throw new TypeError("UIScrollView.isScrollEnabled is read-only: the stylesheet owns whether an element scrolls, so set overflow in CSS.")
+        typed(enabled, "isScrollEnabled", Bool, "UIScrollView.isScrollEnabled", "Apple's is var isScrollEnabled: Bool.")
+        this.$el.css({"overflow-x": enabled ? "" : "hidden", "overflow-y": enabled ? "" : "hidden"})
     }
 
     // The point of the content shown at the view's origin.

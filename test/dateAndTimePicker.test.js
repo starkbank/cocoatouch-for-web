@@ -4,6 +4,12 @@ import assert from "node:assert/strict"
 import { UIDatePicker, UIControlEvent, Locale } from "../src/index.js"
 
 
+// The picker keeps its input to itself, so a test reads the one in its element.
+function inputOf(picker) {
+    return $(picker.$el[0]).find("input")
+}
+
+
 // jQuery UI is a page script the framework wraps, so this stand-in records
 // what the picker asks of it; the native input is jsdom's own.
 function withDatepicker(run) {
@@ -21,7 +27,7 @@ var markup = "<div id=\"start\"><input id=\"start-field\" class=\"input\" readon
 function nativePicker() {
     page(markup)
     var picker = new UIDatePicker("#start")
-    picker.datePickerMode = "dateAndTime"
+    picker.datePickerMode = UIDatePicker.Mode.dateAndTime
     return picker
 }
 
@@ -30,8 +36,8 @@ test("datePickerMode = \"dateAndTime\" swaps the calendar for a native datetime-
     withDatepicker(function(log) {
         var picker = new UIDatePicker("#start")
         log.length = 0
-        picker.datePickerMode = "dateAndTime"
-        assert.equal(picker.datePickerMode, "dateAndTime")
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
+        assert.equal(picker.datePickerMode, UIDatePicker.Mode.dateAndTime)
         assert.deepEqual(log, ["datepicker:destroy"])
         var input = document.getElementById("start-field")
         assert.equal(input.type, "datetime-local")
@@ -45,11 +51,11 @@ test("date holds the picked day and time to the minute in local time and round-t
         var picker = nativePicker()
         assert.equal(picker.date, null)
         picker.date = new Date(2026, 0, 5, 9, 7, 30)
-        assert.equal(picker.$input.prop("value"), "2026-01-05T09:07")
+        assert.equal(inputOf(picker).prop("value"), "2026-01-05T09:07")
         var read = picker.date
         assert.deepEqual([read.getFullYear(), read.getMonth(), read.getDate(), read.getHours(), read.getMinutes(), read.getSeconds()], [2026, 0, 5, 9, 7, 0])
         picker.setDate(new Date(2031, 11, 31, 23, 59), {animated: false})
-        assert.equal(picker.$input.prop("value"), "2031-12-31T23:59")
+        assert.equal(inputOf(picker).prop("value"), "2031-12-31T23:59")
         picker.date = null
         assert.equal(picker.date, null)
     })
@@ -58,9 +64,9 @@ test("date holds the picked day and time to the minute in local time and round-t
 test("a value the input cannot hold reads as null", function() {
     withDatepicker(function() {
         var picker = nativePicker()
-        picker.$input.prop("value", "2026-02-30T10:00")
+        inputOf(picker).prop("value", "2026-02-30T10:00")
         assert.equal(picker.date, null)
-        picker.$input.prop("value", "not a date")
+        inputOf(picker).prop("value", "not a date")
         assert.equal(picker.date, null)
     })
 })
@@ -119,7 +125,7 @@ test("a click on the input opens the native picker, and a missing showPicker is 
         input.showPicker = function() { opened++ }
         input.dispatchEvent(new window.MouseEvent("click", {bubbles: true}))
         assert.equal(opened, 1)
-        picker.datePickerMode = "dateAndTime"
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         input.dispatchEvent(new window.MouseEvent("click", {bubbles: true}))
         assert.equal(opened, 2, "setting the mode again binds one handler, not two")
     })
@@ -141,8 +147,8 @@ test("a locale or the same mode set again keeps the value and the native input",
         var picker = nativePicker()
         picker.date = new Date(2026, 0, 5, 9, 7)
         picker.locale = new Locale("pt-BR")
-        picker.datePickerMode = "dateAndTime"
-        assert.equal(picker.$input.prop("value"), "2026-01-05T09:07")
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
+        assert.equal(inputOf(picker).prop("value"), "2026-01-05T09:07")
         assert.equal(document.getElementById("start-field").type, "datetime-local")
     })
 })
@@ -155,7 +161,7 @@ test("switching back to date restores the text input and the calendar, and clear
         input.showPicker = function() { opened++ }
         picker.date = new Date(2026, 0, 5, 9, 7)
         log.length = 0
-        picker.datePickerMode = "date"
+        picker.datePickerMode = UIDatePicker.Mode.date
         assert.deepEqual(log, ["datepicker:destroy", "datepicker:init"])
         assert.equal(input.type, "text")
         assert.equal(input.hasAttribute("readonly"), true)
@@ -169,8 +175,8 @@ test("an input without readonly keeps none after dateAndTime", function() {
     page("<div id=\"start\"><input id=\"start-field\"></div>")
     withDatepicker(function() {
         var picker = new UIDatePicker("#start")
-        picker.datePickerMode = "dateAndTime"
-        picker.datePickerMode = "date"
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
+        picker.datePickerMode = UIDatePicker.Mode.date
         assert.equal(document.getElementById("start-field").hasAttribute("readonly"), false)
     })
 })
@@ -201,7 +207,7 @@ test("a showPicker the browser refuses (NotAllowedError, SecurityError) is swall
         var picker = nativePicker()
         var input = document.getElementById("start-field")
         var ran = []
-        picker.$input.on("click", () => ran.push("input"))
+        inputOf(picker).on("click", () => ran.push("input"))
         picker.addTarget({}, {action: function() { ran.push("target") }, for: UIControlEvent.touchUpInside})
         var errors = []
         window.addEventListener("error", (event) => { errors.push(event.error) })
