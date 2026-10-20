@@ -3,6 +3,7 @@ import { setText, setMarkup } from "../utils/text.js"
 import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { NSRange } from "../foundation/nsrange.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
+import { UIColor } from "./uicolor.js"
 import { itemProviderForFlavours } from "../foundation/nsitemprovider.js"
 import { textPasteItemFor, resultOfTextPasteItem } from "./uitextpasteitem.js"
 import { UTType } from "../uniformtypeidentifiers/uttype.js"
@@ -62,6 +63,19 @@ export class UITextField extends UIControl {
             return this.$el.val()
         }
         return this.$el.text()
+    }
+
+    // Apple's nil is the default color: the inline value is removed, so the
+    // stylesheet's returns, and the getter reads the inline value only, so a
+    // field nobody colored reads null whatever the stylesheet draws. The
+    // placeholder keeps its own color.
+    /** @param {UIColor|null} color */
+    set textColor(color) {
+        this.$el.css("color", color === null || color === undefined ? "" : color.cgColor)
+    }
+
+    get textColor() {
+        return _inlineColor(this.$el[0])
     }
 
     // An attribute value is text by construction; it is written as given.
@@ -275,4 +289,10 @@ function _insert(input, string) {
     }
     var view = input.ownerDocument.defaultView
     input.dispatchEvent(new view.InputEvent("input", {bubbles: true, inputType: "insertFromPaste"}))
+}
+
+
+function _inlineColor(element) {
+    if (!element || !element.style || element.style.color === "") { return null }
+    return new UIColor({hex: element.style.color})
 }
