@@ -31,12 +31,29 @@ export class UIDatePicker extends UIControl {
         if ($existing.length > 0 && !$existing.attr("id")) {
             $existing.attr("id", inputId)
         }
+        // What the input's id was when the picker was made, for a reader that wants
+        // to find it; the picker itself holds the element and never looks it up.
         this.inputSelector = "#" + (($existing.length > 0 && $existing.attr("id")) || inputId)
+        this._adoptInput(this.$el[0])
         this._configure()
     }
 
+    // The input element is held, not found again: it can lose its id (a nib's
+    // awakeFromNib renames it) and it is still in use after the controller has
+    // emptied the element, when the document no longer has it. It is looked for in
+    // the picker's element only when that element is a different node, as a view's
+    // own element is (UIView.$el), which is the one case the held input is not
+    // the right one; an element that is merely gone changes nothing.
     get $input() {
-        return $(this.inputSelector)
+        var root = this.$el[0]
+        if (root && root !== this._root) { this._adoptInput(root) }
+        return $(this._input)
+    }
+
+    _adoptInput(root) {
+        this._root = root
+        var found = $(root).find("input")[0]
+        if (found) { this._input = found }
     }
 
     // In time mode only the hours and minutes count: the clock holds "HH:mm", so
