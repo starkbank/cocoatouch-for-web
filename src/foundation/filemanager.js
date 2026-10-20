@@ -10,16 +10,31 @@ export const FileAttributeKey = Object.freeze({
 
 const urlType = instance(URL, "URL")
 
+// The read of a directory that is under way, so a second listing joins it
+// instead of registering every child a second time and leaving the first set
+// of URLs held with no one to release them.
+const listings = new WeakMap()
+
 var _default = null
 
 
 // Foundation's FileManager, cut to reading what the user picked or dropped.
 // A page has no file system, so a path here is the file: URL the framework
 // minted for a File (UIDocumentPickerViewController, UIDropInteraction), and
-// anything else finds nothing: an empty name, null attributes, null contents,
-// an empty listing. Nothing here makes a request. contents(atPath:) and
-// contentsOfDirectory(at:) answer a Promise, where Apple's answer at once,
-// because a browser cannot read a file synchronously.
+// anything else is a path with nothing at it. Nothing here makes a request.
+// contents(atPath:) and contentsOfDirectory(at:) answer a Promise, where
+// Apple's answer at once, because a browser cannot read a file synchronously.
+//
+// What each method does with a path that is missing, never minted or released,
+// or a file that can no longer be read, as Apple's does:
+//
+//   displayName(atPath:)           the empty string, never throws
+//   attributesOfItem(atPath:)      throws an Error (Apple's throws an NSError)
+//   contents(atPath:)              resolves null (Apple's returns nil), never rejects
+//   contentsOfDirectory(at:)       resolves an empty array
+//   removeItem(at:)                does nothing
+//
+// A bad argument, a missing label or a wrong type, is a TypeError in every one.
 export class FileManager extends NSObject {
 
     static get default() {
@@ -40,15 +55,17 @@ export class FileManager extends NSObject {
     /**
      * @param {object} options
      * @param {string} options.atPath
-     * @returns {{NSFileSize: number}|null}
+     * @returns {{NSFileSize: number}}
      */
     attributesOfItem({atPath} = {}) {
         var entry = registered(_path(atPath, "FileManager.attributesOfItem", "attributesOfItem"))
-        if (!entry) { return null }
+        if (!entry) { throw new Error(`FileManager.attributesOfItem(atPath:): no item at ${atPath}`) }
         return {[FileAttributeKey.size]: entry.kind === "file" ? entry.file.size : 0}
     }
 
-    // The file's bytes, as Data is in Swift; null for a directory or a path nobody minted.
+    // The file's bytes, as Data is in Swift; null for a directory, a path nobody
+    // minted, or a file the browser can no longer read (it was moved or deleted
+    // after it was picked), where Apple's returns nil.
     /**
      * @param {object} options
      * @param {string} options.atPath
@@ -57,11 +74,12 @@ export class FileManager extends NSObject {
     contents({atPath} = {}) {
         var entry = registered(_path(atPath, "FileManager.contents", "contents"))
         if (!entry || entry.kind !== "file") { return Promise.resolve(null) }
-        return entry.file.arrayBuffer().then((buffer) => new Uint8Array(buffer))
+        return entry.file.arrayBuffer().then((buffer) => new Uint8Array(buffer), () => null)
     }
 
     // The URLs of a directory's children, registering each as it is listed;
-    // listing again answers the same URLs. Properties are not supported, so
+    // listing again, or while the first listing is still reading, answers the
+    // same URLs. Properties are not supported, so
     // includingPropertiesForKeys is null, and options is not taken.
     /**
      * @param {object} options
@@ -79,10 +97,7 @@ export class FileManager extends NSObject {
         var entry = registered(path)
         if (!entry || entry.kind !== "directory") { return Promise.resolve([]) }
         if (entry.children) { return Promise.resolve(entry.children.map((child) => new URL(child))) }
-        return _readAll(entry.entry).then((children) => Promise.all(children.map(_register))).then((urls) => {
-            remember(path, urls.map((url) => url.href))
-            return urls
-        })
+        return _listing(entry, path).then((urls) => urls.slice())
     }
 
     // Releases the file, or the directory and everything it listed.
@@ -99,6 +114,18 @@ export class FileManager extends NSObject {
 
 function _path(atPath, method, name) {
     return required(atPath, "atPath", StringType, method, `Apple's is ${name}(atPath:); write manager.${name}({atPath: path}).`)
+}
+
+function _listing(entry, path) {
+    if (listings.has(entry)) { return listings.get(entry) }
+    var listing = _readAll(entry.entry).then((children) => Promise.all(children.map(_register))).then((urls) => {
+        remember(path, urls.map((url) => url.href))
+        return urls
+    })
+    listings.set(entry, listing)
+    var done = () => listings.delete(entry)
+    listing.then(done, done)
+    return listing
 }
 
 // readEntries answers a batch at a time and an empty batch when it is done.

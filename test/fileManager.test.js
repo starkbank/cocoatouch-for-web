@@ -8,6 +8,12 @@ import { registerFile, registerDirectory, registeredCount } from "../src/foundat
 
 var manager = FileManager.default
 
+// Apple's attributesOfItem(atPath:) throws an NSError for a path with nothing at
+// it: an Error, and not the TypeError a bad argument is.
+function isMissingItem(error) {
+    return error instanceof Error && !(error instanceof TypeError) && /attributesOfItem/.test(error.message)
+}
+
 function file(name, bytes) {
     return new File([new Uint8Array(bytes)], name, {type: "application/pdf"})
 }
@@ -65,7 +71,7 @@ test("removeItem releases the file: the registry shrinks and the path reads empt
     manager.removeItem({at: url})
     assert.equal(registeredCount(), before)
     assert.equal(manager.displayName({atPath: url.href}), "")
-    assert.equal(manager.attributesOfItem({atPath: url.href}), null)
+    assert.throws(() => manager.attributesOfItem({atPath: url.href}), isMissingItem)
     assert.equal(await manager.contents({atPath: url.href}), null)
     manager.removeItem({at: url})
     assert.equal(registeredCount(), before, "removing twice is harmless")
@@ -80,7 +86,7 @@ test("a path the framework did not mint reads empty and makes no request", async
     try {
         for (var path of ["file:///etc/passwd", "file:///abc/x.pdf", "blob:http://localhost/1234", "http://example.com/a.pdf", "https://example.com/a.pdf", "/a.pdf", "data:application/pdf;base64,AAAA", "javascript:alert(1)", ""]) {
             assert.equal(manager.displayName({atPath: path}), "", path)
-            assert.equal(manager.attributesOfItem({atPath: path}), null, path)
+            assert.throws(() => manager.attributesOfItem({atPath: path}), isMissingItem, path)
             assert.equal(await manager.contents({atPath: path}), null, path)
             if (/^[a-z][a-z0-9+.-]*:/i.test(path)) {
                 assert.deepEqual(await manager.contentsOfDirectory({at: new URL(path), includingPropertiesForKeys: null}), [], path)
@@ -163,4 +169,59 @@ test("a listing that fails rejects with the reader's error and registers nothing
     await assert.rejects(manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null}), failure)
     assert.equal(registeredCount(), before + 1)
     manager.removeItem({at: root})
+})
+
+test("the table of missing or unreadable paths: contents answers null and never throws, attributesOfItem throws, displayName answers empty and never throws", async function() {
+    var unreadable = file("gone.pdf", [1])
+    unreadable.arrayBuffer = () => Promise.reject(new DOMException("The requested file could not be read", "NotFoundError"))
+    var url = registerFile(unreadable)
+    var missing = "file:///00000000-0000-0000-0000-000000000000/x.pdf"
+    assert.equal(await manager.contents({atPath: missing}), null)
+    assert.equal(await manager.contents({atPath: url.href}), null, "a file that can no longer be read is nil, not a rejection")
+    assert.deepEqual(manager.attributesOfItem({atPath: url.href}), {[FileAttributeKey.size]: 1}, "the file is still held, so its size is known")
+    assert.throws(() => manager.attributesOfItem({atPath: missing}), isMissingItem)
+    assert.equal(manager.displayName({atPath: missing}), "")
+    manager.removeItem({at: url})
+    assert.throws(() => manager.attributesOfItem({atPath: url.href}), isMissingItem)
+    assert.equal(manager.displayName({atPath: url.href}), "")
+})
+
+test("two listings of one folder share one in-flight read and one set of URLs", async function() {
+    var before = registeredCount()
+    var readers = 0
+    var entry = directory("D", [fileEntry("a.pdf", [1]), fileEntry("b.pdf", [2])])
+    var createReader = entry.createReader
+    entry.createReader = function() { readers += 1; return createReader() }
+    var root = registerDirectory({name: "D", entry})
+    var [first, second] = await Promise.all([
+        manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null}),
+        manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null}),
+    ])
+    assert.equal(readers, 1)
+    assert.deepEqual(first.map((url) => url.href), second.map((url) => url.href))
+    assert.equal(registeredCount(), before + 1 + 2, "the children were registered once, not twice")
+    manager.removeItem({at: root})
+    assert.equal(registeredCount(), before, "nothing was left behind by a second listing")
+})
+
+test("a shared listing that fails rejects both callers, and the next listing reads again", async function() {
+    var before = registeredCount()
+    var attempts = 0
+    var root = registerDirectory({name: "D", entry: {isDirectory: true, name: "D", createReader: () => {
+        attempts += 1
+        var failing = attempts === 1
+        var rest = [fileEntry("a.pdf", [1])]
+        return {readEntries: (done, fail) => failing ? fail(new Error("denied")) : done(rest.splice(0, 2))}
+    }}})
+    var results = await Promise.allSettled([
+        manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null}),
+        manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null}),
+    ])
+    assert.deepEqual(results.map((result) => result.status), ["rejected", "rejected"])
+    assert.equal(attempts, 1)
+    var urls = await manager.contentsOfDirectory({at: root, includingPropertiesForKeys: null})
+    assert.equal(urls.length, 1)
+    assert.equal(attempts, 2)
+    manager.removeItem({at: root})
+    assert.equal(registeredCount(), before)
 })
