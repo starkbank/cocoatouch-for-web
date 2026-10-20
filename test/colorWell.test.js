@@ -214,3 +214,44 @@ test("a well created in code draws its input when it is placed", function() {
     new UIView("#host").addSubview(colorWell)
     assert.equal(document.querySelectorAll("#host input[type=color]").length, 1)
 })
+
+// The framework ships the input's layout, so no app stylesheet has to name it: the
+// input fills the well, and is invisible when the app paints its own swatch there.
+test("the input fills the well by default, and the well is positioned for it", function() {
+    page("<div id=\"swatch\"></div>")
+    new UIColorWell("#swatch")
+    var style = input().style
+    assert.equal(style.position, "absolute")
+    assert.equal(style.width, "100%")
+    assert.equal(style.height, "100%")
+    assert.equal(style.top, "0px")
+    assert.equal(style.left, "0px")
+    assert.equal(style.margin, "0px")
+    assert.equal(style.border === "0px" || style.borderWidth === "0px", true)
+    assert.equal(style.cursor, "pointer")
+    assert.equal(document.getElementById("swatch").style.position, "relative")
+})
+
+test("a well that is already positioned keeps its own position", function() {
+    page("<div id=\"swatch\" style=\"position: absolute\"></div>")
+    new UIColorWell("#swatch")
+    assert.equal(document.getElementById("swatch").style.position, "absolute")
+})
+
+test("an unpainted well shows the native swatch, and one the app paints leaves the input transparent", function() {
+    var colorWell = well()
+    assert.equal(input().style.opacity, "", "nothing painted: the native swatch is the well")
+    colorWell.backgroundColor = new UIColor({hex: "#ff0000"})
+    assert.equal(input().style.opacity, "0")
+    colorWell.backgroundColor = null
+    assert.equal(input().style.opacity, "")
+})
+
+test("a well painted by the stylesheet is transparent at once", function() {
+    page("<style>#swatch { background-color: rgb(0, 112, 224) }</style><div id=\"swatch\"></div>")
+    new UIColorWell("#swatch")
+    assert.equal(input().style.opacity, "0")
+    page("<style>#swatch { background-image: linear-gradient(red, blue) }</style><div id=\"swatch\"></div>")
+    new UIColorWell("#swatch")
+    assert.equal(input().style.opacity, "0")
+})
