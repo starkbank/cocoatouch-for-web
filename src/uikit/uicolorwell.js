@@ -15,7 +15,8 @@ const blank = "#000000"
 // well creates inside its element and keeps to itself: the app sees a UIColor
 // and never the input. The browser's control has no alpha, so a pick keeps the
 // alpha of the color that was selected before it (1 when there was none),
-// whatever supportsAlpha says; supportsAlpha is stored and read back as set.
+// whatever supportsAlpha says, and a pick at full alpha is the hex color it
+// names, so an app that wants the six digits reads them from `hex`; supportsAlpha is stored and read back as set.
 // A pick is the input's own change event, so valueChanged is sent once per pick
 // and setting selectedColor from code sends nothing, as on Apple. A disabled
 // well disables the input and ignores a pick that gets through.
@@ -135,6 +136,6 @@ export class UIColorWell extends UIControl {
         var components = colorComponents(input.value)
         var previous = this._selectedColor ? colorComponents(this._concrete(this._selectedColor).cgColor) : null
         var alpha = previous ? previous.alpha : 1
-        this._selectedColor = new UIColor({red: components.red / 255, green: components.green / 255, blue: components.blue / 255, alpha: alpha})
+        this._selectedColor = alpha === 1 ? new UIColor({hex: input.value.toLowerCase()}) : new UIColor({red: components.red / 255, green: components.green / 255, blue: components.blue / 255, alpha: alpha})
     }
 }
