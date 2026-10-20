@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIApplication } from "../src/index.js"
+import { UIApplication, NotificationCenter } from "../src/index.js"
 
 
 // Records window.open the way a browser receives it; noopener makes the real one return null.
@@ -82,4 +82,157 @@ test("a relative address opens as the absolute one it was validated as, mailto a
         UIApplication.shared.open("tel:+551140000000")
         assert.deepEqual(calls.map((call) => call[0]), ["http://localhost/docs/pix", "mailto:help@starkbank.com", "tel:+551140000000"])
     })
+})
+
+
+// Page visibility. The state is read when UIApplication.shared is first made, so
+// each case imports a fresh copy of the module, with document.visibilityState
+// defined before the import; the stand-in document is one for the whole file, so
+// a notification is observed by the object that posts it, never by name alone.
+var generation = 0
+var visibility = {value: "visible"}
+var originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState")
+
+function setVisibility(value) {
+    visibility.value = value
+    document.dispatchEvent(new window.Event("visibilitychange"))
+}
+
+async function freshApplication(initial) {
+    visibility.value = initial
+    Object.defineProperty(document, "visibilityState", {configurable: true, get: () => visibility.value})
+    var module = await import("../src/uikit/uiapplication.js?fresh=" + (++generation))
+    return module.UIApplication
+}
+
+function observing(application, name, onPost) {
+    var observer = {}
+    var posts = []
+    NotificationCenter.default.addObserver(observer, {name, object: application.shared, selector: (notification) => {
+        posts.push(notification)
+        if (onPost) { onPost(notification) }
+    }})
+    posts.stop = () => NotificationCenter.default.removeObserver(observer)
+    return posts
+}
+
+test.afterEach(function() {
+    if (originalVisibility) {
+        Object.defineProperty(document, "visibilityState", originalVisibility)
+        return
+    }
+    delete document.visibilityState
+})
+
+test("UIApplication.State has Apple's three cases, frozen, and applicationState has no setter", async function() {
+    var Application = await freshApplication("visible")
+    assert.deepEqual({...Application.State}, {active: 0, inactive: 1, background: 2})
+    assert.ok(Object.isFrozen(Application.State))
+    assert.equal(Application.State, Application.State)
+    var descriptor = Object.getOwnPropertyDescriptor(Application.prototype, "applicationState")
+    assert.equal(typeof descriptor.get, "function")
+    assert.equal(descriptor.set, undefined)
+    var app = Application.shared
+    var thrown = false
+    try { app.applicationState = Application.State.background } catch (error) { thrown = true }
+    assert.equal(thrown, true, "a module is strict: writing a getter-only property throws")
+    assert.equal(app.applicationState, Application.State.active)
+})
+
+test("a visible page starts active, a hidden one starts in the background", async function() {
+    var visible = await freshApplication("visible")
+    assert.equal(visible.shared.applicationState, visible.State.active)
+    var hidden = await freshApplication("hidden")
+    assert.equal(hidden.shared.applicationState, hidden.State.background)
+    var prerender = await freshApplication("prerender")
+    assert.equal(prerender.shared.applicationState, prerender.State.active)
+})
+
+test("the notification names are Apple's raw strings", async function() {
+    var Application = await freshApplication("visible")
+    assert.equal(Application.didEnterBackgroundNotification, "UIApplicationDidEnterBackgroundNotification")
+    assert.equal(Application.willEnterForegroundNotification, "UIApplicationWillEnterForegroundNotification")
+})
+
+test("hiding the page posts didEnterBackground once, from the shared application, which is already in the background", async function() {
+    var Application = await freshApplication("visible")
+    var app = Application.shared
+    var states = []
+    var posts = observing(Application, Application.didEnterBackgroundNotification, () => states.push(app.applicationState))
+    setVisibility("hidden")
+    assert.equal(posts.length, 1)
+    assert.equal(posts[0].object, app)
+    assert.equal(posts[0].userInfo, null)
+    assert.equal(posts[0].name, "UIApplicationDidEnterBackgroundNotification")
+    assert.deepEqual(states, [Application.State.background])
+    assert.equal(app.applicationState, Application.State.background)
+    posts.stop()
+})
+
+test("showing the page posts willEnterForeground once, with the application inactive inside it and active after", async function() {
+    var Application = await freshApplication("visible")
+    var app = Application.shared
+    setVisibility("hidden")
+    var states = []
+    var posts = observing(Application, Application.willEnterForegroundNotification, () => states.push(app.applicationState))
+    setVisibility("visible")
+    assert.equal(posts.length, 1)
+    assert.equal(posts[0].object, app)
+    assert.deepEqual(states, [Application.State.inactive])
+    assert.equal(app.applicationState, Application.State.active)
+    posts.stop()
+})
+
+test("a page that loaded hidden posts willEnterForeground when it is first shown", async function() {
+    var Application = await freshApplication("hidden")
+    var posts = observing(Application, Application.willEnterForegroundNotification)
+    setVisibility("visible")
+    assert.equal(posts.length, 1)
+    assert.equal(Application.shared.applicationState, Application.State.active)
+    posts.stop()
+})
+
+test("a repeated event with the same visibility posts nothing", async function() {
+    var Application = await freshApplication("visible")
+    var entered = observing(Application, Application.didEnterBackgroundNotification)
+    var returned = observing(Application, Application.willEnterForegroundNotification)
+    setVisibility("visible")
+    assert.equal(entered.length + returned.length, 0, "a visible event while active")
+    setVisibility("hidden")
+    setVisibility("hidden")
+    assert.equal(entered.length, 1)
+    setVisibility("visible")
+    setVisibility("visible")
+    assert.equal(returned.length, 1)
+    assert.equal(entered.length, 1)
+    entered.stop()
+    returned.stop()
+})
+
+test("reading shared again and again installs one listener: one event posts one notification", async function() {
+    var Application = await freshApplication("visible")
+    Application.shared
+    Application.shared
+    Application.shared
+    var posts = observing(Application, Application.didEnterBackgroundNotification)
+    setVisibility("hidden")
+    assert.equal(posts.length, 1)
+    posts.stop()
+})
+
+test("the state follows a full hide and show cycle more than once", async function() {
+    var Application = await freshApplication("visible")
+    var app = Application.shared
+    var names = []
+    var observer = {}
+    for (var name of [Application.didEnterBackgroundNotification, Application.willEnterForegroundNotification]) {
+        NotificationCenter.default.addObserver(observer, {name, object: app, selector: (notification) => names.push(notification.name.replace("UIApplication", "").replace("Notification", ""))})
+    }
+    for (var round = 0; round < 3; round++) {
+        setVisibility("hidden")
+        setVisibility("visible")
+    }
+    NotificationCenter.default.removeObserver(observer)
+    assert.deepEqual(names, ["DidEnterBackground", "WillEnterForeground", "DidEnterBackground", "WillEnterForeground", "DidEnterBackground", "WillEnterForeground"])
+    assert.equal(app.applicationState, Application.State.active)
 })
