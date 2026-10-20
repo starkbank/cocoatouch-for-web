@@ -1,10 +1,12 @@
 import { UIViewController } from "./uiviewcontroller.js"
 import { UTType } from "../uniformtypeidentifiers/uttype.js"
-import { registerFile } from "../foundation/fileregistry.js"
+import { registerFile, registerDirectory } from "../foundation/fileregistry.js"
 import { required, arrayOf, instance, Bool } from "../utils/required.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 
 
 const typesType = arrayOf(instance(UTType, "UTType"))
+const retiredDelegateNames = {documentPickerDidPickDocumentsAt: "documentPickerDidPickDocumentsAtURLs"}
 const signature = "Apple's is UIDocumentPickerViewController(forOpeningContentTypes:asCopy:); write new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})."
 
 
@@ -17,7 +19,9 @@ const signature = "Apple's is UIDocumentPickerViewController(forOpeningContentTy
 // framework never checks that a file matches the content types asked for:
 // the input's accept is a hint the user can override, so a caller checks
 // the name and size before reading, and the server stays authoritative.
-// The input's cancel event needs Chrome 113+ or Safari 16.4+; where it never
+// A folder type asks for the directory picker, and the delegate then gets the
+// one folder as a directory URL that FileManager lists; a folder among file
+// types adds nothing, as one input cannot pick both. The input's cancel event needs Chrome 113+ or Safari 16.4+; where it never
 // fires, documentPickerWasCancelled is never called.
 export class UIDocumentPickerViewController extends UIViewController {
 
@@ -47,6 +51,7 @@ export class UIDocumentPickerViewController extends UIViewController {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDocumentPickerViewController.delegate")
         this._delegate = delegate || null
     }
 
@@ -59,6 +64,7 @@ export class UIDocumentPickerViewController extends UIViewController {
         input.multiple = this.allowsMultipleSelection
         var accept = _accept(this._contentTypes)
         if (accept !== "") { input.accept = accept }
+        if (_isFolderPicker(this._contentTypes)) { input.webkitdirectory = true }
         input.addEventListener("change", () => this._didChoose(input))
         input.addEventListener("cancel", () => this._didCancel(input))
         // Attached while it is open: Safari has refused to open a detached input.
@@ -81,7 +87,7 @@ export class UIDocumentPickerViewController extends UIViewController {
             this._send("documentPickerWasCancelled", [this])
             return
         }
-        this._send("documentPickerDidPickDocumentsAt", [this, files.map(registerFile)])
+        this._send("documentPickerDidPickDocumentsAtURLs", [this, _urlsOf(files, input.webkitdirectory === true)])
     }
 
     _didCancel(input) {
@@ -110,9 +116,10 @@ export class UIDocumentPickerViewController extends UIViewController {
 
 
 // Every extension and MIME type of the types, or nothing at all when one of
-// them is the item type, which allows any file. A folder adds nothing: a page
-// picks files, not directories.
+// them is the item type, which allows any file. A folder adds nothing to a file
+// picker, and a folder picker has no accept.
 function _accept(types) {
+    if (_isFolderPicker(types)) { return "" }
     if (types.some((type) => type.identifier === UTType.item.identifier)) { return "" }
     var tokens = []
     for (var type of types) {
@@ -122,6 +129,56 @@ function _accept(types) {
         }
     }
     return tokens.join(",")
+}
+
+function _isFolderPicker(types) {
+    return types.every((type) => type.conforms({to: UTType.folder}))
+}
+
+// What the user chose, as the URLs the delegate gets. The directory input hands
+// a folder over as its files, each with its path below the folder, so the one
+// directory the registry lists is rebuilt from those paths. A browser that
+// gives no paths gives the files themselves.
+function _urlsOf(files, isFolder) {
+    if (!isFolder || !files.every((file) => (file.webkitRelativePath || "").includes("/"))) { return files.map(registerFile) }
+    var entry = _folderEntry(files)
+    return [registerDirectory({name: entry.name, entry: entry})]
+}
+
+function _folderEntry(files) {
+    var root = _directoryEntry("")
+    var directories = new Map([["", root]])
+    for (var file of files) {
+        var path = file.webkitRelativePath.split("/")
+        var parent = root
+        var key = ""
+        for (var name of path.slice(0, -1)) {
+            key = key + "/" + name
+            if (!directories.has(key)) {
+                var made = _directoryEntry(name)
+                parent.children.push(made)
+                directories.set(key, made)
+            }
+            parent = directories.get(key)
+        }
+        parent.children.push(_fileEntry(file))
+    }
+    return root.children[0]
+}
+
+function _fileEntry(file) {
+    return {isDirectory: false, isFile: true, name: file.name, file: (done) => done(file)}
+}
+
+// The part of a FileSystemDirectoryEntry that FileManager reads: readEntries
+// answers a batch at a time and an empty batch when it is done.
+function _directoryEntry(name) {
+    var entry = {isDirectory: true, isFile: false, name: name, children: []}
+    entry.createReader = function() {
+        var rest = entry.children.slice()
+        return {readEntries: (done) => done(rest.splice(0, 100))}
+    }
+    return entry
 }
 
 // A browser opens a file chooser only for a user's tap, and click() on the

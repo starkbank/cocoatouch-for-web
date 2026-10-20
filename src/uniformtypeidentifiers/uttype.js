@@ -5,16 +5,17 @@ import { required, instance } from "../utils/required.js"
 // The types the app's file pickers and drop zones name, with what a browser
 // can say about them: the extensions and MIME type of each, and what each
 // conforms to. Everything is an item; the rest is Apple's hierarchy, cut down
-// to the nodes these types need.
+// to the nodes these types need, with the parents the system declares: an image,
+// a text and a pdf are content as well as data.
 const table = Object.freeze({
     "public.item": {parents: [], extensions: [], mime: null},
     "public.data": {parents: ["public.item"], extensions: [], mime: null},
     "public.directory": {parents: ["public.item"], extensions: [], mime: null},
     "public.folder": {parents: ["public.directory"], extensions: [], mime: null},
-    "public.image": {parents: ["public.data"], extensions: [], mime: null},
+    "public.image": {parents: ["public.data", "public.content"], extensions: [], mime: null},
     "public.png": {parents: ["public.image"], extensions: ["png"], mime: "image/png"},
     "public.jpeg": {parents: ["public.image"], extensions: ["jpeg", "jpg"], mime: "image/jpeg"},
-    "com.adobe.pdf": {parents: ["public.data"], extensions: ["pdf"], mime: "application/pdf"},
+    "com.adobe.pdf": {parents: ["public.data", "public.composite-content"], extensions: ["pdf"], mime: "application/pdf"},
     "com.compuserve.gif": {parents: ["public.image"], extensions: ["gif"], mime: "image/gif"},
     "org.webmproject.webp": {parents: ["public.image"], extensions: ["webp"], mime: "image/webp"},
     "com.microsoft.bmp": {parents: ["public.image"], extensions: ["bmp"], mime: "image/bmp"},
@@ -39,7 +40,7 @@ const table = Object.freeze({
     "org.oasis-open.opendocument.text": {parents: ["org.oasis-open.opendocument", "public.composite-content"], extensions: ["odt"], mime: "application/vnd.oasis.opendocument.text"},
     "com.microsoft.excel.xls": {parents: ["public.spreadsheet", "public.composite-content"], extensions: ["xls"], mime: "application/vnd.ms-excel"},
     "org.openxmlformats.spreadsheetml.sheet": {parents: ["org.openxmlformats.openxml", "public.spreadsheet", "public.composite-content"], extensions: ["xlsx"], mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
-    "public.text": {parents: ["public.data"], extensions: [], mime: null},
+    "public.text": {parents: ["public.data", "public.content"], extensions: [], mime: null},
     "public.comma-separated-values-text": {parents: ["public.text"], extensions: ["csv"], mime: "text/csv"},
     "public.plain-text": {parents: ["public.text"], extensions: ["txt"], mime: "text/plain"},
     "public.html": {parents: ["public.text"], extensions: ["html", "htm"], mime: "text/html"},
@@ -141,13 +142,21 @@ export class UTType extends NSObject {
     }
 
     // Every extension and MIME type that stands for this type, for an input's accept.
+    // A type that has none of its own, such as the spreadsheet or the archive,
+    // stands for the types under it.
     get _acceptTokens() {
         var known = table[this._identifier]
         if (!known && _isDynamicMime(this._identifier)) { return [this.preferredMIMEType] }
         if (!known) { return ["." + this.preferredFilenameExtension] }
-        var tokens = known.extensions.map((extension) => "." + extension)
-        if (known.mime) { tokens.push(known.mime) }
+        var tokens = _ownTokens(known)
         if (this._identifier === "public.image") { tokens.push("image/*") }
+        if (tokens.length > 0) { return tokens }
+        for (var identifier of Object.keys(table)) {
+            if (identifier === this._identifier || !_conforms(identifier, this._identifier)) { continue }
+            for (var token of _ownTokens(table[identifier])) {
+                if (!tokens.includes(token)) { tokens.push(token) }
+            }
+        }
         return tokens
     }
 }
@@ -158,6 +167,12 @@ const typeType = instance(UTType, "UTType")
 function _constant(identifier) {
     if (!_cache.has(identifier)) { _cache.set(identifier, _make(identifier)) }
     return _cache.get(identifier)
+}
+
+function _ownTokens(known) {
+    var tokens = known.extensions.map((extension) => "." + extension)
+    if (known.mime) { tokens.push(known.mime) }
+    return tokens
 }
 
 function _make(identifier) {
@@ -221,4 +236,9 @@ export function identifierForFileName(name) {
 // string a caller passes: an identifier nobody declared conforms to itself only.
 export function identifierConforms(identifier, ancestor) {
     return typeof ancestor === "string" && _conforms(identifier, ancestor)
+}
+
+// The declarations themselves, for a test that walks every entry to public.item.
+export function declaredTypes() {
+    return table
 }
