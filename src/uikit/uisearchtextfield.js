@@ -1,7 +1,8 @@
 import { setText } from "../utils/text.js"
 import { UITextField } from "./uitextfield.js"
 import { UIColor } from "./uicolor.js"
-import { required, Int } from "../utils/required.js"
+import { autocompleteTokenOf, textContentTypeOf, textContentTypeDescriptor, textContentTypeSignature } from "./uitextcontenttype.js"
+import { required, typed, optional, Int } from "../utils/required.js"
 
 
 export class UISearchToken {
@@ -67,6 +68,22 @@ export class UISearchTextField extends UITextField {
         var element = this.textField[0]
         if (!element || !element.style || element.style.color === "") { return null }
         return new UIColor({hex: element.style.color})
+    }
+
+    // The hint belongs to the inner input, where the typed text is.
+    /** @param {string|null} type one of UITextContentType, or null */
+    set textContentType(type) {
+        var value = type === undefined ? null : type
+        typed(value, "textContentType", optional(textContentTypeDescriptor), "UITextField.textContentType", textContentTypeSignature)
+        if (value === null) {
+            this.textField.removeAttr("autocomplete")
+            return
+        }
+        this.textField.attr("autocomplete", autocompleteTokenOf(value))
+    }
+
+    get textContentType() {
+        return textContentTypeOf(this.textField.attr("autocomplete"))
     }
 
     // UIView's inherited becomeFirstResponder/resignFirstResponder/

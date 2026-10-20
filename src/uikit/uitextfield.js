@@ -4,6 +4,8 @@ import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { NSRange } from "../foundation/nsrange.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { UIColor } from "./uicolor.js"
+import { autocompleteTokenOf, textContentTypeOf, textContentTypeDescriptor, textContentTypeSignature } from "./uitextcontenttype.js"
+import { typed, optional } from "../utils/required.js"
 import { itemProviderForFlavours } from "../foundation/nsitemprovider.js"
 import { textPasteItemFor, resultOfTextPasteItem } from "./uitextpasteitem.js"
 import { UTType } from "../uniformtypeidentifiers/uttype.js"
@@ -230,13 +232,22 @@ export class UITextField extends UIControl {
         element.setSelectionRange(range.start, range.end)
     }
 
-    // The browser's autocomplete hint stands in for the content type.
+    // The browser's hint for what the field holds, drawn as its autocomplete
+    // token through this setter alone. nil removes it, so the browser's default
+    // returns; the getter reads back the case a token names, null for none.
+    /** @param {string|null} type one of UITextContentType, or null */
     set textContentType(type) {
-        this.$el.attr("autocomplete", type)
+        var value = type === undefined ? null : type
+        typed(value, "textContentType", optional(textContentTypeDescriptor), "UITextField.textContentType", textContentTypeSignature)
+        if (value === null) {
+            this.$el.removeAttr("autocomplete")
+            return
+        }
+        this.$el.attr("autocomplete", autocompleteTokenOf(value))
     }
 
     get textContentType() {
-        return this.$el.attr("autocomplete") || ""
+        return textContentTypeOf(this.$el.attr("autocomplete"))
     }
 }
 
