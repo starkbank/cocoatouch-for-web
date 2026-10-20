@@ -164,6 +164,7 @@ export class UIDatePicker extends UIControl {
         if (this._mode === "dateAndTime" && this._nativeInput) { return }
         this._removeNative()
         this.$input.datepicker("destroy")
+        this._calendar = null
         if (this._mode === "time") {
             this._buildClock()
             return
@@ -174,6 +175,7 @@ export class UIDatePicker extends UIControl {
         }
         if (this._mode === "date") {
             this.$input.datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true, onSelect: onSelect})
+            this._calendar = _calendarOf(this._input)
             return
         }
         this.$input.datepicker({
@@ -193,7 +195,9 @@ export class UIDatePicker extends UIControl {
                 setTimeout(() => { this.$input.datepicker("widget").removeClass("hide-calendar") }, 200)
             },
         })
+        this._calendar = _calendarOf(this._input)
     }
+
     // The browser's datetime-local needs a writable input, and its picker opens
     // from showPicker(), which a click on any part of the field asks for, as the
     // calendar icon alone would leave the segments to typing. A selection is the
@@ -272,6 +276,7 @@ export class UIDatePicker extends UIControl {
         this._removeClock()
         this._removeNative()
         if (this._hasCalendar()) {
+            this._restoreCalendar()
             this.$input.datepicker("hide")
             this.$input.datepicker("destroy")
         }
@@ -283,11 +288,27 @@ export class UIDatePicker extends UIControl {
     // disposes its views, and emptying wipes the plugin's data from the picker's
     // element: $el.clockpicker("remove") would then find no instance, make a
     // fresh one and leave the popover and the window listener where they were.
+    // Emptying an element wipes the jQuery data of what is inside it and leaves
+    // its classes, and the widget's destroy() then reads an instance that is not
+    // there and throws. The instance kept at the build is put back first, so the
+    // widget goes properly: its markup removed and an open calendar closed.
+    _restoreCalendar() {
+        if (!this._calendar || _calendarOf(this._input)) { return }
+        $.data(this._input, "datepicker", this._calendar)
+    }
+
     _removeClock() {
         if (!this._clock) { return }
         this._clock.remove()
         this._clock = null
     }
+}
+
+
+// The jQuery UI datepicker's instance, kept in the input's jQuery data; undefined
+// where there is none, as with the stand-ins the tests use for the plugin.
+function _calendarOf(input) {
+    return typeof $.data === "function" ? $.data(input, "datepicker") : undefined
 }
 
 
