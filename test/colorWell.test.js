@@ -39,11 +39,20 @@ test("a pick sets selectedColor and fires valueChanged once, with the new color 
     var colorWell = well()
     var calls = counting(colorWell)
     pick("#ff8800")
-    assert.equal(colorWell.selectedColor.cgColor, "rgba(255, 136, 0, 1)")
-    assert.deepEqual(calls, ["rgba(255, 136, 0, 1)"])
+    assert.equal(colorWell.selectedColor.cgColor, "#ff8800")
+    assert.deepEqual(calls, ["#ff8800"])
     pick("#00ff10")
-    assert.deepEqual(calls, ["rgba(255, 136, 0, 1)", "rgba(0, 255, 16, 1)"])
+    assert.deepEqual(calls, ["#ff8800", "#00ff10"])
     assert.ok(colorWell.selectedColor instanceof UIColor)
+})
+
+test("a pick at full alpha is a hex color, so an app reads its six digits from hex, and one with alpha is rgba", function() {
+    var colorWell = well()
+    pick("#AA0Bcc")
+    assert.equal(colorWell.selectedColor.hex, "#aa0bcc")
+    colorWell.selectedColor = new UIColor({red: 0, green: 0, blue: 0, alpha: 0.25})
+    pick("#aa0bcc")
+    assert.equal(colorWell.selectedColor.hex, "rgba(170, 11, 204, 0.25)")
 })
 
 test("selectedColor starts nil", function() {
@@ -87,7 +96,7 @@ test("a pick keeps the alpha of the previous color, under either supportsAlpha, 
         var fresh = well()
         fresh.supportsAlpha = supportsAlpha
         pick("#112233")
-        assert.equal(fresh.selectedColor.cgColor, "rgba(17, 34, 51, 1)", "no previous color")
+        assert.equal(fresh.selectedColor.cgColor, "#112233", "no previous color")
     }
 })
 
@@ -102,7 +111,7 @@ test("the alpha of a hex color with alpha, a clear color and a nil-then-pick fol
     assert.equal(colorWell.selectedColor.cgColor, "rgba(68, 85, 102, 0)")
     colorWell.selectedColor = null
     pick("#445566")
-    assert.equal(colorWell.selectedColor.cgColor, "rgba(68, 85, 102, 1)", "nil forgets the alpha")
+    assert.equal(colorWell.selectedColor.cgColor, "#445566", "nil forgets the alpha")
 })
 
 test("supportsAlpha defaults to true and reads back what was set; a non-Bool is refused", function() {
@@ -141,7 +150,7 @@ test("a disabled well opens nothing and sends no action: the input is disabled a
     colorWell.isEnabled = true
     assert.equal(input().disabled, false)
     pick("#ff0000")
-    assert.deepEqual(calls, ["rgba(255, 0, 0, 1)"])
+    assert.deepEqual(calls, ["#ff0000"])
 })
 
 test("sendActions still fires on a disabled well, as on any control", function() {
@@ -167,7 +176,7 @@ test("a value that is not #rrggbb is ignored: no color, no event", function() {
     assert.equal(colorWell.selectedColor.cgColor, "#102030", "the color the app set, untouched")
     current = "#FF00FF"
     field.dispatchEvent(new window.Event("change", {bubbles: true}))
-    assert.deepEqual(calls, ["rgba(255, 0, 255, 1)"], "upper case is a valid six-digit hex")
+    assert.deepEqual(calls, ["#ff00ff"], "upper case is a valid six-digit hex")
 })
 
 test("a color named after a token is drawn by its resolved value, and one that cannot be drawn leaves the input black", function() {
@@ -194,7 +203,7 @@ test("a color well bound as an outlet works, and the app never holds the input",
     var field = document.querySelector("#owner-swatch input")
     field.value = "#0a0b0c"
     field.dispatchEvent(new window.Event("change", {bubbles: true}))
-    assert.deepEqual(calls, ["rgba(10, 11, 12, 1)"])
+    assert.deepEqual(calls, ["#0a0b0c"])
     assert.equal("input" in owner.swatch, false)
     assert.equal(Object.keys(owner.swatch).some((key) => owner.swatch[key] === field), false)
 })
