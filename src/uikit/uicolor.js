@@ -64,9 +64,13 @@ export class UIColor extends NSObject {
 
     // The concrete color a named token has now, for a canvas, which cannot read
     // var(--token): a new UIColor holding the root's computed value, read once
-    // per call. A color that is no token is concrete already and comes back as
-    // it is, and so does a token that resolves to nothing. Resolve at load and
-    // again when the theme changes, never in a drawing callback or per frame.
+    // per call, with any var() the value holds, a token defined as another
+    // token, replaced by what it names. A color that is no token is concrete
+    // already and comes back as it is. A token that resolves to nothing throws a
+    // TypeError naming it, where UIColor(named:) would have failed, and so does
+    // one that loops or one with a var() fallback this does not read: the result
+    // is never an unresolved var(). Resolve at load and again when the theme
+    // changes, never in a drawing callback or per frame.
     /**
      * @param {object} options
      * @param {UITraitCollection} options.with
@@ -75,10 +79,27 @@ export class UIColor extends NSObject {
     resolvedColor({with: traitCollection} = {}) {
         required(traitCollection, "with", traitCollectionType, "UIColor.resolvedColor", "Apple's is resolvedColor(with:); write color.resolvedColor({with: UITraitCollection.current}).")
         if (this._token === undefined || typeof document === "undefined") { return this }
-        var value = getComputedStyle(document.documentElement).getPropertyValue("--" + this._token).trim()
-        if (value === "") { return this }
+        var style = getComputedStyle(document.documentElement)
+        var value = _resolve(style, this._token, [])
+        if (value.includes("var(")) {
+            throw new TypeError(`UIColor.resolvedColor: --${this._token} holds a var() this does not read, ${value}. Only var(--token) is resolved.`)
+        }
         return new UIColor({hex: value})
     }
+}
+
+
+const tokenReference = /var\(\s*--([\w-]+)\s*\)/g
+
+function _resolve(style, token, chain) {
+    if (chain.includes(token)) {
+        throw new TypeError(`UIColor.resolvedColor: --${token} refers to itself through ${chain.map((name) => "--" + name).join(", ")}.`)
+    }
+    var value = style.getPropertyValue("--" + token).trim()
+    if (value === "") {
+        throw new TypeError(`UIColor.resolvedColor: --${token} resolves to nothing. Apple's UIColor(named:) has no color to return for a name the catalog lacks.`)
+    }
+    return value.replace(tokenReference, (reference, name) => _resolve(style, name, [...chain, token]))
 }
 
 

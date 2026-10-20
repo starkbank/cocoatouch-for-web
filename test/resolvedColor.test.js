@@ -69,13 +69,59 @@ test("a resolve reads the custom property once: one getComputedStyle call, on th
     assert.equal(three.length, 3)
 })
 
-test("a token that does not resolve returns the receiver unchanged", function() {
+// UIColor(named:) fails where the asset catalog has no such color, so a token the
+// theme does not define is a bug to see, never a color to guess.
+test("a token that resolves to nothing throws a TypeError naming it, and never returns var()", function() {
     reset()
     var missing = new UIColor({named: "no-such-token"})
-    assert.equal(missing.resolvedColor({with: UITraitCollection.current}), missing)
+    assert.throws(() => missing.resolvedColor({with: UITraitCollection.current}), (error) => error instanceof TypeError && /--no-such-token/.test(error.message) && /resolvedColor/.test(error.message))
     define("empty-token", "   ")
     var empty = new UIColor({named: "empty-token"})
-    assert.equal(empty.resolvedColor({with: UITraitCollection.current}), empty)
+    assert.throws(() => empty.resolvedColor({with: UITraitCollection.current}), (error) => error instanceof TypeError && /--empty-token/.test(error.message))
+})
+
+test("a token defined as another token resolves through the chain to the concrete value", function() {
+    reset()
+    define("chart-blue", "#0070E0")
+    define("brand", "var(--chart-blue)")
+    define("brand-alias", "var(--brand)")
+    var resolved = new UIColor({named: "brand-alias"}).resolvedColor({with: UITraitCollection.current})
+    assert.equal(resolved.cgColor, "#0070E0")
+    assert.ok(!resolved.cgColor.includes("var("))
+})
+
+test("a var() inside a larger value is replaced where it stands", function() {
+    reset()
+    define("channel", "12, 34, 56")
+    define("tinted", "rgb(var(--channel))")
+    assert.equal(new UIColor({named: "tinted"}).resolvedColor({with: UITraitCollection.current}).cgColor, "rgb(12, 34, 56)")
+})
+
+test("a chain that ends in a missing token throws naming the token that is missing, not the one asked for", function() {
+    reset()
+    define("brand", "var(--gone)")
+    assert.throws(() => new UIColor({named: "brand"}).resolvedColor({with: UITraitCollection.current}), (error) => error instanceof TypeError && /--gone/.test(error.message))
+})
+
+test("a chain that loops throws a TypeError instead of running forever", function() {
+    reset()
+    define("ping", "var(--pong)")
+    define("pong", "var(--ping)")
+    assert.throws(() => new UIColor({named: "ping"}).resolvedColor({with: UITraitCollection.current}), (error) => error instanceof TypeError && /--ping/.test(error.message))
+})
+
+test("a var() form this resolver does not read, with a fallback, throws rather than come back unresolved", function() {
+    reset()
+    define("fallbacked", "var(--other, #fff)")
+    assert.throws(() => new UIColor({named: "fallbacked"}).resolvedColor({with: UITraitCollection.current}), (error) => error instanceof TypeError && /--fallbacked/.test(error.message))
+})
+
+test("a chain is still read with one getComputedStyle call", function() {
+    reset()
+    define("chart-blue", "#0070E0")
+    define("brand", "var(--chart-blue)")
+    var calls = spied(function() { new UIColor({named: "brand"}).resolvedColor({with: UITraitCollection.current}) })
+    assert.equal(calls.length, 1)
 })
 
 test("components, white and hex colors are concrete already and come back as they are, without reading style", function() {

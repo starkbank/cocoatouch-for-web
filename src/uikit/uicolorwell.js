@@ -145,8 +145,8 @@ export class UIColorWell extends UIControl {
         input.setAttribute("aria-label", this._title)
     }
 
-    // A token color is drawn by the value it resolves to; one that resolves to
-    // nothing is returned as it is and cannot be drawn.
+    // A token color is drawn by the value it resolves to; one the theme does not
+    // define throws, as resolvedColor does.
     _concrete(color) {
         return color.resolvedColor({with: UITraitCollection.current})
     }
