@@ -44,7 +44,7 @@ function recorder() {
     var calls = []
     return {
         calls: calls,
-        documentPickerDidPickDocumentsAt: function(controller, urls) { calls.push(["pick", controller, urls]) },
+        documentPickerDidPickDocumentsAtURLs: function(controller, urls) { calls.push(["pick", controller, urls]) },
         documentPickerWasCancelled: function(controller) { calls.push(["cancel", controller]) },
     }
 }
@@ -247,11 +247,93 @@ test("the whole sequence of a present that ends in a pick: open, completion, del
     withPicker(function({opened}) {
         var order = []
         var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})
-        picker.delegate = {documentPickerDidPickDocumentsAt: function(controller, urls) { order.push("delegate:" + urls.length + ":attached=" + opened[0].input.isConnected) }}
+        picker.delegate = {documentPickerDidPickDocumentsAtURLs: function(controller, urls) { order.push("delegate:" + urls.length + ":attached=" + opened[0].input.isConnected) }}
         presenter().present(picker, {animated: true, completion: () => order.push("completion")})
         order.push("presented:attached=" + opened[0].input.isConnected)
         pick(opened[0].input, [file("a.pdf", [1])])
         order.push("picked:attached=" + opened[0].input.isConnected)
         assert.deepEqual(order, ["completion", "presented:attached=true", "delegate:1:attached=false", "picked:attached=false"])
     })
+})
+
+test("spreadsheet, archive and folder are real filters, and none of them allows every file", function() {
+    page("<div></div>")
+    withPicker(function({opened}) {
+        var cases = [
+            [[UTType.spreadsheet], [".xls", "application/vnd.ms-excel", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]],
+            [[UTType.archive], [".zip", "application/zip"]],
+            [[UTType.zip], [".zip", "application/zip"]],
+            [[UTType.pdf, UTType.spreadsheet], [".pdf", "application/pdf", ".xls", "application/vnd.ms-excel", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]],
+            [[UTType.pdf, UTType.folder], [".pdf", "application/pdf"]],
+        ]
+        for (var [types, tokens] of cases) {
+            var picker = new UIDocumentPickerViewController({forOpeningContentTypes: types, asCopy: true})
+            presenter().present(picker, {animated: true})
+            var input = opened[opened.length - 1].input
+            assert.deepEqual(input.accept.split(","), tokens)
+            assert.equal(Boolean(input.webkitdirectory), false, "a folder among files does not turn the input into a directory picker")
+        }
+    })
+})
+
+test("a folder type opens the directory picker, with no accept", function() {
+    page("<div></div>")
+    withPicker(function({opened}) {
+        var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.folder], asCopy: true})
+        presenter().present(picker, {animated: true})
+        var input = opened[0].input
+        assert.equal(input.webkitdirectory, true)
+        assert.equal(input.hasAttribute("accept"), false)
+        assert.equal(input.type, "file")
+    })
+})
+
+function inFolder(path, bytes) {
+    var made = file(path.split("/").pop(), bytes)
+    Object.defineProperty(made, "webkitRelativePath", {value: path})
+    return made
+}
+
+test("a picked folder reaches the delegate as one directory URL that FileManager lists, nested folders included", async function() {
+    page("<div></div>")
+    await withPickerAsync(async function({opened}) {
+        var delegate = recorder()
+        var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.folder], asCopy: true})
+        picker.delegate = delegate
+        presenter().present(picker, {animated: true})
+        pick(opened[0].input, [inFolder("Docs/a.pdf", [1]), inFolder("Docs/Sub/c.pdf", [3]), inFolder("Docs/Sub/Deep/d.pdf", [4])])
+        var [, , urls] = delegate.calls[0]
+        assert.equal(urls.length, 1)
+        assert.equal(manager.displayName({atPath: urls[0].href}), "Docs")
+        var children = await manager.contentsOfDirectory({at: urls[0], includingPropertiesForKeys: null})
+        assert.deepEqual(children.map((child) => manager.displayName({atPath: child.href})), ["a.pdf", "Sub"])
+        var sub = await manager.contentsOfDirectory({at: children[1], includingPropertiesForKeys: null})
+        assert.deepEqual(sub.map((child) => manager.displayName({atPath: child.href})), ["c.pdf", "Deep"])
+        var deep = await manager.contentsOfDirectory({at: sub[1], includingPropertiesForKeys: null})
+        assert.deepEqual([...await manager.contents({atPath: deep[0].href})], [4])
+        manager.removeItem({at: urls[0]})
+    })
+})
+
+test("a folder pick from a browser that gives no relative paths delivers the files themselves", function() {
+    page("<div></div>")
+    withPicker(function({opened}) {
+        var delegate = recorder()
+        var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.folder], asCopy: true})
+        picker.delegate = delegate
+        presenter().present(picker, {animated: true})
+        pick(opened[0].input, [file("a.pdf", [1])])
+        var [, , urls] = delegate.calls[0]
+        assert.deepEqual(urls.map((url) => manager.displayName({atPath: url.href})), ["a.pdf"])
+        manager.removeItem({at: urls[0]})
+    })
+})
+
+test("a delegate carrying the retired pick name is refused, naming the replacement", function() {
+    var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})
+    assert.throws(
+        () => { picker.delegate = {documentPickerDidPickDocumentsAt: function() {}} },
+        (error) => error instanceof TypeError && /documentPickerDidPickDocumentsAt\b/.test(error.message) && /documentPickerDidPickDocumentsAtURLs/.test(error.message),
+    )
+    assert.equal(picker.delegate, null)
 })

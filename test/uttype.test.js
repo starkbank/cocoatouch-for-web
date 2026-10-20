@@ -2,7 +2,7 @@ import "./setup.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { UTType } from "../src/index.js"
-import { identifierConforms } from "../src/uniformtypeidentifiers/uttype.js"
+import { identifierConforms, declaredTypes } from "../src/uniformtypeidentifiers/uttype.js"
 
 
 test("each constant has Apple's identifier, extension and MIME type", function() {
@@ -293,4 +293,35 @@ test("a UTType takes exactly one of its labels", function() {
     assert.throws(() => new UTType({filenameExtension: "pdf", mimeType: "application/pdf"}), TypeError)
     assert.throws(() => new UTType({filenameExtension: 7}), TypeError)
     assert.throws(() => new UTType({filenameExtension: ""}), TypeError)
+})
+
+test("every declared type walks up to public.item, and every parent it names is declared", function() {
+    var table = declaredTypes()
+    for (var identifier of Object.keys(table)) {
+        assert.equal(identifierConforms(identifier, "public.item"), true, identifier)
+        for (var parent of table[identifier].parents) {
+            assert.ok(parent in table, `${identifier} names ${parent}, which is not declared`)
+        }
+    }
+})
+
+test("pdf, image, text and the office types conform to public.content, public.data and public.item, as the system declares", function() {
+    var identifiers = [
+        UTType.pdf.identifier, UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier, UTType.heic.identifier,
+        UTType.plainText.identifier, UTType.commaSeparatedText.identifier, UTType.html.identifier, UTType.rtf.identifier,
+        "public.text", "com.microsoft.word.doc", "org.openxmlformats.wordprocessingml.document", "org.oasis-open.opendocument.text",
+        "com.microsoft.excel.xls", "org.openxmlformats.spreadsheetml.sheet", UTType.spreadsheet.identifier,
+    ]
+    for (var identifier of identifiers) {
+        for (var ancestor of ["public.content", "public.data", "public.item"]) {
+            assert.equal(identifierConforms(identifier, ancestor), true, `${identifier} to ${ancestor}`)
+        }
+    }
+})
+
+test("an archive is data and no content, and a folder is an item and no data", function() {
+    assert.equal(identifierConforms(UTType.archive.identifier, "public.data"), true)
+    assert.equal(identifierConforms(UTType.zip.identifier, "public.content"), false)
+    assert.equal(identifierConforms(UTType.folder.identifier, "public.item"), true)
+    assert.equal(identifierConforms(UTType.folder.identifier, "public.data"), false)
 })
