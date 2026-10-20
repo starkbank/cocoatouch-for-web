@@ -1,6 +1,8 @@
 import { UIResponder } from "./uiresponder.js"
+import "./uiwindow.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { resolvedNavigableURL } from "../utils/navigableurl.js"
+import { applicationKey, keyWindowKey } from "../utils/documentkeys.js"
 import { typed, optional, URLType, FunctionType } from "../utils/required.js"
 
 
@@ -8,21 +10,26 @@ const State = Object.freeze({active: 0, inactive: 1, background: 2})
 
 
 // UIApplication.shared: the page's way to hand an address to the browser or
-// another app, as the app does on iOS, and the page's applicationState.
+// another app, as the app does on iOS, the page's applicationState and its
+// window.
 //
 // The state is the page's visibility, which is all a browser offers of an
-// app's life: a hidden page is `.background` and posts
-// didEnterBackgroundNotification; becoming visible again posts
-// willEnterForegroundNotification while the state is still `.inactive`, then
-// the state is `.active`, as on Apple, where the app is not yet active while
-// that notification is delivered. A browser has no inactive phase of its own,
-// so `.inactive` exists only during that post. A page that loads hidden starts
-// in `.background`. One visibilitychange listener on the document does it, made
-// the first time `shared` is read and kept for the page's life, as the app's
-// is. didBecomeActive, willResignActive, didFinishLaunching, UIScene and the
-// application delegate's callbacks are not published: nothing the page can
-// observe says when they would happen, and a notification posted without that
-// would be a lie.
+// app's life, and the application exists from the moment UIKit loads, the
+// equivalent of the process starting, so an observer needs no read of `shared`
+// to be told. A hidden page posts willResignActiveNotification while the state
+// is `.inactive`, then didEnterBackgroundNotification once it is `.background`.
+// A page that becomes visible again posts willEnterForegroundNotification
+// while the state is `.inactive`, then didBecomeActiveNotification once it is
+// `.active`, as on Apple, where the app is not active until the second one. A
+// browser has no inactive phase of its own, so `.inactive` exists only inside
+// the first post of each pair. A page that loads hidden starts in
+// `.background`. One visibilitychange listener per document does it, keyed on a
+// symbol so that a second copy of the package finds the first's application
+// and installs nothing. Window blur and focus are not mapped: they fire on
+// every devtools or iframe focus change, which is not the app moving.
+// didFinishLaunching, UIScene and the application delegate's callbacks are not
+// published: nothing the page can observe says when they would happen, and a
+// notification posted without that would be a lie.
 export class UIApplication extends UIResponder {
 
     _applicationState = State.active
@@ -39,16 +46,35 @@ export class UIApplication extends UIResponder {
         return "UIApplicationWillEnterForegroundNotification"
     }
 
+    static get didBecomeActiveNotification() {
+        return "UIApplicationDidBecomeActiveNotification"
+    }
+
+    static get willResignActiveNotification() {
+        return "UIApplicationWillResignActiveNotification"
+    }
+
     static get shared() {
-        if (_shared) { return _shared }
-        _shared = new UIApplication()
-        _observeVisibility(_shared)
         return _shared
     }
 
     // Read-only, as Apple's: only the page's visibility moves it.
     get applicationState() {
         return this._applicationState
+    }
+
+    // The window UIKit made over body when it loaded. Apple deprecated keyWindow
+    // in iOS 13 for windowScene.keyWindow, but it is still Apple's name here:
+    // there are no scenes.
+    get keyWindow() {
+        if (typeof document === "undefined") { return null }
+        return document[keyWindowKey] || null
+    }
+
+    // One window, since a page has one body.
+    get windows() {
+        var keyWindow = this.keyWindow
+        return keyWindow ? [keyWindow] : []
     }
 
     // Whether open(_:) would act on the address: http(s), mailto: and tel:, the
@@ -85,23 +111,38 @@ export class UIApplication extends UIResponder {
 }
 
 
-var _shared = null
+var _shared = _launch()
 
-function _observeVisibility(application) {
-    if (typeof document === "undefined") { return }
-    application._applicationState = document.visibilityState === "hidden" ? State.background : State.active
-    document.addEventListener("visibilitychange", () => _visibilityChanged(application))
+// A document that already has an application, because another copy of the
+// package launched first, keeps it: its listener is the only one.
+function _launch() {
+    if (typeof document === "undefined") { return new UIApplication() }
+    if (document[applicationKey]) { return document[applicationKey] }
+    var application = new UIApplication()
+    var launched = document
+    application._applicationState = launched.visibilityState === "hidden" ? State.background : State.active
+    launched[applicationKey] = application
+    launched.addEventListener("visibilitychange", () => _visibilityChanged(application, launched))
+    return application
 }
 
-function _visibilityChanged(application) {
-    var isHidden = document.visibilityState === "hidden"
-    if (isHidden && application._applicationState !== State.background) {
-        application._applicationState = State.background
-        NotificationCenter.default.post({name: UIApplication.didEnterBackgroundNotification, object: application})
-        return
-    }
-    if (isHidden || application._applicationState !== State.background) { return }
+function _visibilityChanged(application, launched) {
+    var isHidden = launched.visibilityState === "hidden"
+    var isBackground = application._applicationState === State.background
+    if (isHidden && !isBackground) { return _resign(application) }
+    if (!isHidden && isBackground) { return _become(application) }
+}
+
+function _resign(application) {
+    application._applicationState = State.inactive
+    NotificationCenter.default.post({name: UIApplication.willResignActiveNotification, object: application})
+    application._applicationState = State.background
+    NotificationCenter.default.post({name: UIApplication.didEnterBackgroundNotification, object: application})
+}
+
+function _become(application) {
     application._applicationState = State.inactive
     NotificationCenter.default.post({name: UIApplication.willEnterForegroundNotification, object: application})
     application._applicationState = State.active
+    NotificationCenter.default.post({name: UIApplication.didBecomeActiveNotification, object: application})
 }

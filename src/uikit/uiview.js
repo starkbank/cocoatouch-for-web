@@ -5,6 +5,7 @@ import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
+import { keyWindowKey } from "../utils/documentkeys.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
 import { accessibilityStateOf, drawAccessibility, expandedStatusType, traitsType } from "./uiaccessibility.js"
@@ -189,6 +190,23 @@ export class UIView extends UIResponder {
 
     get superview() {
         return this._superview || null
+    }
+
+    // The page's one window when the view's element is under body, and nil
+    // otherwise, as a view outside a window hierarchy has no window on Apple.
+    // Read from the page on every use, never remembered: a view's element can be
+    // moved out of the page and back without the view hearing of it. The walk up
+    // the superviews is for a view that hangs from the window itself.
+    get window() {
+        if (typeof document === "undefined") { return null }
+        var keyWindow = document[keyWindowKey]
+        if (!keyWindow) { return null }
+        var root = this
+        while (root._superview) { root = root._superview }
+        if (root === keyWindow) { return keyWindow }
+        var element = this.$el[0]
+        if (!element || !document.body || !document.body.contains(element)) { return null }
+        return keyWindow
     }
 
     get subviews() {

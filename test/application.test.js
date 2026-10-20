@@ -1,4 +1,5 @@
 import { page } from "./dom.js"
+import { JSDOM } from "jsdom"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { UIApplication, NotificationCenter } from "../src/index.js"
@@ -85,24 +86,38 @@ test("a relative address opens as the absolute one it was validated as, mailto a
 })
 
 
-// Page visibility. The state is read when UIApplication.shared is first made, so
-// each case imports a fresh copy of the module, with document.visibilityState
-// defined before the import; the stand-in document is one for the whole file, so
-// a notification is observed by the object that posts it, never by name alone.
+// Page visibility. The launch reads the state when UIKit loads, once per
+// document, so each case builds a document of its own with visibilityState
+// defined before a fresh copy of the module is evaluated on it. Notifications
+// are observed by the application that posts them, never by name alone.
 var generation = 0
-var visibility = {value: "visible"}
-var originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState")
+var originalDocument = globalThis.document
 
-function setVisibility(value) {
-    visibility.value = value
-    document.dispatchEvent(new window.Event("visibilitychange"))
+function launchDocument(initial) {
+    var dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {pretendToBeVisual: true, url: "http://localhost/"})
+    var launched = dom.window.document
+    var visibility = {value: initial}
+    Object.defineProperty(launched, "visibilityState", {configurable: true, get: () => visibility.value})
+    launched.setVisibility = function(value) {
+        visibility.value = value
+        launched.dispatchEvent(new dom.window.Event("visibilitychange"))
+    }
+    globalThis.document = launched
+    return launched
+}
+
+async function evaluateEntry() {
+    var module = await import("../src/uikit/uiapplication.js?fresh=" + (++generation))
+    return module.UIApplication
 }
 
 async function freshApplication(initial) {
-    visibility.value = initial
-    Object.defineProperty(document, "visibilityState", {configurable: true, get: () => visibility.value})
-    var module = await import("../src/uikit/uiapplication.js?fresh=" + (++generation))
-    return module.UIApplication
+    launchDocument(initial)
+    return evaluateEntry()
+}
+
+function setVisibility(value) {
+    document.setVisibility(value)
 }
 
 function observing(application, name, onPost) {
@@ -116,12 +131,29 @@ function observing(application, name, onPost) {
     return posts
 }
 
-test.afterEach(function() {
-    if (originalVisibility) {
-        Object.defineProperty(document, "visibilityState", originalVisibility)
-        return
+// Every lifecycle notification of the application, in the order it is posted,
+// each with the state the application reports inside it.
+function recording(application) {
+    var app = application.shared
+    var observer = {}
+    var log = []
+    var names = [
+        application.willResignActiveNotification,
+        application.didEnterBackgroundNotification,
+        application.willEnterForegroundNotification,
+        application.didBecomeActiveNotification,
+    ]
+    for (var name of names) {
+        NotificationCenter.default.addObserver(observer, {name, object: app, selector: (notification) => {
+            log.push([notification.name.replace("UIApplication", "").replace("Notification", ""), app.applicationState])
+        }})
     }
-    delete document.visibilityState
+    log.stop = () => NotificationCenter.default.removeObserver(observer)
+    return log
+}
+
+test.afterEach(function() {
+    globalThis.document = originalDocument
 })
 
 test("UIApplication.State has Apple's three cases, frozen, and applicationState has no setter", async function() {
@@ -152,64 +184,99 @@ test("the notification names are Apple's raw strings", async function() {
     var Application = await freshApplication("visible")
     assert.equal(Application.didEnterBackgroundNotification, "UIApplicationDidEnterBackgroundNotification")
     assert.equal(Application.willEnterForegroundNotification, "UIApplicationWillEnterForegroundNotification")
+    assert.equal(Application.didBecomeActiveNotification, "UIApplicationDidBecomeActiveNotification")
+    assert.equal(Application.willResignActiveNotification, "UIApplicationWillResignActiveNotification")
 })
 
-test("hiding the page posts didEnterBackground once, from the shared application, which is already in the background", async function() {
+test("the application exists once the module has loaded: it is observed before shared is ever read", async function() {
+    launchDocument("visible")
+    var log = []
+    var observer = {}
+    NotificationCenter.default.addObserver(observer, {name: "UIApplicationDidEnterBackgroundNotification", selector: (notification) => log.push(notification.name)})
+    var Application = await evaluateEntry()
+    setVisibility("hidden")
+    NotificationCenter.default.removeObserver(observer)
+    assert.deepEqual(log, ["UIApplicationDidEnterBackgroundNotification"])
+    assert.equal(Application.shared.applicationState, Application.State.background)
+})
+
+test("hiding the page posts willResignActive then didEnterBackground, each once, from the shared application", async function() {
     var Application = await freshApplication("visible")
     var app = Application.shared
     var states = []
-    var posts = observing(Application, Application.didEnterBackgroundNotification, () => states.push(app.applicationState))
+    var resigned = observing(Application, Application.willResignActiveNotification, () => states.push(app.applicationState))
+    var entered = observing(Application, Application.didEnterBackgroundNotification, () => states.push(app.applicationState))
     setVisibility("hidden")
-    assert.equal(posts.length, 1)
-    assert.equal(posts[0].object, app)
-    assert.equal(posts[0].userInfo, null)
-    assert.equal(posts[0].name, "UIApplicationDidEnterBackgroundNotification")
-    assert.deepEqual(states, [Application.State.background])
+    assert.equal(resigned.length, 1)
+    assert.equal(entered.length, 1)
+    assert.equal(entered[0].object, app)
+    assert.equal(entered[0].userInfo, null)
+    assert.equal(entered[0].name, "UIApplicationDidEnterBackgroundNotification")
+    assert.deepEqual(states, [Application.State.inactive, Application.State.background])
     assert.equal(app.applicationState, Application.State.background)
-    posts.stop()
+    resigned.stop()
+    entered.stop()
 })
 
-test("showing the page posts willEnterForeground once, with the application inactive inside it and active after", async function() {
+test("showing the page posts willEnterForeground then didBecomeActive, inactive inside the first and active inside the second", async function() {
     var Application = await freshApplication("visible")
     var app = Application.shared
     setVisibility("hidden")
     var states = []
-    var posts = observing(Application, Application.willEnterForegroundNotification, () => states.push(app.applicationState))
+    var foreground = observing(Application, Application.willEnterForegroundNotification, () => states.push(app.applicationState))
+    var active = observing(Application, Application.didBecomeActiveNotification, () => states.push(app.applicationState))
     setVisibility("visible")
-    assert.equal(posts.length, 1)
-    assert.equal(posts[0].object, app)
-    assert.deepEqual(states, [Application.State.inactive])
+    assert.equal(foreground.length, 1)
+    assert.equal(active.length, 1)
+    assert.equal(foreground[0].object, app)
+    assert.equal(active[0].object, app)
+    assert.deepEqual(states, [Application.State.inactive, Application.State.active])
     assert.equal(app.applicationState, Application.State.active)
-    posts.stop()
+    foreground.stop()
+    active.stop()
 })
 
-test("a page that loaded hidden posts willEnterForeground when it is first shown", async function() {
-    var Application = await freshApplication("hidden")
-    var posts = observing(Application, Application.willEnterForegroundNotification)
+test("a full hide and show posts the four notifications in Apple's order, with the state each one sees", async function() {
+    var Application = await freshApplication("visible")
+    var log = recording(Application)
+    setVisibility("hidden")
     setVisibility("visible")
-    assert.equal(posts.length, 1)
+    log.stop()
+    assert.deepEqual([...log], [
+        ["WillResignActive", Application.State.inactive],
+        ["DidEnterBackground", Application.State.background],
+        ["WillEnterForeground", Application.State.inactive],
+        ["DidBecomeActive", Application.State.active],
+    ])
+})
+
+test("a page that loaded hidden posts willEnterForeground and didBecomeActive when it is first shown, and no resign", async function() {
+    var Application = await freshApplication("hidden")
+    var log = recording(Application)
+    setVisibility("visible")
+    log.stop()
+    assert.deepEqual([...log], [
+        ["WillEnterForeground", Application.State.inactive],
+        ["DidBecomeActive", Application.State.active],
+    ])
     assert.equal(Application.shared.applicationState, Application.State.active)
-    posts.stop()
 })
 
 test("a repeated event with the same visibility posts nothing", async function() {
     var Application = await freshApplication("visible")
-    var entered = observing(Application, Application.didEnterBackgroundNotification)
-    var returned = observing(Application, Application.willEnterForegroundNotification)
+    var log = recording(Application)
     setVisibility("visible")
-    assert.equal(entered.length + returned.length, 0, "a visible event while active")
+    assert.equal(log.length, 0, "a visible event while active")
     setVisibility("hidden")
     setVisibility("hidden")
-    assert.equal(entered.length, 1)
+    assert.equal(log.length, 2, "one pair for the first hidden event")
     setVisibility("visible")
     setVisibility("visible")
-    assert.equal(returned.length, 1)
-    assert.equal(entered.length, 1)
-    entered.stop()
-    returned.stop()
+    assert.equal(log.length, 4, "one pair for the first visible event")
+    log.stop()
 })
 
-test("reading shared again and again installs one listener: one event posts one notification", async function() {
+test("reading shared again and again installs nothing more: one event posts one notification", async function() {
     var Application = await freshApplication("visible")
     Application.shared
     Application.shared
@@ -220,19 +287,46 @@ test("reading shared again and again installs one listener: one event posts one 
     posts.stop()
 })
 
+test("the entry evaluated twice on one document installs one listener and posts one notification per transition", async function() {
+    var launched = launchDocument("visible")
+    var listeners = 0
+    var original = launched.addEventListener.bind(launched)
+    launched.addEventListener = function(type, ...rest) {
+        if (type === "visibilitychange") { listeners++ }
+        return original(type, ...rest)
+    }
+    var first = await evaluateEntry()
+    var second = await evaluateEntry()
+    assert.notEqual(first, second, "two evaluations are two copies of the class")
+    assert.equal(first.shared, second.shared, "the document has one application")
+    assert.equal(listeners, 1)
+    var log = recording(first)
+    setVisibility("hidden")
+    setVisibility("visible")
+    log.stop()
+    assert.deepEqual(log.map((entry) => entry[0]), ["WillResignActive", "DidEnterBackground", "WillEnterForeground", "DidBecomeActive"])
+})
+
+test("two documents have one application each", async function() {
+    var one = await freshApplication("visible")
+    var two = await freshApplication("hidden")
+    assert.notEqual(one.shared, two.shared)
+    assert.equal(two.shared.applicationState, two.State.background)
+})
+
 test("the state follows a full hide and show cycle more than once", async function() {
     var Application = await freshApplication("visible")
     var app = Application.shared
-    var names = []
-    var observer = {}
-    for (var name of [Application.didEnterBackgroundNotification, Application.willEnterForegroundNotification]) {
-        NotificationCenter.default.addObserver(observer, {name, object: app, selector: (notification) => names.push(notification.name.replace("UIApplication", "").replace("Notification", ""))})
-    }
+    var log = recording(Application)
     for (var round = 0; round < 3; round++) {
         setVisibility("hidden")
         setVisibility("visible")
     }
-    NotificationCenter.default.removeObserver(observer)
-    assert.deepEqual(names, ["DidEnterBackground", "WillEnterForeground", "DidEnterBackground", "WillEnterForeground", "DidEnterBackground", "WillEnterForeground"])
+    log.stop()
+    assert.deepEqual(log.map((entry) => entry[0]), [
+        "WillResignActive", "DidEnterBackground", "WillEnterForeground", "DidBecomeActive",
+        "WillResignActive", "DidEnterBackground", "WillEnterForeground", "DidBecomeActive",
+        "WillResignActive", "DidEnterBackground", "WillEnterForeground", "DidBecomeActive",
+    ])
     assert.equal(app.applicationState, Application.State.active)
 })
