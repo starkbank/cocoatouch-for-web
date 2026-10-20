@@ -189,6 +189,9 @@ export class UITableView extends UIScrollView {
         }
         var id = "cell-" + row
         var element = this._body().find("> #" + id)
+        if (reusable && reusable.constructor.nib !== cellClass.nib) {
+            element = this._replaceRow(reusable, {cellClass, id, row})
+        }
         if (element.length === 0) {
             element = $(cellClass.nib || "<tr></tr>").first()
             element.attr("id", id)
@@ -204,6 +207,24 @@ export class UITableView extends UIScrollView {
         cell.awakeFromNib()
         Bind.ibAction(cell)
         return cell
+    }
+
+    // A reuse identifier maps to one class, so a row whose previous cell is not
+    // of the class registered now gets a new cell over the new class's own nib,
+    // not the old cell's element bound to another class. The old cell is
+    // disposed, which releases its outlets, targets and observers, and its
+    // element is replaced in place so the rows keep their order. A class with
+    // the same nib takes the element over, as it always did, and the old cell is
+    // disposed when the reload ends.
+    _replaceRow(stale, {cellClass, id, row}) {
+        this._reusableCells[row] = null
+        var old = stale.$el
+        stale._dispose()
+        var element = $(cellClass.nib || "<tr></tr>").first()
+        element.attr("id", id)
+        old.first().before(element)
+        old.remove()
+        return element
     }
 
     // selectRow(at:animated:scrollPosition:): at: null clears the selection, as
