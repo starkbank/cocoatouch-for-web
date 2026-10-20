@@ -10,6 +10,7 @@ import { UITextView } from "./uitextview.js"
 import { UITextPasteItem } from "./uitextpasteitem.js"
 import { UIView } from "./uiview.js"
 import { UIControl } from "./uicontrol.js"
+import { UIColorWell } from "./uicolorwell.js"
 import { UISwitch } from "./uiswitch.js"
 import { UIImageView } from "./uiimageview.js"
 import { UIImage } from "./uiimage.js"
@@ -62,6 +63,7 @@ export {
      UITextPasteItem,
      UIView,
      UIControl,
+     UIColorWell,
      UISwitch,
      UIImageView,
      UIImage,
