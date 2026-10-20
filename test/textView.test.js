@@ -89,14 +89,15 @@ test("with isScrollEnabled true the height is left to the stylesheet", function(
     assert.equal(log.element.style.height, "44px")
 })
 
-test("isScrollEnabled reads back what was set, unlike UIScrollView's read-only property", function() {
+test("isScrollEnabled reads back what was set", function() {
     var log = makeView()
     assert.doesNotThrow(function() { log.view.isScrollEnabled = false })
     assert.equal(log.view.isScrollEnabled, false)
     log.view.isScrollEnabled = true
     assert.equal(log.view.isScrollEnabled, true)
     var plain = new UIScrollView("#note")
-    assert.throws(function() { plain.isScrollEnabled = false }, TypeError)
+    assert.doesNotThrow(function() { plain.isScrollEnabled = false })
+    assert.equal(plain.isScrollEnabled, false)
 })
 
 test("turning isScrollEnabled back on gives the height back to the stylesheet", function() {

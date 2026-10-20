@@ -126,15 +126,15 @@ test("the markup path inserts the markup as given and never calls Element.setHTM
     assert.equal(withIt.querySelectorAll("space").length, 1)
 })
 
-// The spinner saves and restores the rendered title through the markup path;
-// a title that arrived as text must come back as text.
+// The title is drawn as text and stays text while the spinner is over it.
 test("a text title survives the activity indicator round-trip without becoming markup", function() {
     page("<button id=\"send\"></button>")
     var button = new UIButton("#send")
     button.setTitle("<b>Send</b>", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     assert.equal($("#send .fa-spin").length, 1)
-    button.showsActivityIndicator = false
+    assert.equal($("#send b").length, 0)
+    button.configuration.showsActivityIndicator = false
     assert.equal($("#send b").length, 0)
     assert.equal(document.getElementById("send").textContent, "<b>Send</b>")
     assert.equal(button.currentTitle, "<b>Send</b>")
@@ -151,17 +151,17 @@ test("the string of a markup attributed string is read without executing the mar
 
 // With no sanitiser in the path, setMarkup and $el.html are indistinguishable
 // to a test, so the chokepoint is a grep convention; what a test can pin is
-// the behaviour: the spinner is an element, the restored title is text.
-test("the activity indicator renders its spinner as an element, holds the title as text and restores it as text", function() {
+// the behaviour: the spinner is an element, the title stays text.
+test("the activity indicator renders its spinner as an element and leaves the title as text", function() {
     page("<button id=\"send\"></button>")
     var element = document.getElementById("send")
     var button = new UIButton("#send")
     button.setTitle("Send & <go>", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     assert.equal(element.querySelectorAll("i.fa-spin, .fa-spin").length, 1)
-    assert.equal(element.querySelector(".uibutton-activity-title").textContent, "Send & <go>")
-    assert.equal(element.querySelector(".uibutton-activity-title").children.length, 0)
-    button.showsActivityIndicator = false
+    assert.equal(element.textContent, "Send & <go>")
+    assert.equal(element.querySelectorAll("b, go").length, 0)
+    button.configuration.showsActivityIndicator = false
     assert.equal(element.children.length, 0)
     assert.equal(element.textContent, "Send & <go>")
     assert.equal(button.currentTitle, "Send & <go>")

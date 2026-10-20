@@ -22,7 +22,7 @@ test("disposing a dateAndTime picker whose element has left the document does no
     page(markup)
     withDatepicker(function() {
         var picker = new UIDatePicker("#start")
-        picker.datePickerMode = "dateAndTime"
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         var input = document.getElementById("start-field")
         assert.equal(input.type, "datetime-local")
         assert.equal(input.readOnly, false)
@@ -38,17 +38,16 @@ test("renaming the input's id after construction leaves date, value and the mode
     page(markup)
     withDatepicker(function(log) {
         var picker = new UIDatePicker("#start")
-        picker.datePickerMode = "dateAndTime"
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         document.getElementById("start-field").id = "renamed"
         picker.date = new Date(2026, 0, 5, 9, 7)
         assert.equal(document.getElementById("renamed").value, "2026-01-05T09:07")
-        assert.equal(picker.$input.prop("value"), "2026-01-05T09:07")
         var read = picker.date
         assert.deepEqual([read.getFullYear(), read.getMonth(), read.getDate(), read.getHours(), read.getMinutes()], [2026, 0, 5, 9, 7])
-        picker.datePickerMode = "date"
+        picker.datePickerMode = UIDatePicker.Mode.date
         assert.equal(document.getElementById("renamed").type, "text")
         assert.equal(log[log.length - 1], "init:renamed", "the calendar is built on the held input under its new id")
-        picker.datePickerMode = "dateAndTime"
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         assert.equal(document.getElementById("renamed").type, "datetime-local")
         assert.equal(document.querySelectorAll("#start input").length, 1)
     })
@@ -61,7 +60,7 @@ test("an input given a new id by awakeFromNib still reads as the picker's, as an
     page("<div id=\"owner\"></div>")
     withDatepicker(function() {
         var owner = new Owner("#owner")
-        owner.picker.datePickerMode = "dateAndTime"
+        owner.picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         document.getElementById("start-field").setAttribute("id", "start-accessibility-id")
         owner.picker.date = new Date(2026, 4, 2, 13, 30)
         assert.equal(document.getElementById("start-accessibility-id").value, "2026-05-02T13:30")
@@ -69,11 +68,12 @@ test("an input given a new id by awakeFromNib still reads as the picker's, as an
     })
 })
 
-test("inputSelector keeps what it was at construction, and nothing in the picker queries the document for its input", function() {
+test("the picker keeps its input to itself, and nothing in it queries the document for the input", function() {
     page(markup)
     withDatepicker(function() {
         var picker = new UIDatePicker("#start")
-        assert.equal(picker.inputSelector, "#start-field")
+        assert.equal("inputSelector" in picker, false)
+        assert.equal("$input" in picker, false)
         var queries = 0
         var originals = [window.Element.prototype.querySelectorAll, window.Document.prototype.querySelectorAll, window.Document.prototype.getElementById]
         window.Element.prototype.querySelectorAll = function(...args) { queries += 1; return originals[0].apply(this, args) }
@@ -82,7 +82,6 @@ test("inputSelector keeps what it was at construction, and nothing in the picker
         try {
             picker.date = new Date(2026, 0, 5)
             picker.date
-            picker.$input
         } finally {
             window.Element.prototype.querySelectorAll = originals[0]
             window.Document.prototype.querySelectorAll = originals[1]
@@ -96,14 +95,19 @@ test("a picker whose element was replaced with a new node holds the input of the
     page(markup)
     withDatepicker(function() {
         var picker = new UIDatePicker("#start")
-        picker.datePickerMode = "dateAndTime"
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         var first = document.getElementById("start-field")
         page(markup)
         var replaced = document.getElementById("start-field")
         assert.notEqual(replaced, first)
-        assert.equal(picker.$input[0], replaced)
+        picker.date = new Date(2026, 0, 5, 9, 7)
+        assert.equal(replaced.value, "2026-01-05T09:07", "the new element's input is the one written")
+        assert.equal(first.value, "")
         $("#start").remove()
-        assert.equal(picker.$input[0], replaced, "gone, so the held input stays")
+        replaced.value = "2026-03-04T05:06"
+        assert.equal(picker.date.getMonth(), 2, "gone, so the held input stays the one read")
+        picker.date = new Date(2026, 0, 6, 9, 7)
+        assert.equal(replaced.value, "2026-01-06T09:07")
     })
 })
 
@@ -113,14 +117,14 @@ test("date, time, dateAndTime and yearAndMonth behave as before on the held inpu
         $.fn.clockpicker = function() { return this }
         try {
             var picker = new UIDatePicker("#start")
-            picker.datePickerMode = "time"
+            picker.datePickerMode = UIDatePicker.Mode.time
             picker.date = new Date(2026, 0, 5, 7, 5)
             assert.equal(document.getElementById("start-field").value, "07:05")
             assert.equal(picker.date.getHours(), 7)
-            picker.datePickerMode = "dateAndTime"
+            picker.datePickerMode = UIDatePicker.Mode.dateAndTime
             picker.date = new Date(2026, 0, 5, 9, 7)
             assert.equal(document.getElementById("start-field").value, "2026-01-05T09:07")
-            picker.datePickerMode = "yearAndMonth"
+            picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
             picker.date = new Date(2026, 5, 17)
             assert.equal(picker.date.getDate(), 1)
             assert.equal(picker.date.getMonth(), 5)
@@ -151,13 +155,13 @@ function nested(mode) {
 
 test("a controller removed with a dateAndTime picker releases it without throwing, and the page can attach a new one", function() {
     withDatepicker(function() {
-        var child = nested("dateAndTime")
+        var child = nested(UIDatePicker.Mode.dateAndTime)
         var input = document.getElementById("when-input")
         assert.equal(input.type, "datetime-local")
         child.removeFromParent()
         assert.equal(input.type, "text", "the held input is restored although it left the document")
         assert.equal(input.readOnly, true)
-        var second = nested("dateAndTime")
+        var second = nested(UIDatePicker.Mode.dateAndTime)
         second.picker.date = new Date(2026, 6, 1, 8, 15)
         assert.equal(document.getElementById("when-input").value, "2026-07-01T08:15")
         assert.equal(second.picker.date.getMinutes(), 15)
@@ -168,7 +172,7 @@ test("a controller removed with a dateAndTime picker releases it without throwin
 
 test("a calendar picker disposed after its element left the page closes and destroys the widget on the held input", function() {
     withDatepicker(function(log) {
-        var child = nested("date")
+        var child = nested(UIDatePicker.Mode.date)
         log.length = 0
         child.removeFromParent()
         assert.ok(log.includes("hide") && log.includes("destroy"), log.join())
@@ -204,7 +208,7 @@ function withRealisticDatepicker(run) {
 
 test("a calendar picker disposed after its element was emptied still destroys its widget, and does not throw", function() {
     withRealisticDatepicker(function(log) {
-        var child = nested("date")
+        var child = nested(UIDatePicker.Mode.date)
         var input = document.getElementById("when-input")
         assert.equal(input.classList.contains("hasDatepicker"), true)
         log.length = 0
@@ -216,7 +220,7 @@ test("a calendar picker disposed after its element was emptied still destroys it
 
 test("a yearAndMonth picker disposed after its element was emptied destroys its widget too", function() {
     withRealisticDatepicker(function(log) {
-        var child = nested("yearAndMonth")
+        var child = nested(UIDatePicker.Mode.yearAndMonth)
         var input = document.getElementById("when-input")
         child.removeFromParent()
         assert.equal(input.classList.contains("hasDatepicker"), false)
@@ -227,8 +231,8 @@ test("switching modes after the widget was built destroys it once and builds the
     page(markup)
     withRealisticDatepicker(function(log) {
         var picker = new UIDatePicker("#start")
-        picker.datePickerMode = "yearAndMonth"
-        picker.datePickerMode = "date"
+        picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
+        picker.datePickerMode = UIDatePicker.Mode.date
         assert.equal(document.getElementById("start-field").classList.contains("hasDatepicker"), true)
         assert.equal(log.filter((entry) => entry === "destroy").length, 2)
         picker._dispose()

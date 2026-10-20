@@ -6,6 +6,7 @@ import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { UIColor } from "./uicolor.js"
 import { autocompleteTokenOf, textContentTypeOf, textContentTypeDescriptor, textContentTypeSignature } from "./uitextcontenttype.js"
 import { typed, optional } from "../utils/required.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 import { itemProviderForFlavours } from "../foundation/nsitemprovider.js"
 import { textPasteItemFor, resultOfTextPasteItem } from "./uitextpasteitem.js"
 import { UTType } from "../uniformtypeidentifiers/uttype.js"
@@ -18,6 +19,7 @@ const pasteFlavours = [
     ["text/html", UTType.html.identifier],
     ["text/rtf", UTType.rtf.identifier],
 ]
+const retiredPasteDelegateNames = {textPasteConfigurationSupportingTransform: "textPasteConfigurationSupportingTransformPasteItem"}
 const pasteFlavourCap = 256 * 1024
 const pasteNamespace = "paste.uitextpaste"
 const utf8Encoder = new TextEncoder()
@@ -130,14 +132,9 @@ export class UITextField extends UIControl {
         // textField(_:shouldChangeCharactersIn:replacementString:), on beforeinput:
         // the range is the selection, the string the event's data, empty for a deletion.
         this.$el.on("beforeinput.delegate", function(e) {
-            if (!delegate.textFieldShouldChangeCharactersInRangeReplacementString) { return }
             var original = e.originalEvent || e
-            var target = e.target
-            var start = target.selectionStart === null || target.selectionStart === undefined ? 0 : target.selectionStart
-            var end = target.selectionEnd === null || target.selectionEnd === undefined ? start : target.selectionEnd
-            var range = new NSRange({location: start, length: end - start})
             var replacement = original.data === null || original.data === undefined ? "" : original.data
-            if (delegate.textFieldShouldChangeCharactersInRangeReplacementString(textField, range, replacement) === false) { e.preventDefault() }
+            if (_mayChange(textField, e.target, replacement) === false) { e.preventDefault() }
         })
         // textFieldDidChangeSelection: selectionchange fires on the document in
         // every browser the fleet supports, and on the element in few, so it is
@@ -179,10 +176,13 @@ export class UITextField extends UIControl {
     // plain-text, html and rtf flavours the clipboard carries, each capped at
     // 256 KiB of UTF-8; the browser's clipboardData and event never leave the
     // framework. setNoResult consumes the paste, setStringResult consumes it
-    // and inserts that string as text, and setDefaultResult or no result
-    // leaves it to the browser.
+    // and inserts that string as text once the field's delegate agrees to it
+    // (textField(_:shouldChangeCharactersIn:replacementString:), asked with
+    // that string), and setDefaultResult or no result leaves it to the browser,
+    // whose own beforeinput asks that same question with the clipboard's text.
     /** @param {import("./uitextpasteitem.js").UITextPasteDelegate|null} pasteDelegate */
     set pasteDelegate(pasteDelegate) {
+        rejectRetiredDelegateNames(pasteDelegate, retiredPasteDelegateNames, "UITextField.pasteDelegate")
         this._pasteDelegate = pasteDelegate || null
         this._bindPaste()
     }
@@ -254,15 +254,29 @@ export class UITextField extends UIControl {
 
 function _pasted(textField, e) {
     var delegate = textField._pasteDelegate
-    if (!delegate || !delegate.textPasteConfigurationSupportingTransform) { return }
+    if (!delegate || !delegate.textPasteConfigurationSupportingTransformPasteItem) { return }
     var flavours = _flavoursOf((e.originalEvent || e).clipboardData)
     if (flavours === null) { return }
     var item = textPasteItemFor({itemProvider: itemProviderForFlavours({flavours: flavours})})
-    delegate.textPasteConfigurationSupportingTransform(textField, item)
+    delegate.textPasteConfigurationSupportingTransformPasteItem(textField, item)
     var result = resultOfTextPasteItem(item)
     if (result.kind === "default") { return }
     e.preventDefault()
-    if (result.kind === "string") { _insert(e.target, result.string) }
+    if (result.kind !== "string") { return }
+    if (_mayChange(textField, e.target, result.string) === false) { return }
+    _insert(e.target, result.string)
+}
+
+// textField(_:shouldChangeCharactersIn:replacementString:) for the selection of
+// `input`, as a typed character or a paste would replace it: the selection is
+// the range, `replacement` empty for a deletion. Only an explicit false refuses.
+function _mayChange(textField, input, replacement) {
+    var delegate = textField._delegate
+    if (!delegate || !delegate.textFieldShouldChangeCharactersInRangeReplacementString) { return true }
+    var start = input.selectionStart === null || input.selectionStart === undefined ? 0 : input.selectionStart
+    var end = input.selectionEnd === null || input.selectionEnd === undefined ? start : input.selectionEnd
+    var range = new NSRange({location: start, length: end - start})
+    return delegate.textFieldShouldChangeCharactersInRangeReplacementString(textField, range, replacement)
 }
 
 // null when the clipboard has none of the three flavours, a file alone included.

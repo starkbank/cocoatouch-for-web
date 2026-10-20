@@ -80,19 +80,30 @@ test("layer.borderColor reads back a hex as its normalised rgb and a named token
     assert.ok(layer.borderColor instanceof UIColor)
 })
 
-test("UILabel.textColor = null removes the inline colour so the stylesheet's returns, and reads back null", function() {
+test("UILabel.textColor = null removes the inline colour so the stylesheet's returns, and reads the computed colour, never nil", function() {
     page("<p id=\"title\">Hello</p>")
     withRule("#title { color: rgb(1, 2, 3); }", function() {
         var label = new UILabel("#title")
-        assert.equal(label.textColor, null)
+        assert.ok(label.textColor instanceof UIColor, "a label nobody coloured reads what the stylesheet draws")
+        assert.equal(label.textColor.cgColor, "rgb(1, 2, 3)")
         label.textColor = new UIColor({hex: "#ff0000"})
         assert.ok(label.textColor instanceof UIColor)
         assert.equal(getComputedStyle(document.getElementById("title")).color, "rgb(255, 0, 0)")
         label.textColor = null
-        assert.equal(label.textColor, null)
+        assert.ok(label.textColor instanceof UIColor)
+        assert.equal(label.textColor.cgColor, "rgb(1, 2, 3)")
         assert.equal(document.getElementById("title").style.color, "")
         assert.equal(getComputedStyle(document.getElementById("title")).color, "rgb(1, 2, 3)")
     })
+})
+
+test("UILabel.textColor with no inline colour and no rule is still a UIColor: the colour the page draws it in", function() {
+    page("<p id=\"title\">Hello</p>")
+    var label = new UILabel("#title")
+    assert.ok(label.textColor instanceof UIColor)
+    assert.match(label.textColor.cgColor, /^rgb\(/)
+    page("<div style=\"color: rgb(9, 8, 7)\"><p id=\"title\">Hello</p></div>")
+    assert.equal(new UILabel("#title").textColor.cgColor, "rgb(9, 8, 7)", "inherited, as the page draws it")
 })
 
 test("UILabel.textColor still refuses undefined, and reads a hex as its normalised rgb and a named token as written", function() {

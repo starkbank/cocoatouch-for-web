@@ -103,12 +103,12 @@ test("a tap and a tick leave the same selection: a ticked row is deselected by a
     assert.deepEqual(log.calls, ["select:1", "deselect:1", "select:1", "deselect:1"])
 })
 
-test("single selection is unchanged: a tap only calls didSelect, every time, and selects nothing", function() {
+test("single selection: a tap selects the row and calls didSelect, every time, and never deselects the row it taps", function() {
     var {table, log} = setup({multiple: false})
     tap("#cell-1 #title")
     tap("#cell-1 #title")
     assert.deepEqual(log.calls, ["select:1", "select:1"])
-    assert.deepEqual(selectedRows(table), [])
+    assert.deepEqual(selectedRows(table), [1])
     var fresh = setup()
     tap("#cell-0 #title")
     assert.deepEqual(fresh.log.calls, ["select:0"])
