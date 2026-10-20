@@ -1,5 +1,6 @@
 import { setText } from "../utils/text.js"
 import { UITextField } from "./uitextfield.js"
+import { UIColor } from "./uicolor.js"
 import { required, Int } from "../utils/required.js"
 
 
@@ -54,6 +55,18 @@ export class UISearchTextField extends UITextField {
 
     set text(text) {
         this.textField.val(text === null || text === undefined ? "" : String(text))
+    }
+
+    // The typed text is in the inner input, which does not inherit its color
+    // from the wrapper, so the color is the input's.
+    set textColor(color) {
+        this.textField.css("color", color === null || color === undefined ? "" : color.cgColor)
+    }
+
+    get textColor() {
+        var element = this.textField[0]
+        if (!element || !element.style || element.style.color === "") { return null }
+        return new UIColor({hex: element.style.color})
     }
 
     // UIView's inherited becomeFirstResponder/resignFirstResponder/
