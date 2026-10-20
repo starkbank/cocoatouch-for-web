@@ -40,14 +40,19 @@ export class UIToolTipInteraction extends NSObject {
     }
 
     // UIInteraction's pair, sent around the move in that order. The view is nil
-    // when the interaction leaves one.
+    // when the interaction leaves one; an interaction added to a second view
+    // leaves the first, as Apple's does.
     /**
      * @param {object} options
      * @param {UIView|null} options.to
      */
     willMove({to} = {}) {
         required(to, "to", viewType, "UIToolTipInteraction.willMove", "Apple's is willMove(to view: UIView?); write willMove({to: view}).")
-        if (to === null) { this._erase() }
+        if (to === null) {
+            this._erase()
+            return
+        }
+        if (this._view && this._view !== to) { this._view.removeInteraction(this) }
     }
 
     /**
