@@ -16,23 +16,36 @@ export class UIScrollView extends UIView {
     // own scroller, html or body, is observed on the document: scroll does not
     // bubble, and the root scroller's event is fired at the document alone.
     set delegate(delegate) {
+        this._delegate = delegate
+        this._observeScroll()
+    }
+
+    get delegate() {
+        return this._delegate || null
+    }
+
+    // A scroll view made in code has no element until it is placed, so a
+    // delegate set before that is observed once the view has one; the previous
+    // observation goes first, so a view never carries two.
+    didMoveToSuperview() {
+        super.didMoveToSuperview()
+        this._observeScroll()
+    }
+
+    _observeScroll() {
         var scrollView = this
+        var delegate = this._delegate
         var element = this.$el[0]
         if (this._observedElement) {
             NotificationCenter.default.removeObserver(this, {name: "scroll", object: this._observedElement})
             this._observedElement = null
         }
-        this._delegate = delegate
         if (!element || !delegate || typeof delegate.scrollViewDidScroll !== "function") { return }
         var observed = _isPageScroller(element) ? document : element
         this._observedElement = observed
         NotificationCenter.default.addObserver(this, {name: "scroll", object: observed, selector: function() {
             delegate.scrollViewDidScroll(scrollView)
         }})
-    }
-
-    get delegate() {
-        return this._delegate || null
     }
 
     // Whether the element scrolls, read from the computed style: either axis

@@ -1,6 +1,6 @@
 import { page } from "./dom.js"
 import { JSDOM } from "jsdom"
-import test from "node:test"
+import test, { mock } from "node:test"
 import assert from "node:assert/strict"
 import { UIApplication, NotificationCenter } from "../src/index.js"
 
@@ -111,9 +111,14 @@ async function evaluateEntry() {
     return module.UIApplication
 }
 
-async function freshApplication(initial) {
+// The launch is one task after the module loads, so a test that wants the
+// application as it settles lets that task run, and one that wants the
+// moment before it passes {isSettled: false}.
+async function freshApplication(initial, {isSettled = true} = {}) {
     launchDocument(initial)
-    return evaluateEntry()
+    var Application = await evaluateEntry()
+    if (isSettled) { mock.timers.tick(0) }
+    return Application
 }
 
 function setVisibility(value) {
@@ -152,7 +157,12 @@ function recording(application) {
     return log
 }
 
+test.beforeEach(function() {
+    mock.timers.enable({apis: ["setTimeout"]})
+})
+
 test.afterEach(function() {
+    mock.timers.reset()
     globalThis.document = originalDocument
 })
 
@@ -171,13 +181,93 @@ test("UIApplication.State has Apple's three cases, frozen, and applicationState 
     assert.equal(app.applicationState, Application.State.active)
 })
 
-test("a visible page starts active, a hidden one starts in the background", async function() {
-    var visible = await freshApplication("visible")
+test("a visible page launches inactive and is active after the first task, a hidden one starts in the background", async function() {
+    var visible = await freshApplication("visible", {isSettled: false})
+    assert.equal(visible.shared.applicationState, visible.State.inactive)
+    mock.timers.tick(0)
     assert.equal(visible.shared.applicationState, visible.State.active)
     var hidden = await freshApplication("hidden")
     assert.equal(hidden.shared.applicationState, hidden.State.background)
-    var prerender = await freshApplication("prerender")
+    var prerender = await freshApplication("prerender", {isSettled: false})
+    assert.equal(prerender.shared.applicationState, prerender.State.inactive)
+    mock.timers.tick(0)
     assert.equal(prerender.shared.applicationState, prerender.State.active)
+})
+
+// Names only: the application does not exist until the module has loaded, and
+// an observer added before that hears its launch.
+function observingByName(names) {
+    var observer = {}
+    var log = []
+    for (var name of names) {
+        NotificationCenter.default.addObserver(observer, {name, selector: (notification) => {
+            log.push([notification.name.replace("UIApplication", "").replace("Notification", ""), notification.object.applicationState])
+        }})
+    }
+    log.stop = () => NotificationCenter.default.removeObserver(observer)
+    return log
+}
+
+const lifecycleNames = [
+    "UIApplicationWillResignActiveNotification",
+    "UIApplicationDidEnterBackgroundNotification",
+    "UIApplicationWillEnterForegroundNotification",
+    "UIApplicationDidBecomeActiveNotification",
+]
+
+test("a visible launch posts didBecomeActive once, at the first task after load, with the state active inside", async function() {
+    launchDocument("visible")
+    var log = observingByName(lifecycleNames)
+    var Application = await evaluateEntry()
+    assert.deepEqual([...log], [], "nothing is posted while the module loads")
+    mock.timers.tick(0)
+    mock.timers.tick(1000)
+    log.stop()
+    assert.deepEqual([...log], [["DidBecomeActive", Application.State.active]])
+})
+
+test("a hidden launch posts nothing, neither at load nor at the first task", async function() {
+    launchDocument("hidden")
+    var log = observingByName(lifecycleNames)
+    await evaluateEntry()
+    mock.timers.tick(1000)
+    log.stop()
+    assert.deepEqual([...log], [])
+})
+
+test("hidden before the launch task: no willResignActive, inactive then background, didEnterBackground, and the task never posts", async function() {
+    launchDocument("visible")
+    var log = observingByName(lifecycleNames)
+    var Application = await evaluateEntry()
+    assert.equal(Application.shared.applicationState, Application.State.inactive)
+    setVisibility("hidden")
+    assert.equal(Application.shared.applicationState, Application.State.background)
+    mock.timers.tick(1000)
+    assert.deepEqual([...log], [["DidEnterBackground", Application.State.background]])
+    setVisibility("visible")
+    log.stop()
+    assert.deepEqual([...log], [
+        ["DidEnterBackground", Application.State.background],
+        ["WillEnterForeground", Application.State.background],
+        ["DidBecomeActive", Application.State.active],
+    ])
+})
+
+test("the entry evaluated twice launches once: one didBecomeActive", async function() {
+    launchDocument("visible")
+    var log = observingByName(lifecycleNames)
+    await evaluateEntry()
+    await evaluateEntry()
+    mock.timers.tick(1000)
+    log.stop()
+    assert.equal(log.length, 1)
+})
+
+test("new UIApplication() is refused, naming UIApplication.shared, and shared stays the one application", async function() {
+    var Application = await freshApplication("visible")
+    assert.throws(() => new Application(), (error) => error instanceof TypeError && /UIApplication\.shared/.test(error.message))
+    assert.ok(Application.shared instanceof Application)
+    assert.equal(Application.shared, Application.shared)
 })
 
 test("the notification names are Apple's raw strings", async function() {
@@ -212,13 +302,13 @@ test("hiding the page posts willResignActive then didEnterBackground, each once,
     assert.equal(entered[0].object, app)
     assert.equal(entered[0].userInfo, null)
     assert.equal(entered[0].name, "UIApplicationDidEnterBackgroundNotification")
-    assert.deepEqual(states, [Application.State.inactive, Application.State.background])
+    assert.deepEqual(states, [Application.State.active, Application.State.background])
     assert.equal(app.applicationState, Application.State.background)
     resigned.stop()
     entered.stop()
 })
 
-test("showing the page posts willEnterForeground then didBecomeActive, inactive inside the first and active inside the second", async function() {
+test("showing the page posts willEnterForeground then didBecomeActive, background inside the first and active inside the second", async function() {
     var Application = await freshApplication("visible")
     var app = Application.shared
     setVisibility("hidden")
@@ -230,7 +320,7 @@ test("showing the page posts willEnterForeground then didBecomeActive, inactive 
     assert.equal(active.length, 1)
     assert.equal(foreground[0].object, app)
     assert.equal(active[0].object, app)
-    assert.deepEqual(states, [Application.State.inactive, Application.State.active])
+    assert.deepEqual(states, [Application.State.background, Application.State.active])
     assert.equal(app.applicationState, Application.State.active)
     foreground.stop()
     active.stop()
@@ -243,9 +333,9 @@ test("a full hide and show posts the four notifications in Apple's order, with t
     setVisibility("visible")
     log.stop()
     assert.deepEqual([...log], [
-        ["WillResignActive", Application.State.inactive],
+        ["WillResignActive", Application.State.active],
         ["DidEnterBackground", Application.State.background],
-        ["WillEnterForeground", Application.State.inactive],
+        ["WillEnterForeground", Application.State.background],
         ["DidBecomeActive", Application.State.active],
     ])
 })
@@ -256,7 +346,7 @@ test("a page that loaded hidden posts willEnterForeground and didBecomeActive wh
     setVisibility("visible")
     log.stop()
     assert.deepEqual([...log], [
-        ["WillEnterForeground", Application.State.inactive],
+        ["WillEnterForeground", Application.State.background],
         ["DidBecomeActive", Application.State.active],
     ])
     assert.equal(Application.shared.applicationState, Application.State.active)
@@ -300,6 +390,7 @@ test("the entry evaluated twice on one document installs one listener and posts 
     assert.notEqual(first, second, "two evaluations are two copies of the class")
     assert.equal(first.shared, second.shared, "the document has one application")
     assert.equal(listeners, 1)
+    mock.timers.tick(0)
     var log = recording(first)
     setVisibility("hidden")
     setVisibility("visible")

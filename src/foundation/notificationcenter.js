@@ -1,12 +1,16 @@
 
 
+import { defaultCenterKey } from "../utils/documentkeys.js"
+
+
 // Foundation's NotificationCenter: observers keyed by object, delivered
-// through `NotificationCenter.default`.
+// through `NotificationCenter.default`, which every copy of the package on a
+// page shares: the first to ask makes it.
 export class NotificationCenter {
 
     static get default() {
-        if (!NotificationCenter._default) { NotificationCenter._default = new NotificationCenter() }
-        return NotificationCenter._default
+        if (!globalThis[defaultCenterKey]) { globalThis[defaultCenterKey] = new NotificationCenter() }
+        return globalThis[defaultCenterKey]
     }
 
     constructor() {

@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIScrollView, UIViewController, IBOutlet, NotificationCenter } from "../src/index.js"
+import { UIScrollView, UIView, UIViewController, IBOutlet, NotificationCenter } from "../src/index.js"
 
 
 function scroll(element) {
@@ -274,4 +274,37 @@ test("a delegate without scrollViewDidScroll leaves the document alone on a page
         scrollView.delegate = {}
         assert.equal(spy.live.size, 0)
     } finally { spy.restore() }
+})
+
+// A scroll view made in code has no element until addSubview places it, and the
+// delegate is set before that, as Apple's init-then-configure order goes.
+function listClass() {
+    class List extends UIScrollView {}
+    List.nib = "<div id=\"made\"></div>"
+    return List
+}
+
+test("a delegate set before the scroll view is placed hears the scrolls after addSubview", function() {
+    page("<div id=\"stage\"></div>")
+    var stage = new UIView("#stage")
+    var list = new (listClass())()
+    var received = []
+    list.delegate = {scrollViewDidScroll(sender) { received.push(sender) }}
+    stage.addSubview(list)
+    scroll(document.getElementById("made"))
+    assert.deepEqual(received, [list])
+})
+
+test("a second placement of the scroll view does not double the scroll callback", function() {
+    page("<div id=\"one\"></div><div id=\"two\"></div>")
+    var one = new UIView("#one")
+    var two = new UIView("#two")
+    var list = new (listClass())()
+    var count = 0
+    list.delegate = {scrollViewDidScroll() { count += 1 }}
+    one.addSubview(list)
+    two.addSubview(list)
+    list.didMoveToSuperview()
+    scroll(list.$el[0])
+    assert.equal(count, 1)
 })
