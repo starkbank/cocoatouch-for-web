@@ -57,13 +57,13 @@ export class TextFieldsViewController extends UIViewController {
         this.previewLabel.text = `Submitted ${this.nameField.text} (${this.emailField.text})` + (this.notesField.text ? ` with notes: ${this.notesField.text}` : "")
     }
 
-    // addTarget actions receive (target, sender); see the Buttons page.
-    showPasswordChanged(target, sender) {
-        target.passwordField.isSecureTextEntry = !sender.isOn
+    // addTarget actions receive the sender alone, and this is the target; see the Buttons page.
+    showPasswordChanged(sender) {
+        this.passwordField.isSecureTextEntry = !sender.isOn
     }
 
-    lockNameChanged(target, sender) {
-        target.nameField.isUserInteractionEnabled = !sender.isOn
+    lockNameChanged(sender) {
+        this.nameField.isUserInteractionEnabled = !sender.isOn
     }
 
     updateForm() {
