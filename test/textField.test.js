@@ -276,3 +276,37 @@ test("a line deletion asks up to the start or the end of the line", function() {
 test("typing at a caret asks for an empty range at the caret with the typed text", function() {
     assert.deepEqual(rangeAsked("hello", [2, 2], "insertText", "X"), [2, 0, "X"])
 })
+
+// A line is as far as the nearest newline, which only a textarea can hold.
+function rangeAskedInTextarea(value, caret, inputType) {
+    page("<textarea id=\"notes\"></textarea>")
+    var seen = []
+    var field = new UITextField("#notes")
+    field.delegate = {
+        textFieldShouldChangeCharactersInRangeReplacementString(textField, range) { seen.push([range.location, range.length]) },
+    }
+    var input = field.$el[0]
+    input.value = value
+    input.focus()
+    input.setSelectionRange(caret, caret)
+    input.dispatchEvent(new window.InputEvent("beforeinput", {data: null, inputType, bubbles: true, cancelable: true}))
+    return seen.length === 0 ? null : seen[0]
+}
+
+test("a line deletion in a textarea stops at the newline", function() {
+    var text = "ab\ncde\nfg"
+    assert.deepEqual(rangeAskedInTextarea(text, 5, "deleteSoftLineBackward"), [3, 2])
+    assert.deepEqual(rangeAskedInTextarea(text, 5, "deleteHardLineBackward"), [3, 2])
+    assert.deepEqual(rangeAskedInTextarea(text, 4, "deleteHardLineForward"), [4, 2])
+    assert.deepEqual(rangeAskedInTextarea(text, 4, "deleteSoftLineForward"), [4, 2])
+    assert.deepEqual(rangeAskedInTextarea(text, 1, "deleteHardLineForward"), [1, 1])
+    assert.deepEqual(rangeAskedInTextarea(text, 8, "deleteHardLineBackward"), [7, 1])
+})
+
+test("a line deletion at the edge of a line reaches the newline beyond it, as Backspace and Delete do", function() {
+    var text = "ab\ncde\nfg"
+    assert.deepEqual(rangeAskedInTextarea(text, 3, "deleteSoftLineBackward"), [2, 1])
+    assert.deepEqual(rangeAskedInTextarea(text, 6, "deleteHardLineForward"), [6, 1])
+    assert.equal(rangeAskedInTextarea(text, 0, "deleteSoftLineBackward"), null)
+    assert.equal(rangeAskedInTextarea(text, 9, "deleteHardLineForward"), null)
+})
