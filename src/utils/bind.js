@@ -214,7 +214,7 @@ function _connect(control, action, $target, {isRestoring}) {
     _rejectNibOverOwnedElement(owner, action)
     var sender = owner instanceof action.cls ? owner : _buildSender(control, action, $target, {isOwned: !!owner, isRestoring})
     if (_isControl(sender)) {
-        sender._connectNibAction({target: control, method: action.method, controlEvent: sender.constructor._nibEvent})
+        sender._connectNibAction({target: control, method: action.method, controlEvent: action.controlEvent ?? sender.constructor._nibEvent})
         return
     }
     $target.off("click.ibaction").on("click.ibaction", (e) => {
@@ -360,7 +360,7 @@ function _dash(property) {
     return property.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
 }
 
-const keyboardPrefix = "keyboard:"
+export const keyboardPrefix = "keyboard:"
 const priorityFlag = "priority"
 
 function _isKeyboardAction(action) {
