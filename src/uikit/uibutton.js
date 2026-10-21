@@ -152,7 +152,7 @@ export class UIButton extends UIControl {
             _drawDecorations(this)
             return
         }
-        var title = configurationTitle(configuration)
+        var title = configuration === this._configuration ? null : configurationTitle(configuration)
         this._configuration = configurationOwnedBy(_ownerOf(this), {from: configuration})
         if (title !== null) { _setTitle(this, title, UIControlState.normal) }
         _drawDecorations(this)

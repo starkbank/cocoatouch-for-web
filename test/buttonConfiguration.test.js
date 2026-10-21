@@ -196,3 +196,21 @@ test("a configuration copied from a free value keeps its title as before, and a 
     pay.configuration = Configuration.plain()
     assert.equal(pay.currentTitle, "Paying")
 })
+
+test("assigning a button's own configuration back leaves its markup, icon content included, as it was", function() {
+    page("<button id=\"b\"><i class=\"icon\"></i> Pay now</button>")
+    var pay = new UIButton("#b")
+    var before = element().innerHTML
+    pay.configuration = pay.configuration
+    assert.equal(element().innerHTML, before)
+    assert.equal(pay.currentTitle, " Pay now")
+})
+
+test("a configuration copied from a button whose markup has no text leaves the title alone", function() {
+    page("<button id=\"b\">Pay now</button><button id=\"c\"><i class=\"icon\"></i></button>")
+    var pay = new UIButton("#b")
+    var icon = new UIButton("#c")
+    pay.configuration = icon.configuration
+    assert.equal(element().textContent, "Pay now")
+    assert.equal(pay.currentTitle, "Pay now")
+})
