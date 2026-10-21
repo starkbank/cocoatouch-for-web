@@ -112,6 +112,13 @@ export function configurationOwnedBy(owner, {from}) {
     return copy
 }
 
+// The title a configuration describes: an owned copy has none of its own and
+// asks the button it belongs to, a free value holds it.
+export function configurationTitle(configuration) {
+    var owner = owners.get(configuration)
+    return owner ? owner.title() : configuration._title
+}
+
 // The text of an edge, as the attribute the stylesheet reads.
 export function edgeName(edge) {
     return Object.keys(NSDirectionalRectEdge).find((name) => NSDirectionalRectEdge[name] === edge)
