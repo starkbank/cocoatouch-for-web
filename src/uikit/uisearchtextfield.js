@@ -60,6 +60,7 @@ export class UISearchTextField extends UITextField {
     // targets, so the input's is relayed to the wrapper's own handlers alone:
     // no native event, nothing above the wrapper hears it and no focus moves.
     _bindInput() {
+        if (this.textField.length === 0) { return }
         this.$el.off("click.uisearchtextfield").on("click.uisearchtextfield", () => this.textField[0]?.focus())
         this.textField.off(".uisearchtextfield")
         this.textField.on("keydown.uisearchtextfield", (e) => {
