@@ -48,11 +48,23 @@ test("sample/ stays outside the published package", function() {
 })
 
 // addTarget calls an action with the sender alone, so a page of the sample that
-// still reads `(target, sender)` would teach, and run, the old signature.
-test("the sample's addTarget actions take the sender alone", function() {
-    const pages = ["textFields/textFieldsViewController.js", "buttons/buttonsViewController.js", "buttons/buttonsViewController.xib"]
-    for (const page of pages) {
-        const source = fs.readFileSync(path.join(repoRoot, "sample/src/uipages", page), "utf8")
-        assert.equal(/\(target, sender\)/.test(source), false, page)
+// still reads the target from a first parameter would teach, and run, the old
+// signature: `(target, sender)`, `(self, sender)` or an inline `(t) =>`.
+function sampleSources(directory) {
+    const found = []
+    for (const entry of fs.readdirSync(directory, {withFileTypes: true})) {
+        const entryPath = path.join(directory, entry.name)
+        if (entry.isDirectory()) { found.push(...sampleSources(entryPath)); continue }
+        if (/\.(js|xib)$/.test(entry.name)) { found.push(entryPath) }
+    }
+    return found
+}
+
+test("no sample page reads the target from an action's first parameter", function() {
+    const oldSignature = /\(\s*(target|self|t)\s*,\s*\w+\s*\)|action:\s*(async\s+)?\(\s*(target|self|t)\s*\)\s*=>/
+    const sources = sampleSources(path.join(repoRoot, "sample/src"))
+    assert.ok(sources.length > 10)
+    for (const source of sources) {
+        assert.equal(oldSignature.test(fs.readFileSync(source, "utf8")), false, path.relative(repoRoot, source))
     }
 })
