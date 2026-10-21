@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UICollectionView, UICollectionViewCell } from "../src/index.js"
+import { UICollectionView, UICollectionViewCell, UIScrollView } from "../src/index.js"
 
 
 function collectionWith(dataSource) {
@@ -47,4 +47,23 @@ test("a collection view data source or delegate carrying a retired name is refus
     }
     $("#grid #cell-section-0-row-1").trigger("click")
     assert.deepEqual(selected, [1])
+})
+
+// Apple's UICollectionView is a UIScrollView: its offset, size and scroll delegate are the scroll view's.
+test("a collection view is a scroll view and its delegate hears the scrolls", function() {
+    page("<div id=\"grid\"></div>")
+    var collection = new UICollectionView("#grid")
+    assert.ok(collection instanceof UIScrollView)
+    var scrolled = []
+    var delegate = {scrollViewDidScroll: function(scrollView) { scrolled.push(scrollView) }}
+    collection.delegate = delegate
+    assert.equal(collection.delegate, delegate)
+    document.getElementById("grid").dispatchEvent(new window.Event("scroll"))
+    assert.deepEqual(scrolled, [collection])
+    assert.equal(collection.contentOffset.x, 0)
+})
+
+test("a collection view without a delegate reports null", function() {
+    page("<div id=\"grid\"></div>")
+    assert.equal(new UICollectionView("#grid").delegate, null)
 })

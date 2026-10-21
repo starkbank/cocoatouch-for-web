@@ -76,9 +76,12 @@ export class Bind {
         }
     }
 
-    // An action binds under its own namespace, beside any target the app adds
-    // to the same element; binding twice over one element leaves one handler,
-    // since a row element outlives the cell bound to it on the previous reload.
+    // A control sender is connected as Interface Builder connects it: a
+    // connection on the element, keyed by (owner, method, event), that the
+    // control's own targets share one dispatch with, and binding it again
+    // replaces it, since a row element outlives the cell bound to it on the
+    // previous reload. Any other sender keeps one click handler under its own
+    // namespace, off before on for the same reason.
     // A matched element without an id is given one, as an outlet is, so the
     // sender's selector resolves again when its node is replaced. A restored
     // page binds its senders the way ibOutletRestore binds an outlet.
@@ -99,30 +102,7 @@ export class Bind {
                 if (!$target.attr("id")) {
                     $target.attr("id", _dashed(control.identifier, action.method) + "-" + (++unnamed))
                 }
-                // Lent the element it was matched on, as an outlet is: the
-                // sender's own selector is a descendant one, which $el would
-                // otherwise answer with a query over the whole document.
-                // A sender is the one creator that is only a second connection to
-                // an element: when a view already owns it, the sender is built to
-                // be handed to the handler and nothing else.
-                var owner = ownerOf($target[0])
-                _rejectNibOverOwnedElement(owner, action)
-                var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
-                sender._$el = $target
-                if (!owner) {
-                    _awakeSender(sender, {isRestoring})
-                }
-                $target.off("click.ibaction").on("click.ibaction", (e) => {
-                    var method = action.method
-                    if (!control[method]) { return }
-                    // A checkbox or radio toggles itself on a click, and the action
-                    // then reads the new state; cancelling the click would undo it.
-                    // Anchors and buttons keep the cancel, which is what stops an
-                    // app action from navigating or submitting a form.
-                    if (!_togglesItself(e.target)) { e.preventDefault() }
-                    if (_isDisabledControl(sender, $target[0])) { return }
-                    control[method](sender)
-                })
+                _connect(control, action, $target, {isRestoring})
             })
         }
     }
@@ -211,15 +191,47 @@ function _finishOutlet(responder, {isRestoring}) {
     if (responder["iboutlets"] && responder["iboutlets"].length > 0) {
         isRestoring ? Bind.ibOutletRestore(responder) : Bind.ibOutlet(responder)
     }
+    if (responder["ibactions"] && responder["ibactions"].length > 0) {
+        Bind.ibAction(responder, {isRestoring})
+    }
     Bind.ibInspectable(responder)
     var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
     if (_overrides(responder, hook)) {
         responder[hook]()
     }
-    if (responder["ibactions"] && responder["ibactions"].length > 0) {
-        Bind.ibAction(responder, {isRestoring})
-    }
     _appear(responder, {isRestoring})
+}
+
+
+// One declared action over one matched element. When an outlet already owns
+// the element the sender is that outlet, as Apple's sender is the outlet
+// object; otherwise a sender is built, lent the element it was matched on, as
+// an outlet is: its own selector is a descendant one, which $el would
+// otherwise answer with a query over the whole document. A sender built over
+// an owned element is only there to be handed to the handler.
+function _connect(control, action, $target, {isRestoring}) {
+    var owner = ownerOf($target[0])
+    _rejectNibOverOwnedElement(owner, action)
+    var sender = owner instanceof action.cls ? owner : _buildSender(control, action, $target, {isOwned: !!owner, isRestoring})
+    if (_isControl(sender)) {
+        sender._connectNibAction({target: control, method: action.method, controlEvent: sender.constructor._nibEvent})
+        return
+    }
+    $target.off("click.ibaction").on("click.ibaction", (e) => {
+        var method = action.method
+        if (!control[method]) { return }
+        if (!togglesItself(e.target)) { e.preventDefault() }
+        control[method](sender)
+    })
+}
+
+function _buildSender(control, action, $target, {isOwned, isRestoring}) {
+    var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
+    sender._$el = $target
+    if (!isOwned) {
+        _awakeSender(sender, {isRestoring})
+    }
+    return sender
 }
 
 
@@ -297,11 +309,11 @@ function _awakeSender(sender, {isRestoring}) {
     var hook = isRestoring ? "didMoveToWindow" : "awakeFromNib"
     if (isRestoring) { Bind.ibOutletRestore(sender) }
     if (!isRestoring) { Bind.ibOutlet(sender) }
+    Bind.ibAction(sender, {isRestoring})
     Bind.ibInspectable(sender)
     if (_overrides(sender, hook)) {
         sender[hook]()
     }
-    Bind.ibAction(sender, {isRestoring})
 }
 
 
@@ -437,20 +449,12 @@ function _bindKeyboardAction(control, action) {
     NotificationCenter.default.addObserver(control, {selector: selector, name: "keydown", object: document})
 }
 
-function _togglesItself(element) {
+// A checkbox or radio toggles itself on a click and the action then reads the
+// new state, so cancelling the click would undo it. Anchors and buttons keep
+// the cancel, which is what stops an app action from navigating or submitting
+// a form.
+export function togglesItself(element) {
     return !!element && element.tagName === "INPUT" && (element.type === "checkbox" || element.type === "radio")
-}
-
-// A disabled control receives no touches, so no action of it runs; sendActions(for:)
-// is a direct call and does. The sender is one view over the element and an outlet
-// may be another, so the flag is read from both, and a UIControl's isEnabled reads
-// the element's own disabled state. A sender that is no UIControl is never gated.
-function _isDisabledControl(sender, element) {
-    if (!_isControl(sender)) { return false }
-    if (sender._isSendingActions) { return false }
-    var owner = ownerOf(element)
-    if (_isControl(owner) && owner._isSendingActions) { return false }
-    return sender.isEnabled === false
 }
 
 // UIControl is told by its target-action methods: this module is loaded by

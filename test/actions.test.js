@@ -266,7 +266,7 @@ function hookedSender(log) {
 
 var hookedMarkup = "<div id=\"card\"><a id=\"go\" data-count=\"3\"><span class=\"icon\"></span><i class=\"close\"></i></a><b id=\"filler\"></b></div>"
 
-test("a sender bound fresh gets its outlets' awakeFromNib, its inspectables, its own awakeFromNib, then its actions' senders", function() {
+test("a sender bound fresh gets its outlets' awakeFromNib, its actions' senders, its inspectables, then its own awakeFromNib", function() {
     var log = []
     page("<div id=\"card\"><a id=\"go\" data-count=\"3\"></a><b id=\"filler\"></b></div>")
     class Card extends UIView {
@@ -276,7 +276,7 @@ test("a sender bound fresh gets its outlets' awakeFromNib, its inspectables, its
     IBAction("#go", hookedSender(log))(Card.prototype, "tapped", {})
     IBAction("#filler", UIButton)(Card.prototype, "other", {})
     Bind.ibAction(new Card("#card"))
-    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+    assert.deepEqual(log, ["icon.awakeFromNib", "inner.awakeFromNib", "count 3", "awakeFromNib"])
 })
 
 test("a sender restored over pre-rendered html gets didMoveToWindow in place of awakeFromNib, down its own actions too", function() {
@@ -289,7 +289,7 @@ test("a sender restored over pre-rendered html gets didMoveToWindow in place of 
     IBAction("#go", hookedSender(log))(Card.prototype, "tapped", {})
     IBAction("#filler", UIButton)(Card.prototype, "other", {})
     Bind.ibAction(new Card("#card"), {isRestoring: true})
-    assert.deepEqual(log, ["icon.didMoveToWindow", "count 3", "didMoveToWindow", "inner.didMoveToWindow"])
+    assert.deepEqual(log, ["icon.didMoveToWindow", "inner.didMoveToWindow", "count 3", "didMoveToWindow"])
 })
 
 test("a restored view revived from its registered class restores the senders of its actions", function() {
@@ -307,7 +307,7 @@ test("a restored view revived from its registered class restores the senders of 
     page("<cocoatouch>" + hookedMarkup + "</cocoatouch>")
     var controller = new Controller()
     controller.restore(controller)
-    assert.deepEqual(log, ["icon.didMoveToWindow", "count 3", "didMoveToWindow", "inner.didMoveToWindow"])
+    assert.deepEqual(log, ["icon.didMoveToWindow", "inner.didMoveToWindow", "count 3", "didMoveToWindow"])
 })
 
 test("an outlet restored with actions restores the senders of those actions", function() {
@@ -324,7 +324,7 @@ test("an outlet restored with actions restores the senders of those actions", fu
     page("<cocoatouch>" + hookedMarkup + "</cocoatouch>")
     var controller = new Controller()
     controller.restore(controller)
-    assert.deepEqual(log, ["icon.didMoveToWindow", "count 3", "didMoveToWindow", "inner.didMoveToWindow"])
+    assert.deepEqual(log, ["icon.didMoveToWindow", "inner.didMoveToWindow", "count 3", "didMoveToWindow"])
 })
 
 test("a restored page binds the action of a revived view to its own element, once per click", function() {
@@ -373,7 +373,7 @@ test("an element an outlet owns is awoken once, and still answers its action wit
     var card = new Card("#card")
     Bind.ibOutlet(card)
     Bind.ibAction(card)
-    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+    assert.deepEqual(log, ["icon.awakeFromNib", "inner.awakeFromNib", "count 3", "awakeFromNib"])
     $("#go").trigger("click")
     assert.equal(taps.length, 1)
     assert.ok(taps[0] instanceof Fancy)
@@ -392,7 +392,7 @@ test("an element an outlet owns gets one didMoveToWindow on a restored page", fu
     var card = new Card("#card")
     Bind.ibOutletRestore(card)
     Bind.ibAction(card, {isRestoring: true})
-    assert.deepEqual(log, ["icon.didMoveToWindow", "count 3", "didMoveToWindow", "inner.didMoveToWindow"])
+    assert.deepEqual(log, ["icon.didMoveToWindow", "inner.didMoveToWindow", "count 3", "didMoveToWindow"])
 })
 
 test("an element a view placed with addSubview owns is not awoken again by an action over it", function() {
@@ -462,7 +462,7 @@ test("rebinding a card's actions over the same elements awakes no second sender 
     Bind.ibAction(card)
     Bind.ibAction(card)
     Bind.ibAction(card)
-    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+    assert.deepEqual(log, ["icon.awakeFromNib", "inner.awakeFromNib", "count 3", "awakeFromNib"])
 })
 
 test("two actions of one control over the same element awake it once", function() {
@@ -476,7 +476,7 @@ test("two actions of one control over the same element awake it once", function(
     IBAction("#go", Fancy)(Card.prototype, "tapped", {})
     IBAction("#go", Fancy)(Card.prototype, "pressed", {})
     Bind.ibAction(new Card("#card"))
-    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+    assert.deepEqual(log, ["icon.awakeFromNib", "inner.awakeFromNib", "count 3", "awakeFromNib"])
 })
 
 test("every element a class action matches that no view owns gets a sender of its own, awoken once", function() {
@@ -489,8 +489,8 @@ test("every element a class action matches that no view owns gets a sender of it
     IBAction(".go", hookedSender(log))(Card.prototype, "tapped", {})
     Bind.ibAction(new Card("#card"))
     assert.deepEqual(log, [
-        "icon.awakeFromNib", "count 1", "awakeFromNib", "inner.awakeFromNib",
-        "icon.awakeFromNib", "count 2", "awakeFromNib", "inner.awakeFromNib",
+        "icon.awakeFromNib", "inner.awakeFromNib", "count 1", "awakeFromNib",
+        "icon.awakeFromNib", "inner.awakeFromNib", "count 2", "awakeFromNib",
     ])
     $(".go").each(function() { $(this).trigger("click") })
     assert.equal(taps.length, 2)
@@ -559,7 +559,7 @@ test("a sender class carrying a nib over an element its own class owns is the or
     var html = document.getElementById("card").innerHTML
     Bind.ibAction(card)
     assert.equal(document.getElementById("card").innerHTML, html)
-    assert.deepEqual(log, ["icon.awakeFromNib", "count 3", "awakeFromNib", "inner.awakeFromNib"])
+    assert.deepEqual(log, ["icon.awakeFromNib", "inner.awakeFromNib", "count 3", "awakeFromNib"])
 })
 
 // The one place an owner stops owning is its disposal: the element outlives it
