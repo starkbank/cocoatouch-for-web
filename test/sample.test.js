@@ -46,3 +46,13 @@ test("sample/ stays outside the published package", function() {
         assert.notEqual(path.normalize(entry).split(path.sep)[0], "sample", entry)
     }
 })
+
+// addTarget calls an action with the sender alone, so a page of the sample that
+// still reads `(target, sender)` would teach, and run, the old signature.
+test("the sample's addTarget actions take the sender alone", function() {
+    const pages = ["textFields/textFieldsViewController.js", "buttons/buttonsViewController.js", "buttons/buttonsViewController.xib"]
+    for (const page of pages) {
+        const source = fs.readFileSync(path.join(repoRoot, "sample/src/uipages", page), "utf8")
+        assert.equal(/\(target, sender\)/.test(source), false, page)
+    }
+})
