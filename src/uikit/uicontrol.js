@@ -303,6 +303,6 @@ function _bridge(event) {
 
 // The controls registered over an element, for a test that counts what an
 // element holds on to.
-export function controlsOver(element) {
+export function _controlsOverElement(element) {
     return Array.from(_controlsOver.get(element) || [])
 }
