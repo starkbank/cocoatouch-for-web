@@ -328,8 +328,17 @@ function _clusterLength(text, caret, direction) {
     var side = _sideOf(text, caret, direction)
     if (side === "") { return 0 }
     if (typeof Intl.Segmenter !== "function") { return _pairLength(side, direction) }
-    var segments = new Intl.Segmenter(undefined, {granularity: "grapheme"}).segment(side)
+    var segments = _segmenter("grapheme").segment(side)
     return segments.containing(direction < 0 ? side.length - 1 : 0).segment.length
+}
+
+// One per granularity, made on first use: a key in a field would otherwise
+// build one, and building is what costs. Callers check Intl.Segmenter exists.
+var _segmenters = {}
+
+function _segmenter(granularity) {
+    if (!_segmenters[granularity]) { _segmenters[granularity] = new Intl.Segmenter(undefined, {granularity: granularity}) }
+    return _segmenters[granularity]
 }
 
 function _pairLength(side, direction) {
@@ -343,7 +352,7 @@ function _pairLength(side, direction) {
 function _wordLength(text, caret, direction) {
     var side = _sideOf(text, caret, direction)
     if (typeof Intl.Segmenter !== "function") { return _wordLengthByPattern(side, direction) }
-    var segments = Array.from(new Intl.Segmenter(undefined, {granularity: "word"}).segment(side))
+    var segments = Array.from(_segmenter("word").segment(side))
     if (direction < 0) { segments.reverse() }
     var length = 0
     for (var piece of segments) {

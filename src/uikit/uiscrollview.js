@@ -29,6 +29,7 @@ export class UIScrollView extends UIView {
     // observation goes first, so a view never carries two.
     didMoveToSuperview() {
         super.didMoveToSuperview()
+        if (this.superview === null) { return }
         this._observeScroll()
     }
 

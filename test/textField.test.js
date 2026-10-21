@@ -310,3 +310,23 @@ test("a line deletion at the edge of a line reaches the newline beyond it, as Ba
     assert.equal(rangeAskedInTextarea(text, 0, "deleteSoftLineBackward"), null)
     assert.equal(rangeAskedInTextarea(text, 9, "deleteHardLineForward"), null)
 })
+
+test("the segmenters are made once and not on every key", function() {
+    var original = Intl.Segmenter
+    var constructions = 0
+    Intl.Segmenter = class extends original {
+        constructor(...parameters) {
+            super(...parameters)
+            constructions += 1
+        }
+    }
+    try {
+        for (var key = 0; key < 4; key++) {
+            rangeAsked("hello world", [5, 5], "deleteContentBackward")
+            rangeAsked("hello world", [5, 5], "deleteWordBackward")
+        }
+    } finally {
+        Intl.Segmenter = original
+    }
+    assert.ok(constructions <= 2, "constructed " + constructions + " times")
+})

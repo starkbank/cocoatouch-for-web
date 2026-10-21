@@ -308,3 +308,23 @@ test("a second placement of the scroll view does not double the scroll callback"
     scroll(list.$el[0])
     assert.equal(count, 1)
 })
+
+test("removing the scroll view from its superview leaves the center no observer for it", function() {
+    page("<div id=\"stage\"></div>")
+    var stage = new UIView("#stage")
+    var list = new (listClass())()
+    list.delegate = {scrollViewDidScroll() {}}
+    stage.addSubview(list)
+    assert.equal(NotificationCenter.default._observers.has(list), true)
+    list.removeFromSuperview()
+    assert.equal(NotificationCenter.default._observers.has(list), false)
+})
+
+test("didMoveToSuperview with no superview observes nothing, since the view is not in the page", function() {
+    page("<div id=\"list\"></div>")
+    var scrollView = new UIScrollView("#list")
+    scrollView.delegate = {scrollViewDidScroll() {}}
+    NotificationCenter.default.removeObserver(scrollView)
+    scrollView.didMoveToSuperview()
+    assert.equal(NotificationCenter.default._observers.has(scrollView), false)
+})

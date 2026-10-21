@@ -203,7 +203,7 @@ function _normalTitle(button) {
 // when there is none, as Apple's title(for:) is for a button with no title.
 function _markupTitle(button) {
     var text = button.$el.text()
-    return text === "" ? null : text
+    return text.trim() === "" ? null : text
 }
 
 // The indicator and the image are what the button draws beside its title, and
