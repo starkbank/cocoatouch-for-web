@@ -88,6 +88,8 @@ test("a revived UISearchTextField does not append its input to the restore scope
     assert.equal(instancesOf(controller, TokenField).length, 1)
     assert.equal($("cocoatouch > input").length, 0)
     assert.equal($("input.search-input-tag").length, 0)
+    var scopeClicks = ($._data(document.querySelector("cocoatouch"), "events") || {}).click || []
+    assert.equal(scopeClicks.filter((handler) => handler.namespace === "uisearchtextfield").length, 0, "no handler is bound on a scope that has no input")
 })
 
 // The prerenderer loaded the page; the client only appears. A viewDidLoad
