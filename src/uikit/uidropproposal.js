@@ -11,7 +11,7 @@ export class UIDropProposal extends NSObject {
 
     /**
      * @param {object} options
-     * @param {"cancel"|"forbidden"|"copy"|"move"} options.operation
+     * @param {0|1|2|3} options.operation one of UIDropOperation
      */
     constructor({operation} = {}) {
         super()

@@ -295,10 +295,11 @@ test("a UTType takes exactly one of its labels", function() {
     assert.throws(() => new UTType({filenameExtension: ""}), TypeError)
 })
 
-test("every declared type walks up to public.item, and every parent it names is declared", function() {
+test("every declared type walks up to public.item or to public.content, the root of the content types, and every parent it names is declared", function() {
     var table = declaredTypes()
     for (var identifier of Object.keys(table)) {
-        assert.equal(identifierConforms(identifier, "public.item"), true, identifier)
+        var isRooted = identifierConforms(identifier, "public.item") || identifierConforms(identifier, "public.content")
+        assert.equal(isRooted, true, identifier)
         for (var parent of table[identifier].parents) {
             assert.ok(parent in table, `${identifier} names ${parent}, which is not declared`)
         }
@@ -310,13 +311,32 @@ test("pdf, image, text and the office types conform to public.content, public.da
         UTType.pdf.identifier, UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier, UTType.heic.identifier,
         UTType.plainText.identifier, UTType.commaSeparatedText.identifier, UTType.html.identifier, UTType.rtf.identifier,
         "public.text", "com.microsoft.word.doc", "org.openxmlformats.wordprocessingml.document", "org.oasis-open.opendocument.text",
-        "com.microsoft.excel.xls", "org.openxmlformats.spreadsheetml.sheet", UTType.spreadsheet.identifier,
+        "com.microsoft.excel.xls", "org.openxmlformats.spreadsheetml.sheet",
     ]
     for (var identifier of identifiers) {
         for (var ancestor of ["public.content", "public.data", "public.item"]) {
             assert.equal(identifierConforms(identifier, ancestor), true, `${identifier} to ${ancestor}`)
         }
     }
+})
+
+// Apple's public.content, public.composite-content and public.spreadsheet are
+// content with no data under them: the types that are both name public.data too.
+test("public.content is a root, and the content types that are not data say so", function() {
+    assert.deepEqual(declaredTypes()["public.content"].parents, [])
+    assert.equal(identifierConforms("public.content", "public.data"), false)
+    for (var identifier of ["public.composite-content", UTType.spreadsheet.identifier]) {
+        assert.equal(identifierConforms(identifier, "public.content"), true, identifier)
+        assert.equal(identifierConforms(identifier, "public.data"), false, identifier)
+    }
+})
+
+test("the Word and Excel documents are data, as Apple's are, and keep their other parents", function() {
+    var table = declaredTypes()
+    assert.ok(table["com.microsoft.word.doc"].parents.includes("public.data"))
+    assert.ok(table["com.microsoft.excel.xls"].parents.includes("public.data"))
+    assert.ok(table["com.microsoft.word.doc"].parents.includes("public.composite-content"))
+    assert.ok(table["com.microsoft.excel.xls"].parents.includes("public.spreadsheet"))
 })
 
 test("an archive is data and no content, and a folder is an item and no data", function() {
