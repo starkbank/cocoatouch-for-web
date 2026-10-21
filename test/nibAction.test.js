@@ -3,7 +3,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { IBAction, IBOutlet, UIView, UIControl, UIButton, UITextField, UIKeyCommand, UIControlEvent, UIViewController, UITableView, UITableViewCell, UITapGestureRecognizer } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
-import { controlsOver } from "../src/uikit/uicontrol.js"
+import { _controlsOverElement } from "../src/uikit/uicontrol.js"
 
 
 // A host with one @IBAction per [selector, class, method] and one @IBOutlet per
@@ -482,10 +482,10 @@ test("connecting a nib action registers no control on the element, so rebinding 
     for (var bind = 0; bind < 5; bind++) {
         new UIButton("#tap")._connectNibAction({target: owner, method: "tapped", controlEvent: UIControlEvent.touchUpInside})
     }
-    assert.equal(controlsOver(document.getElementById("tap")).length, 0)
+    assert.equal(_controlsOverElement(document.getElementById("tap")).length, 0)
     var kept = new UIButton("#tap")
     kept.addTarget({}, {action() {}, for: UIControlEvent.touchUpInside})
-    assert.equal(controlsOver(document.getElementById("tap")).length, 1, "an addTarget pair is registered")
+    assert.equal(_controlsOverElement(document.getElementById("tap")).length, 1, "an addTarget pair is registered")
 })
 
 test("a disposed control's addTarget pair no longer fires on a click of its element, and the registry lets it go", function() {
@@ -498,5 +498,5 @@ test("a disposed control's addTarget pair no longer fires on a click of its elem
     button._dispose()
     click("#go")
     assert.equal(taps, 1)
-    assert.equal(controlsOver(document.getElementById("go")).includes(button), false)
+    assert.equal(_controlsOverElement(document.getElementById("go")).includes(button), false)
 })
