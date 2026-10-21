@@ -420,7 +420,9 @@ export class UIView extends UIResponder {
     // window one, which is this package's order where Apple documents each
     // hook's trigger but not their interleaving. awakeFromNib follows the
     // insertion, unlike UIKit, so a body may measure or style the element;
-    // layoutSubviews comes last, once there is an element to lay out.
+    // layoutSubviews comes last, once there is an element to lay out. The
+    // actions are connected after the outlets and before awakeFromNib, which is
+    // Interface Builder's order, so awakeFromNib can send them.
     _attach(view, {at}) {
         view.willMove({toSuperview: this})
         var $viewEl = _elementFor(view, this)
@@ -438,9 +440,9 @@ export class UIView extends UIResponder {
         view.didMoveToSuperview()
         view.didMoveToWindow()
         Bind.ibOutlet(view)
+        Bind.ibAction(view)
         Bind.ibInspectable(view)
         view.awakeFromNib()
-        Bind.ibAction(view)
         view.layoutSubviews()
     }
 
@@ -535,9 +537,9 @@ export class UIView extends UIResponder {
         if (Bind.isConstructing(this)) { return }
         ownElement($el, this)
         Bind.ibOutlet(this)
+        Bind.ibAction(this)
         Bind.ibInspectable(this)
         this.awakeFromNib()
-        Bind.ibAction(this)
     }
 
     _link(view) {

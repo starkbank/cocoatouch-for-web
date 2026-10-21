@@ -90,17 +90,16 @@ test("sendActions fires a disabled control's targets and @IBAction, as a direct 
     assert.equal(pressed, 1)
     assert.deepEqual(view.log, ["saveTapped"])
     click("#save")
-    assert.equal(pressed, 1, "the bypass ends with the call")
+    assert.equal(pressed, 1, "a click on the still disabled control stays blocked")
     assert.deepEqual(view.log, ["saveTapped"])
 })
 
-test("sendActions on a disabled control whose action throws still clears the bypass", function() {
+test("sendActions on a disabled control whose action throws leaves the control disabled to a click", function() {
     mount("<button id=\"save\">save</button>", [])
     var button = new UIButton("#save")
     button.addTarget({}, {action() { throw new Error("boom") }, for: UIControlEvent.touchUpInside})
     button.isEnabled = false
     assert.throws(() => button.sendActions({for: UIControlEvent.touchUpInside}), /boom/)
-    assert.equal(button._isSendingActions, false)
     var calls = 0
     button.removeTarget({}, {for: UIControlEvent.touchUpInside})
     button.addTarget({}, {action() { calls += 1 }, for: UIControlEvent.touchUpInside})
@@ -108,7 +107,7 @@ test("sendActions on a disabled control whose action throws still clears the byp
     assert.equal(calls, 0, "a later click on the still disabled control stays blocked")
 })
 
-test("the bypass belongs to one instance: sendActions on one control does not open another", function() {
+test("sendActions on one disabled control does not open another disabled control", function() {
     mount("<button id=\"one\">1</button><button id=\"two\">2</button>", [])
     var one = new UIButton("#one")
     var two = new UIButton("#two")

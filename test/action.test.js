@@ -8,15 +8,15 @@ function present(controller) {
     return new Promise((resolve) => controller.present(controller, {completion: resolve}))
 }
 
-test("two targets added to one control both fire, in order, and each action runs on its target", function() {
+test("two targets added to one control both fire, in order, and each action runs on its target with the control as its only argument", function() {
     page("<button id=\"send\"></button>")
     var button = new UIButton("#send")
     var log = []
     var first = {name: "first"}, second = {name: "second"}
-    button.addTarget(first, {action: function(target, control) { log.push([this.name, target.name, control]) }, for: UIControlEvent.touchUpInside})
+    button.addTarget(first, {action: function(sender) { log.push([this.name, arguments.length, sender]) }, for: UIControlEvent.touchUpInside})
     button.addTarget(second, {action: function() { log.push([this.name]) }, for: UIControlEvent.touchUpInside})
     button.sendActions({for: UIControlEvent.touchUpInside})
-    assert.deepEqual(log, [["first", "first", button], ["second"]])
+    assert.deepEqual(log, [["first", 1, button], ["second"]])
 })
 
 test("removeTarget with an action removes that pair only; without one it removes all of the target's for the event", function() {

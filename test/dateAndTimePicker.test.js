@@ -104,7 +104,7 @@ test("a change the user commits is a valueChanged with the picker as the sender,
     withDatepicker(function() {
         var picker = nativePicker()
         var seen = []
-        picker.addTarget({}, {action: function(target, sender) { seen.push(sender) }, for: UIControlEvent.valueChanged})
+        picker.addTarget({}, {action: function(sender) { seen.push(sender) }, for: UIControlEvent.valueChanged})
         picker.date = new Date(2026, 5, 1, 12, 0)
         assert.equal(seen.length, 0)
         var input = document.getElementById("start-field")

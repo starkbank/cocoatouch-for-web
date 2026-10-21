@@ -1,4 +1,5 @@
 import { UIView } from "./uiview.js"
+import { UIScrollView } from "./uiscrollview.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 import { Bind } from "../utils/bind.js"
@@ -9,12 +10,11 @@ const retiredDataSourceNames = {numberOfItemsInSection: "collectionViewNumberOfI
 const retiredDelegateNames = {collectionViewDidSelectItemAt: "collectionViewDidSelectItemAtIndexPath"}
 
 
-export class UICollectionView extends UIView {
+export class UICollectionView extends UIScrollView {
 
     constructor(selector) {
         super(selector)
         this._dataSource = null
-        this._delegate = null
         this._registeredNibs = {}
         this._registeredClasses = {}
         this._cells = {}
@@ -33,11 +33,11 @@ export class UICollectionView extends UIView {
 
     set delegate(delegate) {
         rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UICollectionView.delegate", "1.6.0")
-        this._delegate = delegate
+        super.delegate = delegate
     }
 
     get delegate() {
-        return this._delegate
+        return super.delegate
     }
 
     // A cell class registered for an identifier is instantiated by
@@ -129,9 +129,9 @@ export class UICollectionView extends UIView {
         this._cells[id] = cell
         this._link(cell)
         Bind.ibOutlet(cell)
+        Bind.ibAction(cell)
         Bind.ibInspectable(cell)
         cell.awakeFromNib()
-        Bind.ibAction(cell)
         return cell
     }
 
