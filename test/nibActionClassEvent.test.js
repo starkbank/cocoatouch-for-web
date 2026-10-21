@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test, { mock } from "node:test"
 import assert from "node:assert/strict"
-import { IBAction, UIView, UISwitch, UISegmentedControl, UIColorWell, UIDatePicker, UITextField, UISearchTextField, UIControl, UIControlEvent } from "../src/index.js"
+import { IBAction, IBOutlet, UIViewController, UIView, UISwitch, UISegmentedControl, UIColorWell, UIDatePicker, UITextField, UISearchTextField, UIControl, UIControlEvent } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 
 
@@ -93,4 +93,55 @@ test("an @IBAction on a UITextField runs when editing ends, not on a click or a 
     assert.equal(view.log.length, 0)
     input.blur()
     assert.equal(view.log.length, 1)
+})
+
+test("an @IBAction on a UISearchTextField runs once when its input loses the focus, not on a click or a keystroke", function() {
+    var view = mount("<div id=\"search\"></div>", "#search", UISearchTextField)
+    var input = document.querySelector("#search input")
+    input.focus()
+    input.dispatchEvent(new window.MouseEvent("click", {bubbles: true, cancelable: true}))
+    fire("#search input", "input")
+    assert.equal(view.log.length, 0)
+    input.blur()
+    assert.equal(view.log.length, 1)
+    assert.ok(view.log[0] instanceof UISearchTextField)
+})
+
+test("on a restored page a UISearchTextField revived over its pre-rendered wrapper runs its default action once on a native blur", function() {
+    Bind._restorePrototypes.clear()
+    var taps = []
+    class Panel extends UIView {
+        changed(sender) { taps.push(sender) }
+    }
+    IBAction("#search", UISearchTextField)(Panel.prototype, "changed", {})
+    class Controller extends UIViewController {}
+    page("<cocoatouch><div id=\"panel\"><div id=\"search\"><input class=\"search-input-tag\"></div></div></cocoatouch>")
+    var controller = new Controller()
+    controller.restore(controller)
+    var input = document.querySelector("#search input")
+    input.focus()
+    input.dispatchEvent(new window.MouseEvent("click", {bubbles: true, cancelable: true}))
+    assert.equal(taps.length, 0)
+    input.blur()
+    assert.equal(taps.length, 1)
+    Bind._restorePrototypes.clear()
+})
+
+test("an @IBAction on a UISearchTextField outlet runs once on blur after a restore", function() {
+    Bind._restorePrototypes.clear()
+    var taps = []
+    class Controller extends UIViewController {
+        changed(sender) { taps.push(sender) }
+    }
+    IBOutlet("#search", UISearchTextField)(Controller.prototype, "searchField", {})
+    IBAction("#search", UISearchTextField)(Controller.prototype, "changed", {})
+    page("<cocoatouch><div id=\"search\"><input class=\"search-input-tag\"></div></cocoatouch>")
+    var controller = new Controller()
+    controller.restore(controller)
+    var input = document.querySelector("#search input")
+    input.focus()
+    input.blur()
+    assert.equal(taps.length, 1)
+    assert.equal(taps[0], controller.searchField)
+    Bind._restorePrototypes.clear()
 })

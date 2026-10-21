@@ -433,6 +433,7 @@ Behaviour that now follows Apple, with no name to change:
 - `.spreadsheet`, `.archive` and `.folder` in a document picker no longer allow every file.
 - `UIDatePicker.valueChanged` is sent only when the date changed, and not at all while the picker is disabled; changing `datePickerMode` keeps the date.
 - `textField.delegate = null` stops its delegate calls instead of throwing, and the range of a deletion with a caret is what the key removes (the grapheme cluster, word or line), not an empty range at the caret.
+- `UISearchTextField` sends `editingDidBegin` and `editingDidEnd` when its input gains and loses the focus, so its Interface Builder default (`editingDidEnd`) fires; focusing a field that already has the focus, or blurring one that doesn't, sends nothing.
 - A button copied from another's configuration keeps its title, and `title({for})` on a nib button reads its markup's text.
 - A scroll view's delegate set before the view is placed is observed once it is.
 
@@ -467,6 +468,7 @@ What this package leaves out or does differently on purpose, in one place (each 
 - `CALayer.borderWidth` grows the box, as the stylesheet's border does, where Apple draws the border inside it: drawing it inside would move the fields that use it by a pixel. This is kept as it is until it is decided whether to match Apple.
 - `UIDatePicker.datePickerMode` defaults to `.date`, where Apple's default is `.dateAndTime`: Apple's would turn the sites' date-only fields into datetime fields. This is kept as it is until it is decided whether to match Apple.
 - `new UIButton()` has a plain `configuration`, where Apple's is `nil`: a `nil` would make `button.configuration.showsActivityIndicator = true` throw on a code-made button.
+- When a `UITextField` or `UISearchTextField` delegate's `textFieldShouldEndEditing` returns `false`, the blur still sends `editingDidEnd`, and taking the focus back on the next tick sends a new `editingDidBegin`; Apple sends neither. A browser cannot cancel a blur.
 - `FileManager.displayName({atPath})` is the empty string for a path with nothing at it, where Apple's returns the path's last component. `contentsOfDirectory` and `removeItem` do not throw for a path that is gone, where Apple's do (see the FileManager table). This is kept as it is until it is decided whether to match Apple.
 - `UIApplication.shared.keyWindow.subviews` is empty: linking the root view into the window would lay it out twice.
 

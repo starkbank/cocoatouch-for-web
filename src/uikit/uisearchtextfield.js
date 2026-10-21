@@ -26,19 +26,50 @@ export class UISearchTextField extends UITextField {
     _tokens = []
     _allowsDeletingTokens = true
 
-    // Handlers bind under the view's namespace and are removed first, so a
-    // second instance on the same element does not stack a second pair.
     init() {
-        if (this.$el.children("input").length === 0) {
-            this.$el.append("<input class=\"search-input-tag\" autocomplete=\"off\" />")
-        }
-        this.$el.off("click.uisearchtextfield").on("click.uisearchtextfield", () => this.textField.trigger("focus"))
-        this.textField.off("keydown.uisearchtextfield").on("keydown.uisearchtextfield", (e) => {
+        this._appendInput()
+        this._bindInput()
+    }
+
+    // A removed view loses its element's and its input's handlers with them, and
+    // a view made in code gets its element only when it is placed, so the input
+    // and what is bound on it come back on every placement.
+    didMoveToSuperview() {
+        super.didMoveToSuperview()
+        if (this.superview === null) { return }
+        this._appendInput()
+        this._bindInput()
+    }
+
+    // A restored view has its input already, and its element may be the whole
+    // restore scope, which must not be given one: it binds and appends nothing
+    // new.
+    didMoveToWindow() {
+        super.didMoveToWindow()
+        this._bindInput()
+    }
+
+    _appendInput() {
+        if (this.$el.children("input").length > 0) { return }
+        this.$el.append("<input class=\"search-input-tag\" autocomplete=\"off\" />")
+    }
+
+    // Handlers bind under the view's namespace and are removed first, so a
+    // second instance on the same element does not stack a second set. A focus
+    // or blur does not bubble from the input to the wrapper that holds the
+    // targets, so the input's is relayed to the wrapper's own handlers alone:
+    // no native event, nothing above the wrapper hears it and no focus moves.
+    _bindInput() {
+        this.$el.off("click.uisearchtextfield").on("click.uisearchtextfield", () => this.textField[0]?.focus())
+        this.textField.off(".uisearchtextfield")
+        this.textField.on("keydown.uisearchtextfield", (e) => {
             if (e.key !== "Backspace" || this.textField.val() !== "" || !this._allowsDeletingTokens) { return }
             if (this._tokens.length === 0) { return }
             e.preventDefault()
             this.removeToken({at: this._tokens.length - 1})
         })
+        this.textField.on("focus.uisearchtextfield", () => this.$el.triggerHandler("focus"))
+        this.textField.on("blur.uisearchtextfield", () => this.$el.triggerHandler("blur"))
     }
 
     get textField() {
@@ -93,11 +124,11 @@ export class UISearchTextField extends UITextField {
     // element here is the inner input, so those three need the same override
     // for the same reason text did.
     becomeFirstResponder() {
-        this.textField.trigger("focus")
+        this.textField[0]?.focus()
     }
 
     resignFirstResponder() {
-        this.textField.trigger("blur")
+        this.textField[0]?.blur()
     }
 
     get isFirstResponder() {
