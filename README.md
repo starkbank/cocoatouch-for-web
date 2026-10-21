@@ -375,7 +375,7 @@ Foundation's `FileManager.default` reads what the user picked or dropped, and no
 
 | Method | Missing or unreadable path |
 |---|---|
-| `displayName({atPath})` | the empty string, never throws (a deviation: Apple's answers from the path it is given) |
+| `displayName({atPath})` | the empty string, never throws (a deviation: Apple's returns the path's last component) |
 | `attributesOfItem({atPath})` | throws an `Error` (Apple's throws an `NSError`) |
 | `contents({atPath})` | resolves `null`, never rejects (a file moved or deleted after it was picked reads `null` too) |
 | `contentsOfDirectory({at, includingPropertiesForKeys})` | resolves an empty array (a deviation: Apple's throws) |
@@ -467,7 +467,7 @@ What this package leaves out or does differently on purpose, in one place (each 
 - `CALayer.borderWidth` grows the box, as the stylesheet's border does, where Apple draws the border inside it: drawing it inside would move the fields that use it by a pixel. This is kept as it is until it is decided whether to match Apple.
 - `UIDatePicker.datePickerMode` defaults to `.date`, where Apple's default is `.dateAndTime`: Apple's would turn the sites' date-only fields into datetime fields. This is kept as it is until it is decided whether to match Apple.
 - `new UIButton()` has a plain `configuration`, where Apple's is `nil`: a `nil` would make `button.configuration.showsActivityIndicator = true` throw on a code-made button.
-- `FileManager`: `displayName`, `contentsOfDirectory` and `removeItem` do not throw for a path that is gone, as Apple's `contentsOfDirectory` and `removeItem` do (see the FileManager table). This is kept as it is until it is decided whether to match Apple.
+- `FileManager.displayName({atPath})` is the empty string for a path with nothing at it, where Apple's returns the path's last component. `contentsOfDirectory` and `removeItem` do not throw for a path that is gone, where Apple's do (see the FileManager table). This is kept as it is until it is decided whether to match Apple.
 - `UIApplication.shared.keyWindow.subviews` is empty: linking the root view into the window would lay it out twice.
 
 ## Classes

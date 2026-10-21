@@ -27,11 +27,11 @@ var _default = null
 //
 // What each method does with a path that is missing, never minted or released,
 // or a file that can no longer be read. attributesOfItem and contents answer as
-// Apple's do; the three marked as deviations do not, kept on purpose so that a path that
-// is gone answers a plain value and cleaning it up never throws:
+// Apple's do; the three marked as deviations do not, kept on purpose so that a path
+// that is gone answers a plain value and cleaning it up never throws:
 //
 //   displayName(atPath:)           the empty string, never throws (a deviation: Apple's
-//                                  answers from the path it is given)
+//                                  returns the path's last component)
 //   attributesOfItem(atPath:)      throws an Error (Apple's throws an NSError)
 //   contents(atPath:)              resolves null (Apple's returns nil), never rejects
 //   contentsOfDirectory(at:)       resolves an empty array (a deviation: Apple's throws)
