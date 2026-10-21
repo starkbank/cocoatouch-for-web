@@ -3,6 +3,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { IBAction, IBOutlet, UIView, UIControl, UIButton, UITextField, UIKeyCommand, UIControlEvent, UIViewController, UITableView, UITableViewCell, UITapGestureRecognizer } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
+import { controlsOver } from "../src/uikit/uicontrol.js"
 
 
 // A host with one @IBAction per [selector, class, method] and one @IBOutlet per
@@ -471,4 +472,31 @@ test("an @IBAction refuses an event that is not a UIControlEvent, a class that i
     assert.throws(() => IBAction(UIKeyCommand.inputEscape, undefined, {for: UIControlEvent.touchDown})(target, "m", {}), TypeError)
     assert.doesNotThrow(() => IBAction("#go", UIButton, {})(target, "m", {}))
     assert.doesNotThrow(() => IBAction("#go", UIButton)(target, "m", {}))
+})
+
+// The element's registry of controls is held for as long as the element lives,
+// so a bind that adds a sender each time would grow it with every reload of a row.
+test("connecting a nib action registers no control on the element, so rebinding a row's sender again and again grows nothing", function() {
+    page("<button id=\"tap\"></button>")
+    var owner = {tapped() {}}
+    for (var bind = 0; bind < 5; bind++) {
+        new UIButton("#tap")._connectNibAction({target: owner, method: "tapped", controlEvent: UIControlEvent.touchUpInside})
+    }
+    assert.equal(controlsOver(document.getElementById("tap")).length, 0)
+    var kept = new UIButton("#tap")
+    kept.addTarget({}, {action() {}, for: UIControlEvent.touchUpInside})
+    assert.equal(controlsOver(document.getElementById("tap")).length, 1, "an addTarget pair is registered")
+})
+
+test("a disposed control's addTarget pair no longer fires on a click of its element, and the registry lets it go", function() {
+    page("<button id=\"go\"></button>")
+    var button = new UIButton("#go")
+    var taps = 0
+    button.addTarget({}, {action() { taps += 1 }, for: UIControlEvent.touchUpInside})
+    click("#go")
+    assert.equal(taps, 1)
+    button._dispose()
+    click("#go")
+    assert.equal(taps, 1)
+    assert.equal(controlsOver(document.getElementById("go")).includes(button), false)
 })
