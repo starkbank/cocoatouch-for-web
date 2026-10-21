@@ -337,3 +337,36 @@ test("a delegate carrying the retired pick name is refused, naming the replaceme
     )
     assert.equal(picker.delegate, null)
 })
+
+
+// The accept tokens of every UTType constant as they were before public.content
+// lost public.data: the hierarchy changed under them and the picker's filters must not.
+const acceptByConstant = {
+    pdf: [".pdf", "application/pdf"],
+    image: ["image/*"],
+    png: [".png", "image/png"],
+    jpeg: [".jpeg", ".jpg", "image/jpeg"],
+    gif: [".gif", "image/gif"],
+    webP: [".webp", "image/webp"],
+    bmp: [".bmp", "image/bmp"],
+    heic: [".heic", "image/heic"],
+    heif: [".heif", "image/heif"],
+    tiff: [".tiff", ".tif", "image/tiff"],
+    svg: [".svg", "image/svg+xml"],
+    commaSeparatedText: [".csv", "text/csv"],
+    plainText: [".txt", "text/plain"],
+    html: [".html", ".htm", "text/html"],
+    rtf: [".rtf", "text/rtf"],
+    zip: [".zip", "application/zip"],
+    archive: [".zip", "application/zip"],
+    spreadsheet: [".xls", "application/vnd.ms-excel", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    item: [".png", "image/png", ".jpeg", ".jpg", "image/jpeg", ".pdf", "application/pdf", ".gif", "image/gif", ".webp", "image/webp", ".bmp", "image/bmp", ".tiff", ".tif", "image/tiff", ".svg", "image/svg+xml", ".avif", "image/avif", ".heic", "image/heic", ".heif", "image/heif", ".zip", "application/zip", ".doc", "application/msword", ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".odt", "application/vnd.oasis.opendocument.text", ".xls", "application/vnd.ms-excel", ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".csv", "text/csv", ".txt", "text/plain", ".html", ".htm", "text/html", ".rtf", "text/rtf"],
+    folder: [],
+}
+
+test("every UTType constant keeps the accept tokens it had", function() {
+    assert.deepEqual(Object.keys(acceptByConstant).sort(), Object.getOwnPropertyNames(UTType).filter((name) => UTType[name] instanceof UTType).sort())
+    for (var [name, tokens] of Object.entries(acceptByConstant)) {
+        assert.deepEqual(UTType[name]._acceptTokens, tokens, name)
+    }
+})

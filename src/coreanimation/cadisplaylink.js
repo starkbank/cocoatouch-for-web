@@ -78,7 +78,7 @@ export class CADisplayLink extends NSObject {
     /**
      * @param {object} options
      * @param {RunLoop} options.to
-     * @param {"default"|"common"} options.forMode
+     * @param {"kCFRunLoopDefaultMode"|"kCFRunLoopCommonModes"} options.forMode
      */
     add({to, forMode} = {}) {
         _check(to, forMode, "CADisplayLink.add", addSignature)
@@ -93,7 +93,7 @@ export class CADisplayLink extends NSObject {
     /**
      * @param {object} options
      * @param {RunLoop} options.from
-     * @param {"default"|"common"} options.forMode
+     * @param {"kCFRunLoopDefaultMode"|"kCFRunLoopCommonModes"} options.forMode
      */
     remove({from, forMode} = {}) {
         _check(from, forMode, "CADisplayLink.remove", removeSignature)

@@ -40,7 +40,11 @@ const decided = new WeakSet()
 //   drop       -> dropInteractionPerformDrop, dropInteractionConcludeDrop, then
 //                 dropInteractionSessionDidEnd
 //
-// canHandle runs once, at enter, and the one session object lives to the drop.
+// canHandle runs at each enter, and one session object lives from an enter to the
+// drop. A drag that leaves the view and comes back is a new session: the one it
+// left ends (dropInteractionSessionDidEnd), canHandle runs again and the
+// delegate gets a new session object, where Apple's session continues across the
+// exit, because without a drop or dragend a page cannot tell it is the same drag.
 // While the drag is over the page the browser shows only each item's kind and
 // MIME type, so the session's items answer conformance from those and load
 // nothing; the same items load their files in the drop, which is the only time

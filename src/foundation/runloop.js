@@ -1,12 +1,12 @@
 import { NSObject } from "./nsobject.js"
 
 
-// RunLoop.Mode's two cases. A browser has one event loop and no modes, so both
-// are accepted and neither changes anything; they exist so that Apple's
-// add(to:forMode:) is written as it is on iOS.
+// RunLoop.Mode's two cases, with Apple's raw values. A browser has one event
+// loop and no modes, so both are accepted and neither changes anything; they
+// exist so that Apple's add(to:forMode:) is written as it is on iOS.
 const runLoopMode = Object.freeze({
-    default: "default",
-    common: "common",
+    default: "kCFRunLoopDefaultMode",
+    common: "kCFRunLoopCommonModes",
 })
 
 var _isConstructing = false

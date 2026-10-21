@@ -39,6 +39,7 @@ test("RunLoop.main and RunLoop.Mode are tokens, and run() is not here", function
     assert.notEqual(RunLoop.Mode.default, RunLoop.Mode.common)
     assert.deepEqual(Object.keys(RunLoop.Mode).sort(), ["common", "default"])
     assert.equal(Object.isFrozen(RunLoop.Mode), true)
+    assert.deepEqual({...RunLoop.Mode}, {default: "kCFRunLoopDefaultMode", common: "kCFRunLoopCommonModes"}, "Apple's raw values")
     assert.equal(typeof RunLoop.main.run, "undefined")
     assert.throws(() => new RunLoop(), TypeError)
 })

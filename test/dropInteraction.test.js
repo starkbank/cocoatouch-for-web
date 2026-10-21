@@ -74,6 +74,11 @@ function recorder(overrides) {
 
 test("UIDropOperation and UIDropProposal are Apple's: cancel, forbidden, copy and move, and the operation is required", function() {
     assert.deepEqual(Object.keys(UIDropOperation).sort(), ["cancel", "copy", "forbidden", "move"])
+    assert.deepEqual({...UIDropOperation}, {cancel: 0, forbidden: 1, copy: 2, move: 3}, "Apple's raw values")
+    assert.equal(Object.isFrozen(UIDropOperation), true)
+    for (var text of ["cancel", "forbidden", "copy", "move"]) {
+        assert.throws(() => new UIDropProposal({operation: text}), (error) => error instanceof TypeError && /UIDropOperation/.test(error.message), text)
+    }
     assert.equal(new UIDropProposal({operation: UIDropOperation.copy}).operation, UIDropOperation.copy)
     assert.equal(new UIDropProposal({operation: UIDropOperation.move}).operation, UIDropOperation.move)
     assert.throws(() => new UIDropProposal(), (error) => error instanceof TypeError && /UIDropProposal\(operation:\)/.test(error.message))

@@ -6,7 +6,9 @@ import { required, instance } from "../utils/required.js"
 // can say about them: the extensions and MIME type of each, and what each
 // conforms to. Everything is an item; the rest is Apple's hierarchy, cut down
 // to the nodes these types need, with the parents the system declares: an image,
-// a text and a pdf are content as well as data.
+// a text and a pdf are content as well as data. public.content is a root, as
+// Apple's is, so a type that is data as well as content, the Word and Excel
+// documents among them, names public.data itself.
 const table = Object.freeze({
     "public.item": {parents: [], extensions: [], mime: null},
     "public.data": {parents: ["public.item"], extensions: [], mime: null},
@@ -27,7 +29,7 @@ const table = Object.freeze({
     "public.heif-standard": {parents: ["public.image"], extensions: [], mime: null},
     "public.heic": {parents: ["public.heif-standard"], extensions: ["heic"], mime: "image/heic"},
     "public.heif": {parents: ["public.heif-standard"], extensions: ["heif"], mime: "image/heif"},
-    "public.content": {parents: ["public.data"], extensions: [], mime: null},
+    "public.content": {parents: [], extensions: [], mime: null},
     "public.composite-content": {parents: ["public.content"], extensions: [], mime: null},
     "public.spreadsheet": {parents: ["public.content"], extensions: [], mime: null},
     "public.archive": {parents: ["public.data"], extensions: [], mime: null},
@@ -35,10 +37,10 @@ const table = Object.freeze({
     "public.zip-archive": {parents: ["com.pkware.zip-archive", "public.archive"], extensions: ["zip"], mime: "application/zip"},
     "org.openxmlformats.openxml": {parents: ["public.data"], extensions: [], mime: null},
     "org.oasis-open.opendocument": {parents: ["public.data"], extensions: [], mime: null},
-    "com.microsoft.word.doc": {parents: ["public.composite-content"], extensions: ["doc"], mime: "application/msword"},
+    "com.microsoft.word.doc": {parents: ["public.data", "public.composite-content"], extensions: ["doc"], mime: "application/msword"},
     "org.openxmlformats.wordprocessingml.document": {parents: ["org.openxmlformats.openxml", "public.composite-content"], extensions: ["docx"], mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
     "org.oasis-open.opendocument.text": {parents: ["org.oasis-open.opendocument", "public.composite-content"], extensions: ["odt"], mime: "application/vnd.oasis.opendocument.text"},
-    "com.microsoft.excel.xls": {parents: ["public.spreadsheet", "public.composite-content"], extensions: ["xls"], mime: "application/vnd.ms-excel"},
+    "com.microsoft.excel.xls": {parents: ["public.data", "public.spreadsheet", "public.composite-content"], extensions: ["xls"], mime: "application/vnd.ms-excel"},
     "org.openxmlformats.spreadsheetml.sheet": {parents: ["org.openxmlformats.openxml", "public.spreadsheet", "public.composite-content"], extensions: ["xlsx"], mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
     "public.text": {parents: ["public.data", "public.content"], extensions: [], mime: null},
     "public.comma-separated-values-text": {parents: ["public.text"], extensions: ["csv"], mime: "text/csv"},
