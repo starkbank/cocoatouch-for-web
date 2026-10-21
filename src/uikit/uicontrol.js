@@ -165,12 +165,16 @@ export class UIControl extends UIView {
             var kept = _nibConnectionsAt(this).filter(function(held) { return !(held.event === event && (held.owner !== target || held.method === method)) })
             $.data(this, nibConnectionsKey, kept.concat(connection))
         })
-        this._bindBridge(event)
+        this._bindBridge(event, {isRegistering: false})
     }
 
-    _bindBridge(event) {
+    // A nib connection carries its sender in the element's data, so only the
+    // control that holds addTarget pairs is registered over the element: a
+    // sender built again on every bind of a row would otherwise pile up in a
+    // set the element keeps for its lifetime.
+    _bindBridge(event, {isRegistering = true} = {}) {
         var namespaced = event + "." + bridgeNamespace
-        _register(this)
+        if (isRegistering) { _register(this) }
         this.$el.off(namespaced).on(namespaced, _bridge(event))
     }
 
@@ -225,7 +229,10 @@ function _nibConnectionsAt(element) {
     return $.data(element, nibConnectionsKey) || []
 }
 
+// Registering is what a placement or an addTarget does to a live control, and a
+// control removed and placed again is live again, so it stops counting as disposed.
 function _register(control) {
+    control._disposed = false
     control.$el.each(function() {
         var controls = _controlsOver.get(this)
         if (!controls) { _controlsOver.set(this, controls = new Set()) }
@@ -241,7 +248,12 @@ function _actionOf(connection) {
 // nib's connections, in the order they were made.
 function _connectionsAt(element, event) {
     var connections = []
-    for (var control of _controlsOver.get(element) || []) {
+    var controls = _controlsOver.get(element) || []
+    for (var control of controls) {
+        if (control._disposed === true) {
+            controls.delete(control)
+            continue
+        }
         for (var pair of control._targets()) {
             if (pair.event === event) { connections.push(pair) }
         }
@@ -286,4 +298,11 @@ function _bridge(event) {
         }
     }
     return _bridges[event]
+}
+
+
+// The controls registered over an element, for a test that counts what an
+// element holds on to.
+export function controlsOver(element) {
+    return Array.from(_controlsOver.get(element) || [])
 }
