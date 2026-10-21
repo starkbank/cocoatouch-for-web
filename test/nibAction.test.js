@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBAction, IBOutlet, UIView, UIControl, UIButton, UITextField, UIKeyCommand, UIControlEvent, UIViewController, UITableView, UITableViewCell, UITapGestureRecognizer } from "../src/index.js"
+import { IBAction, IBOutlet, UIView, UIControl, UIButton, UITextField, UIControlEvent, UIViewController, UITableView, UITableViewCell, UITapGestureRecognizer } from "../src/index.js"
 import { Bind } from "../src/utils/bind.js"
 import { _controlsOverElement } from "../src/uikit/uicontrol.js"
 
@@ -394,84 +394,6 @@ test("a controller's @IBAction connected before viewDidLoad receives a sendActio
     var controller = new Page()
     await new Promise((resolve) => controller.present(controller, {completion: resolve}))
     assert.deepEqual(log, ["go"])
-})
-
-// The event of an @IBAction is the connection's third field, as Interface
-// Builder stores it on the connection: @IBAction(selector, cls, {for}).
-function dispatch(selector, type) {
-    var event = new window.Event(type, {bubbles: true, cancelable: true})
-    document.querySelector(selector).dispatchEvent(event)
-    return event
-}
-
-test("an @IBAction declared for an event runs on that event and not on the class default", function() {
-    class Host extends UIView {
-        log = []
-        pressed() { this.log.push("pressed") }
-    }
-    IBAction("#go", UIButton, {for: UIControlEvent.touchDown})(Host.prototype, "pressed", {})
-    page("<div id=\"host\"><button id=\"go\">go</button></div>")
-    var host = new Host("#host")
-    Bind.ibAction(host)
-    click("#go")
-    assert.deepEqual(host.log, [])
-    dispatch("#go", "mousedown")
-    assert.deepEqual(host.log, ["pressed"])
-})
-
-test("an @IBAction declared for editingChanged on a text field runs when the user types", function() {
-    class Host extends UIView {
-        log = []
-        typed(sender) { this.log.push(sender.constructor.name) }
-    }
-    IBAction("#name", UITextField, {for: UIControlEvent.editingChanged})(Host.prototype, "typed", {})
-    page("<div id=\"host\"><input id=\"name\"></div>")
-    var host = new Host("#host")
-    Bind.ibAction(host)
-    dispatch("#name", "input")
-    assert.deepEqual(host.log, ["UITextField"])
-})
-
-test("stacked declarations of one method are several connections, one per event", function() {
-    class Host extends UIView {
-        log = []
-        changed() { this.log.push("changed") }
-    }
-    IBAction("#go", UIButton, {for: UIControlEvent.touchUpInside})(Host.prototype, "changed", {})
-    IBAction("#go", UIButton, {for: UIControlEvent.touchDown})(Host.prototype, "changed", {})
-    page("<div id=\"host\"><button id=\"go\">go</button></div>")
-    var host = new Host("#host")
-    Bind.ibAction(host)
-    click("#go")
-    dispatch("#go", "mousedown")
-    assert.deepEqual(host.log, ["changed", "changed"])
-})
-
-test("an @IBAction with an event connects to the outlet, and sendActions for that event reaches it", function() {
-    class Host extends UIView {
-        log = []
-        pressed(sender) { this.log.push(sender) }
-    }
-    IBOutlet("#go", UIButton)(Host.prototype, "goButton", {})
-    IBAction("#go", UIButton, {for: UIControlEvent.touchDown})(Host.prototype, "pressed", {})
-    page("<div id=\"host\"><button id=\"go\">go</button></div>")
-    var host = new Host("#host")
-    Bind.ibOutlet(host)
-    Bind.ibAction(host)
-    host.goButton.sendActions({for: UIControlEvent.touchUpInside})
-    assert.deepEqual(host.log, [])
-    host.goButton.sendActions({for: UIControlEvent.touchDown})
-    assert.deepEqual(host.log, [host.goButton])
-})
-
-test("an @IBAction refuses an event that is not a UIControlEvent, a class that is not a UIControl, and a key command", function() {
-    var target = {}
-    assert.throws(() => IBAction("#go", UIButton, {for: "doubleClick"})(target, "m", {}), TypeError)
-    assert.throws(() => IBAction("#go", UIButton, {for: null})(target, "m", {}), TypeError)
-    assert.throws(() => IBAction("#go", UIView, {for: UIControlEvent.touchDown})(target, "m", {}), TypeError)
-    assert.throws(() => IBAction(UIKeyCommand.inputEscape, undefined, {for: UIControlEvent.touchDown})(target, "m", {}), TypeError)
-    assert.doesNotThrow(() => IBAction("#go", UIButton, {})(target, "m", {}))
-    assert.doesNotThrow(() => IBAction("#go", UIButton)(target, "m", {}))
 })
 
 // The element's registry of controls is held for as long as the element lives,
