@@ -221,3 +221,8 @@ test("title(for:) falls back to the markup's text on a button nobody set a title
     nib.setTitle("Send", {for: UIControlState.normal})
     assert.equal(nib.title({for: UIControlState.normal}), "Send")
 })
+
+test("title(for:) is null for icon markup wrapped in whitespace, as it is for none", function() {
+    page("<button id=\"icon\">\n    <i class=\"icon\"></i>\n</button>")
+    assert.equal(new UIButton("#icon").title({for: UIControlState.normal}), null)
+})

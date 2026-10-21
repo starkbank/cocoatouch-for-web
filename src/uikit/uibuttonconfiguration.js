@@ -114,13 +114,13 @@ export function configurationOwnedBy(owner, {from}) {
 
 // The title a configuration describes: an owned copy has none of its own and
 // asks the button it belongs to, a free value holds it. A button whose markup has
-// no text has no title to hand over, so null and not an empty string that would
-// erase the receiver's.
+// no text, whitespace around an icon included, has no title to hand over, so
+// null and not a blank string that would erase the receiver's.
 export function configurationTitle(configuration) {
     var owner = owners.get(configuration)
     if (!owner) { return configuration._title }
     var title = owner.title()
-    return title === "" ? null : title
+    return title.trim() === "" ? null : title
 }
 
 // The text of an edge, as the attribute the stylesheet reads.

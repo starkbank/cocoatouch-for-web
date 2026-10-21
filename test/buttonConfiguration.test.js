@@ -214,3 +214,12 @@ test("a configuration copied from a button whose markup has no text leaves the t
     assert.equal(element().textContent, "Pay now")
     assert.equal(pay.currentTitle, "Pay now")
 })
+
+test("a configuration copied from a whitespace-wrapped icon button leaves the receiver's children alone", function() {
+    page("<button id=\"b\"><i class=\"keep\"></i> Pay now</button><button id=\"c\">\n    <i class=\"icon\"></i>\n</button>")
+    var pay = new UIButton("#b")
+    var icon = new UIButton("#c")
+    var before = element().innerHTML
+    pay.configuration = icon.configuration
+    assert.equal(element().innerHTML, before)
+})
