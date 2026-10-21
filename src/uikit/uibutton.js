@@ -3,7 +3,7 @@ import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { UIControl } from "./uicontrol.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
-import { UIButtonConfiguration, configurationOwnedBy, edgeName } from "./uibuttonconfiguration.js"
+import { UIButtonConfiguration, configurationOwnedBy, configurationTitle, edgeName } from "./uibuttonconfiguration.js"
 import { imageSource } from "./uiimage.js"
 import { required, typed, enumeration, optional, instance } from "../utils/required.js"
 
@@ -49,6 +49,7 @@ export class UIButton extends UIControl {
      */
     title({for: state} = {}) {
         var title = _title(this, required(state, "for", stateType, "UIButton.title", "Apple's is title(for:); write title({for: UIControlState.normal})."))
+        if (title === null) { return _markupTitle(this) }
         return title instanceof NSAttributedString ? title.string : title
     }
 
@@ -151,8 +152,9 @@ export class UIButton extends UIControl {
             _drawDecorations(this)
             return
         }
+        var title = configurationTitle(configuration)
         this._configuration = configurationOwnedBy(_ownerOf(this), {from: configuration})
-        if (configuration._title !== null) { _setTitle(this, configuration._title, UIControlState.normal) }
+        if (title !== null) { _setTitle(this, title, UIControlState.normal) }
         _drawDecorations(this)
     }
 
@@ -195,6 +197,13 @@ function _normalTitle(button) {
     var title = _title(button, UIControlState.normal)
     if (title === null) { return button.$el.text() }
     return title instanceof NSAttributedString ? title.string : title
+}
+
+// What a button nobody titled shows is its markup's text, as a nib's does; null
+// when there is none, as Apple's title(for:) is for a button with no title.
+function _markupTitle(button) {
+    var text = button.$el.text()
+    return text === "" ? null : text
 }
 
 // The indicator and the image are what the button draws beside its title, and

@@ -36,6 +36,11 @@ export class UIDatePicker extends UIControl {
         return Mode
     }
 
+    // Interface Builder connects a date picker's action to valueChanged.
+    static get _nibEvent() {
+        return UIControlEvent.valueChanged
+    }
+
     constructor(selector) {
         super(selector)
         this._locale = new Locale("en")
@@ -142,7 +147,9 @@ export class UIDatePicker extends UIControl {
     // .dateAndTime picks both in the browser's own control, .yearAndMonth hides
     // the calendar and picks a month. .countDownTimer is Apple's, and a page has
     // no control for a duration, so it is refused rather than drawn as something
-    // else.
+    // else. A date the picker holds goes through the switch, written by the new
+    // mode's own setter, as Apple's keeps its date; with none, each mode starts
+    // from its own default.
     /** @param {0|1|2|3|4} mode one of UIDatePicker.Mode */
     set datePickerMode(mode) {
         typed(mode, "datePickerMode", modeType, "UIDatePicker.datePickerMode", "Apple's is var datePickerMode: UIDatePicker.Mode; write picker.datePickerMode = UIDatePicker.Mode.time.")
@@ -150,12 +157,14 @@ export class UIDatePicker extends UIControl {
             throw new TypeError("UIDatePicker.datePickerMode = UIDatePicker.Mode.countDownTimer is not drawn: a page has no control for a duration, so use .time, .date, .dateAndTime or .yearAndMonth.")
         }
         var previous = this._mode
+        var kept = this.date
         this._mode = mode
         if (this._mode !== Mode.yearAndMonth) { this._month = null }
         if (this._mode === Mode.yearAndMonth && previous !== Mode.yearAndMonth) { this._month = _firstOfMonth(new Date()) }
         if (this._mode !== Mode.time) { this._day = null }
         this._settledKey = undefined
         this._configure()
+        if (kept instanceof Date && !isNaN(kept.getTime())) { this.date = kept }
     }
 
     get datePickerMode() {

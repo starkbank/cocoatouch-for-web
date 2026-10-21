@@ -6,14 +6,15 @@ import { UIDatePicker, UIControlEvent } from "../src/index.js"
 
 // jQuery UI is a page script, so this stand-in records the options the picker
 // hands it. Its getDate answers a wrong day on purpose: the picker's own date
-// must not come from re-reading the widget's text.
+// must not come from re-reading the widget's text. A test that wants the
+// widget empty, as a real one with no date answers, sets options.widgetDate to null.
 function withDatepicker(run) {
     var options = {}
     options.calls = []
     $.fn.datepicker = function(method, name, value) {
         if (typeof method === "object") { Object.assign(options, method); return this }
         options.calls.push(method)
-        if (method === "getDate") { return new Date(1999, 11, 31) }
+        if (method === "getDate") { return "widgetDate" in options ? options.widgetDate : new Date(1999, 11, 31) }
         return this
     }
     mock.timers.enable({apis: ["setTimeout"]})
@@ -47,6 +48,7 @@ test("entering yearAndMonth mode holds the first of the current month in memory 
     page("<div id=\"expiry\"><input id=\"expiry-field\" placeholder=\"mm/aaaa\"></div>")
     withDatepicker(function(options) {
         var picker = new UIDatePicker("#expiry")
+        options.widgetDate = null
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         var now = new Date()
         assert.deepEqual([picker.date.getFullYear(), picker.date.getMonth(), picker.date.getDate(), picker.date.getHours(), picker.date.getMinutes()], [now.getFullYear(), now.getMonth(), 1, 0, 0])

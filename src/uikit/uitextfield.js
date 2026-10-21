@@ -1,4 +1,5 @@
 import { UIControl } from "./uicontrol.js"
+import { UIControlEvent } from "./uicontrolevent.js"
 import { setText, setMarkup } from "../utils/text.js"
 import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { NSRange } from "../foundation/nsrange.js"
@@ -25,6 +26,11 @@ const pasteNamespace = "paste.uitextpaste"
 const utf8Encoder = new TextEncoder()
 
 export class UITextField extends UIControl {
+
+    // Interface Builder connects a text field's action to editingDidEnd.
+    static get _nibEvent() {
+        return UIControlEvent.editingDidEnd
+    }
 
     get _tagName() {
         if (!this.__tagName) {
@@ -107,8 +113,12 @@ export class UITextField extends UIControl {
     // is, covered.
     set delegate(delegate) {
         var textField = this
-        this._delegate = delegate
+        this._delegate = delegate || null
         this.$el.off(".delegate")
+        if (typeof document !== "undefined") {
+            NotificationCenter.default.removeObserver(this, {name: "selectionchange", object: document})
+        }
+        if (!delegate) { return }
         this.$el.on("keydown.delegate", function(e) {
             if (e.key !== "Enter" && e.which !== 13) { return }
             if (!delegate.textFieldShouldReturn) { return }
@@ -130,20 +140,17 @@ export class UITextField extends UIControl {
             }
         })
         // textField(_:shouldChangeCharactersIn:replacementString:), on beforeinput:
-        // the range is the selection, the string the event's data, empty for a deletion.
+        // the range is what the edit replaces, the string the event's data, empty for a deletion.
         this.$el.on("beforeinput.delegate", function(e) {
             var original = e.originalEvent || e
             var replacement = original.data === null || original.data === undefined ? "" : original.data
-            if (_mayChange(textField, e.target, replacement) === false) { e.preventDefault() }
+            if (_mayChange(textField, e.target, replacement, original.inputType) === false) { e.preventDefault() }
         })
         // textFieldDidChangeSelection: selectionchange fires on the document in
         // every browser the fleet supports, and on the element in few, so it is
         // observed there while the field is the active element. It goes through
         // NotificationCenter, as the document keydown does, so dismissing the
         // controller releases it with everything else the field observes.
-        if (typeof document !== "undefined") {
-            NotificationCenter.default.removeObserver(this, {name: "selectionchange", object: document})
-        }
         if (delegate.textFieldDidChangeSelection && typeof document !== "undefined") {
             NotificationCenter.default.addObserver(this, {name: "selectionchange", object: document, selector: function() {
                 if (!textField.isEditing) { return }
@@ -267,16 +274,104 @@ function _pasted(textField, e) {
     _insert(e.target, result.string)
 }
 
-// textField(_:shouldChangeCharactersIn:replacementString:) for the selection of
-// `input`, as a typed character or a paste would replace it: the selection is
-// the range, `replacement` empty for a deletion. Only an explicit false refuses.
-function _mayChange(textField, input, replacement) {
+// textField(_:shouldChangeCharactersIn:replacementString:) for what an edit of
+// `input` replaces, `replacement` empty for a deletion. Only an explicit false refuses.
+function _mayChange(textField, input, replacement, inputType) {
     var delegate = textField._delegate
     if (!delegate || !delegate.textFieldShouldChangeCharactersInRangeReplacementString) { return true }
-    var start = input.selectionStart === null || input.selectionStart === undefined ? 0 : input.selectionStart
-    var end = input.selectionEnd === null || input.selectionEnd === undefined ? start : input.selectionEnd
-    var range = new NSRange({location: start, length: end - start})
-    return delegate.textFieldShouldChangeCharactersInRangeReplacementString(textField, range, replacement)
+    var range = _replacedRange(input, inputType)
+    if (range === null) { return true }
+    return delegate.textFieldShouldChangeCharactersInRangeReplacementString(textField, new NSRange({location: range.start, length: range.end - range.start}), replacement)
+}
+
+// Without a selection API (an email input) the caret is unknown and the range is
+// empty at 0. A selection is the range as it stands. A caret has nothing selected,
+// so a deletion replaces what it reaches for, and null when that is nothing, since
+// the browser then changes nothing and there is no change to ask about.
+function _replacedRange(input, inputType) {
+    var start = input.selectionStart
+    if (start === null || start === undefined) { return {start: 0, end: 0} }
+    var end = input.selectionEnd
+    var deletion = deletions[inputType]
+    if (end !== start || !deletion) { return {start: start, end: end} }
+    var length = deletion.length(input.value, start, deletion.direction)
+    if (length === 0) { return null }
+    return deletion.direction < 0 ? {start: start - length, end: start} : {start: start, end: start + length}
+}
+
+// What each collapsed deletion reaches for from the caret, by Apple's input type names.
+const deletions = {
+    deleteContentBackward: {length: _clusterLength, direction: -1},
+    deleteContentForward: {length: _clusterLength, direction: 1},
+    deleteWordBackward: {length: _wordLength, direction: -1},
+    deleteWordForward: {length: _wordLength, direction: 1},
+    deleteSoftLineBackward: {length: _lineLength, direction: -1},
+    deleteHardLineBackward: {length: _lineLength, direction: -1},
+    deleteSoftLineForward: {length: _lineLength, direction: 1},
+    deleteHardLineForward: {length: _lineLength, direction: 1},
+}
+
+// Only this many UTF-16 units next to the caret are segmented, so a key in a long
+// text costs the same as one in a short one; a cluster longer than that is cut.
+const segmentWindow = 256
+const wordBefore = /[\p{L}\p{N}_]*[^\p{L}\p{N}_]*$/u
+const wordAfter = /^[^\p{L}\p{N}_]*[\p{L}\p{N}_]*/u
+
+// The window of text on one side of the caret.
+function _sideOf(text, caret, direction) {
+    return direction < 0 ? text.slice(Math.max(0, caret - segmentWindow), caret) : text.slice(caret, caret + segmentWindow)
+}
+
+// The grapheme cluster next to the caret, in UTF-16 units; 0 at the edge. Where
+// Intl.Segmenter is missing it is a surrogate pair or one unit.
+function _clusterLength(text, caret, direction) {
+    var side = _sideOf(text, caret, direction)
+    if (side === "") { return 0 }
+    if (typeof Intl.Segmenter !== "function") { return _pairLength(side, direction) }
+    var segments = new Intl.Segmenter(undefined, {granularity: "grapheme"}).segment(side)
+    return segments.containing(direction < 0 ? side.length - 1 : 0).segment.length
+}
+
+function _pairLength(side, direction) {
+    if (side.length < 2) { return 1 }
+    var pair = direction < 0 ? side.slice(-2) : side.slice(0, 2)
+    return /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(pair) ? 2 : 1
+}
+
+// Up to the word boundary: the non-word characters next to the caret and the
+// word behind them, as a browser's word deletion does.
+function _wordLength(text, caret, direction) {
+    var side = _sideOf(text, caret, direction)
+    if (typeof Intl.Segmenter !== "function") { return _wordLengthByPattern(side, direction) }
+    var segments = Array.from(new Intl.Segmenter(undefined, {granularity: "word"}).segment(side))
+    if (direction < 0) { segments.reverse() }
+    var length = 0
+    for (var piece of segments) {
+        length += piece.segment.length
+        if (piece.isWordLike) { break }
+    }
+    return length
+}
+
+function _wordLengthByPattern(side, direction) {
+    return side.match(direction < 0 ? wordBefore : wordAfter)[0].length
+}
+
+// Up to the line's start or end, a line being as far as the nearest newline,
+// which for an input is all of its text; at the line's edge, the newline beyond it.
+function _lineLength(text, caret, direction) {
+    var edge = direction < 0 ? _lineStart(text, caret) : _lineEnd(text, caret)
+    if (edge === caret) { return _clusterLength(text, caret, direction) }
+    return Math.abs(edge - caret)
+}
+
+function _lineStart(text, caret) {
+    return caret === 0 ? 0 : text.lastIndexOf("\n", caret - 1) + 1
+}
+
+function _lineEnd(text, caret) {
+    var newline = text.indexOf("\n", caret)
+    return newline === -1 ? text.length : newline
 }
 
 // null when the clipboard has none of the three flavours, a file alone included.

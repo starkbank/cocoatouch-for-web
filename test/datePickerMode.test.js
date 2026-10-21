@@ -194,3 +194,64 @@ test("a change the clock or the native input commits on a disabled picker reache
         delete $.fn.clockpicker
     }
 })
+
+test("changing the mode keeps a date that was set, written through the new mode", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function() {
+        var picker = new UIDatePicker("#when")
+        picker.date = new Date(2026, 5, 17)
+        picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
+        assert.equal(picker.date.getTime(), new Date(2026, 5, 1).getTime())
+        picker.datePickerMode = UIDatePicker.Mode.date
+        assert.equal(picker.date.getTime(), new Date(2026, 5, 1).getTime())
+        picker.date = new Date(2026, 7, 9)
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
+        assert.equal(picker.date.getTime(), new Date(2026, 7, 9).getTime())
+        picker.date = new Date(2026, 7, 9, 14, 30)
+        picker.datePickerMode = UIDatePicker.Mode.date
+        assert.equal(picker.date.getFullYear() + "-" + picker.date.getMonth() + "-" + picker.date.getDate(), "2026-7-9")
+    })
+})
+
+test("a date kept across a mode change is not a selection, so it sends nothing and the next pick of it sends nothing", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function(widget) {
+        var picker = new UIDatePicker("#when")
+        picker.date = new Date(2026, 5, 17)
+        var count = counting(picker)
+        picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
+        assert.equal(count.changes, 0)
+        pickMonth(widget, "2026", "5")
+        assert.equal(count.changes, 0, "the same month")
+        pickMonth(widget, "2026", "6")
+        assert.equal(count.changes, 1)
+    })
+})
+
+test("changing the mode of a picker with no date keeps each mode's own default", function() {
+    page("<div id=\"when\"></div>")
+    withCalendar(function() {
+        var picker = new UIDatePicker("#when")
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
+        assert.equal(picker.date, null)
+        picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
+        var now = new Date()
+        assert.equal(picker.date.getTime(), new Date(now.getFullYear(), now.getMonth(), 1).getTime())
+    })
+})
+
+test("a day written in time mode survives the switch to the calendar", function() {
+    page("<div id=\"clock\"></div>")
+    $.fn.clockpicker = function(option) {
+        if (typeof option === "object") { this.data("clockpicker", {remove() {}}) }
+        return this
+    }
+    withCalendar(function(widget) {
+        var picker = new UIDatePicker("#clock")
+        picker.datePickerMode = UIDatePicker.Mode.time
+        picker.date = new Date(2026, 5, 17, 10, 30)
+        picker.datePickerMode = UIDatePicker.Mode.date
+        assert.equal(widget.date.getTime(), new Date(2026, 5, 17).getTime())
+    })
+    delete $.fn.clockpicker
+})

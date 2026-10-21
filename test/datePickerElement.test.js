@@ -46,7 +46,7 @@ test("renaming the input's id after construction leaves date, value and the mode
         assert.deepEqual([read.getFullYear(), read.getMonth(), read.getDate(), read.getHours(), read.getMinutes()], [2026, 0, 5, 9, 7])
         picker.datePickerMode = UIDatePicker.Mode.date
         assert.equal(document.getElementById("renamed").type, "text")
-        assert.equal(log[log.length - 1], "init:renamed", "the calendar is built on the held input under its new id")
+        assert.equal(log.filter((entry) => entry.startsWith("init:")).pop(), "init:renamed", "the calendar is built on the held input under its new id")
         picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         assert.equal(document.getElementById("renamed").type, "datetime-local")
         assert.equal(document.querySelectorAll("#start input").length, 1)

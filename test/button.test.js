@@ -210,3 +210,14 @@ test("an empty button turns the indicator on and off without leaving anything be
     button.configuration.showsActivityIndicator = false
     assert.equal(document.getElementById("b").innerHTML, "")
 })
+
+// A button whose title is only its markup, as a nib's is, still has that title.
+test("title(for:) falls back to the markup's text on a button nobody set a title on, and to null when the markup has none", function() {
+    page("<button id=\"nib\">Save</button><button id=\"icon\"></button>")
+    var nib = new UIButton("#nib")
+    assert.equal(nib.title({for: UIControlState.normal}), "Save")
+    assert.equal(nib.title({for: UIControlState.selected}), "Save")
+    assert.equal(new UIButton("#icon").title({for: UIControlState.normal}), null)
+    nib.setTitle("Send", {for: UIControlState.normal})
+    assert.equal(nib.title({for: UIControlState.normal}), "Send")
+})

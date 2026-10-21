@@ -173,3 +173,26 @@ test("NSDirectionalRectEdge is exported by UIKit, the one a configuration's imag
     pay.configuration.imagePlacement = NSDirectionalRectEdge.bottom
     assert.equal(pay.configuration.imagePlacement, NSDirectionalRectEdge.bottom)
 })
+
+test("a configuration copied from another button's own carries its title", function() {
+    page("<button id=\"b\">Pay now</button><button id=\"c\">Cancel</button>")
+    var pay = new UIButton("#b")
+    var cancel = new UIButton("#c")
+    pay.configuration = cancel.configuration
+    assert.equal(pay.configuration.title, "Cancel")
+    assert.equal(pay.currentTitle, "Cancel")
+    assert.equal(element().textContent, "Cancel")
+    cancel.setTitle("Abort", {for: UIControlState.normal})
+    pay.configuration = cancel.configuration
+    assert.equal(element().textContent, "Abort")
+})
+
+test("a configuration copied from a free value keeps its title as before, and a title-less one leaves the button's", function() {
+    var pay = button()
+    var free = Configuration.plain()
+    free.title = "Paying"
+    pay.configuration = free
+    assert.equal(pay.currentTitle, "Paying")
+    pay.configuration = Configuration.plain()
+    assert.equal(pay.currentTitle, "Paying")
+})
