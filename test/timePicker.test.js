@@ -69,7 +69,7 @@ test("datePickerMode = \"time\" builds the clock and not the calendar", function
         log.length = 0
         picker.datePickerMode = UIDatePicker.Mode.time
         assert.equal(picker.datePickerMode, UIDatePicker.Mode.time)
-        assert.deepEqual(log, ["datepicker:getDate", "datepicker:destroy", "clockpicker:init"], "the date is read before the switch, to be kept")
+        assert.deepEqual(log, ["datepicker:getDate:true", "datepicker:destroy", "clockpicker:init"], "the date is read before the switch, to be kept")
         assert.equal(clocks.length, 1)
         assert.equal(clocks[0].$wrapper[0], document.getElementById("start"))
         assert.equal(clocks[0].options.placement, "bottom")

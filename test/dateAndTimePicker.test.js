@@ -38,7 +38,7 @@ test("datePickerMode = \"dateAndTime\" swaps the calendar for a native datetime-
         log.length = 0
         picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         assert.equal(picker.datePickerMode, UIDatePicker.Mode.dateAndTime)
-        assert.deepEqual(log, ["datepicker:getDate", "datepicker:destroy"], "the date is read before the switch, to be kept")
+        assert.deepEqual(log, ["datepicker:getDate:true", "datepicker:destroy"], "the date is read before the switch, to be kept")
         var input = document.getElementById("start-field")
         assert.equal(input.type, "datetime-local")
         assert.equal(input.hasAttribute("readonly"), false)
