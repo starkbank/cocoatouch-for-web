@@ -149,7 +149,8 @@ export class UIDatePicker extends UIControl {
     // no control for a duration, so it is refused rather than drawn as something
     // else. A date the picker holds goes through the switch, written by the new
     // mode's own setter, as Apple's keeps its date; with none, each mode starts
-    // from its own default.
+    // from its own default. Text the calendar cannot read is no date, so the new
+    // mode keeps that text.
     /** @param {0|1|2|3|4} mode one of UIDatePicker.Mode */
     set datePickerMode(mode) {
         typed(mode, "datePickerMode", modeType, "UIDatePicker.datePickerMode", "Apple's is var datePickerMode: UIDatePicker.Mode; write picker.datePickerMode = UIDatePicker.Mode.time.")
@@ -157,7 +158,11 @@ export class UIDatePicker extends UIControl {
             throw new TypeError("UIDatePicker.datePickerMode = UIDatePicker.Mode.countDownTimer is not drawn: a page has no control for a duration, so use .time, .date, .dateAndTime or .yearAndMonth.")
         }
         var previous = this._mode
-        var kept = this.date
+        // jQuery UI's getDate answers its default day (today) for field text it
+        // cannot read, such as a nib's "23:59" over a picker about to become a
+        // clock. Carrying that day would overwrite the text with a midnight nobody
+        // set, so its noDefault argument asks for null instead.
+        var kept = this._mode === Mode.date ? _$input(this).datepicker("getDate", true) : this.date
         this._mode = mode
         if (this._mode !== Mode.yearAndMonth) { this._month = null }
         if (this._mode === Mode.yearAndMonth && previous !== Mode.yearAndMonth) { this._month = _firstOfMonth(new Date()) }

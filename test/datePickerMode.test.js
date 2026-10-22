@@ -255,3 +255,82 @@ test("a day written in time mode survives the switch to the calendar", function(
     })
     delete $.fn.clockpicker
 })
+
+
+// jQuery UI 1.13.3 answers getDate from the field's own text: _getDateDatepicker
+// runs _setDateFromField, whose parseDate throws on text it cannot read, and the
+// catch leaves the default day (today) in place unless noDefault asks for none.
+// The stand-in reads the field the same way, in the "mm/dd/yy" of the en format.
+function withFieldCalendar(run) {
+    var dayText = /^(\d\d)\/(\d\d)\/(\d{4})$/
+    $.fn.datepicker = function(method, noDefault) {
+        if (typeof method === "object") { return this }
+        if (method === "setDate") {
+            var text = noDefault === null ? "" : String(noDefault.getMonth() + 1).padStart(2, "0") + "/" + String(noDefault.getDate()).padStart(2, "0") + "/" + noDefault.getFullYear()
+            this.prop("value", text)
+            return this
+        }
+        if (method !== "getDate") { return this }
+        var value = this.prop("value")
+        if (value === "") { return null }
+        var parts = dayText.exec(value)
+        if (parts) { return new Date(Number(parts[3]), Number(parts[1]) - 1, Number(parts[2])) }
+        if (noDefault === true) { return null }
+        var now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    }
+    $.fn.clockpicker = function(option) {
+        if (typeof option === "object") { this.data("clockpicker", {remove() {}}) }
+        return this
+    }
+    mock.timers.enable({apis: ["setTimeout"]})
+    try { run() } finally {
+        mock.timers.tick(200)
+        mock.timers.reset()
+        delete $.fn.datepicker
+        delete $.fn.clockpicker
+    }
+}
+
+test("a nib's time over a picker that becomes a clock stays, and is no date the calendar made up", function() {
+    page("<div id=\"invoice-time-picker\" class=\"clockpicker\"><input id=\"invoice-time\" type=\"text input\" class=\"input\" value=\"23:59\"></div>")
+    withFieldCalendar(function() {
+        var picker = new UIDatePicker("#invoice-time-picker")
+        var count = counting(picker)
+        picker.datePickerMode = UIDatePicker.Mode.time
+        assert.equal(document.getElementById("invoice-time").value, "23:59")
+        var today = new Date()
+        assert.equal(picker.date.getTime(), new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59).getTime())
+        assert.equal(count.changes, 0)
+    })
+})
+
+test("a nib's datetime text over a picker that becomes .dateAndTime stays", function() {
+    page("<div id=\"native\"><input id=\"native-field\" value=\"2026-06-02T13:15\"></div>")
+    withFieldCalendar(function() {
+        var picker = new UIDatePicker("#native")
+        picker.datePickerMode = UIDatePicker.Mode.dateAndTime
+        assert.equal(document.getElementById("native-field").value, "2026-06-02T13:15")
+        assert.equal(picker.date.getTime(), new Date(2026, 5, 2, 13, 15).getTime())
+    })
+})
+
+test("a day the calendar reads from the field is still carried across the switch", function() {
+    page("<div id=\"when\" class=\"clockpicker\"><input id=\"when-field\" value=\"06/17/2026\"></div>")
+    withFieldCalendar(function() {
+        var picker = new UIDatePicker("#when")
+        picker.datePickerMode = UIDatePicker.Mode.time
+        assert.equal(picker.date.getTime(), new Date(2026, 5, 17, 0, 0).getTime())
+        assert.equal(document.getElementById("when-field").value, "00:00")
+    })
+})
+
+test("an empty field leaves the clock to the plugin's own data-default", function() {
+    page("<div id=\"clock\" class=\"clockpicker\" data-default=\"23:59\"><input class=\"input\"></div>")
+    withFieldCalendar(function() {
+        var picker = new UIDatePicker("#clock")
+        picker.datePickerMode = UIDatePicker.Mode.time
+        assert.equal(document.querySelector("#clock input").value, "")
+        assert.equal(picker.date, null)
+    })
+})
