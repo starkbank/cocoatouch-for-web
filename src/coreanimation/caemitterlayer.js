@@ -229,8 +229,10 @@ export class CAEmitterLayer extends CALayer {
         var context = this._context
         context.setTransform(1, 0, 0, 1, 0, 0)
         context.clearRect(0, 0, this._boundElement.width, this._boundElement.height)
+        var tints = new Map()
         for (var particle of this._particles) {
-            var tint = this._tint(particle.cell)
+            if (!tints.has(particle.cell)) { tints.set(particle.cell, this._tint(particle.cell)) }
+            var tint = tints.get(particle.cell)
             if (tint === null) { continue }
             context.setTransform(1, 0, 0, 1, particle.x, particle.y)
             context.rotate(particle.angle)
