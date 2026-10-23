@@ -409,11 +409,24 @@ export class UIView extends UIResponder {
     /**
      * @param {UIView} view
      * @param {object} options
-     * @param {number} options.at
+     * @param {number} [options.at]
+     * @param {UIView} [options.belowSubview]
      */
-    insertSubview(view, {at} = {}) {
-        required(at, "at", Int, "UIView.insertSubview", "Apple's is insertSubview(_:at:); write insertSubview(view, {at: index}).")
-        this._attach(view, {at})
+    insertSubview(view, {at, belowSubview} = {}) {
+        var signature = "Apple's is insertSubview(_:at:) or insertSubview(_:belowSubview:); write insertSubview(view, {at: index}) or insertSubview(view, {belowSubview: sibling})."
+        if (belowSubview === undefined) {
+            required(at, "at", Int, "UIView.insertSubview", signature)
+            this._attach(view, {at})
+            return
+        }
+        if (at !== undefined) {
+            throw new TypeError("UIView.insertSubview takes at or belowSubview, not both. " + signature)
+        }
+        var siblingElement = belowSubview instanceof UIView ? belowSubview.$el[0] : null
+        if (!siblingElement || siblingElement.parentNode !== this.$el[0]) {
+            throw new TypeError("UIView.insertSubview belowSubview must be a subview of the view it is inserted into. " + signature)
+        }
+        this._attach(view, {belowSubview})
     }
 
     // The move hooks surround the insertion, the superview pair before the
@@ -423,19 +436,23 @@ export class UIView extends UIResponder {
     // layoutSubviews comes last, once there is an element to lay out. The
     // actions are connected after the outlets and before awakeFromNib, which is
     // Interface Builder's order, so awakeFromNib can send them.
-    _attach(view, {at}) {
+    _attach(view, {at, belowSubview}) {
         view.willMove({toSuperview: this})
         var $viewEl = _elementFor(view, this)
         var siblings = this.$el.children()
-        if (at !== undefined && at < siblings.length) {
+        if (belowSubview !== undefined) {
+            belowSubview.$el.before($viewEl)
+        }
+        if (belowSubview === undefined && at !== undefined && at < siblings.length) {
             siblings.eq(at).before($viewEl)
         }
-        if (at === undefined || at >= siblings.length) {
+        if (belowSubview === undefined && (at === undefined || at >= siblings.length)) {
             this.$el.append($viewEl)
         }
         view._$el = $viewEl
         ownElement($viewEl, view)
         this._link(view)
+        if (belowSubview !== undefined) { _moveBefore(this.subviews, view, belowSubview) }
         drawAccessibility(view)
         view.didMoveToSuperview()
         view.didMoveToWindow()
@@ -584,6 +601,13 @@ function _labelAttribute($el) {
     return isImage ? "alt" : "aria-label"
 }
 
+
+function _moveBefore(subviews, view, sibling) {
+    var index = subviews.indexOf(sibling)
+    if (index === -1) { return }
+    subviews.splice(subviews.indexOf(view), 1)
+    subviews.splice(index, 0, view)
+}
 
 function _isControllerRootView(view) {
     var controller = view.next

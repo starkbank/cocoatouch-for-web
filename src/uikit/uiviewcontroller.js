@@ -280,6 +280,10 @@ export class UIViewController extends UIResponder {
 }
 
 
+export function currentRootViewController() {
+    return _rootViewController
+}
+
 // The page hosts one root controller at a time. Presenting a new one dismisses
 // it first, so nothing it observes on window or document survives the swap.
 var _rootViewController = null

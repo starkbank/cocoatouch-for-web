@@ -1,6 +1,7 @@
 import { UIView } from "./uiview.js"
 import { UIScreen } from "./uiscreen.js"
 import { keyWindowKey } from "../utils/documentkeys.js"
+import { currentRootViewController } from "./uiviewcontroller.js"
 
 
 var _isConstructing = false
@@ -11,7 +12,7 @@ var _isConstructing = false
 // UIApplication.shared.keyWindow hands it out, so `new UIWindow()` is refused:
 // Apple's UIWindow(frame:) would make a second screen-sized root over the same
 // body. The window never disposes and removeFromSuperview does nothing, as it
-// has no superview on Apple; a view added to it stays until the app removes it. rootViewController is not provided.
+// has no superview on Apple; a view added to it stays until the app removes it.
 export class UIWindow extends UIView {
 
     constructor() {
@@ -19,6 +20,14 @@ export class UIWindow extends UIView {
             throw new TypeError("UIWindow is made once, when UIKit loads: read UIApplication.shared.keyWindow. Apple's is UIWindow(frame:), which a page cannot repeat over one body.")
         }
         super("body")
+    }
+
+    // The controller the page presented last, the one whose view fills the
+    // window. Apple's is settable, but a page's root is made by present() and
+    // swapped by the next one, so an app reads it and never assigns it.
+    /** @returns {import("./uiviewcontroller.js").UIViewController | null} */
+    get rootViewController() {
+        return currentRootViewController()
     }
 
     // The screen's bounds, as on Apple, where a window fills the screen. The
