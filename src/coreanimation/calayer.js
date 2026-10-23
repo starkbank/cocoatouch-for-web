@@ -72,9 +72,23 @@ export class CALayer {
     }
 
     // A sublayer that owns an element, like an AVPlayerLayer or a CAGradientLayer,
-    // is put inside this layer's element.
+    // is put inside this layer's element. The sublayer is told it was added, so a
+    // layer that animates can start; a layer added again is not put in twice.
     addSublayer(layer) {
         var element = layer._element
-        if (element) { this._$el().append(element) }
+        if (!element) { return }
+        var isThere = Boolean(element.parentNode) && element.parentNode === this._$el()[0]
+        if (!isThere) { this._$el().append(element) }
+        if (typeof layer._didAddToSuperlayer === "function") { layer._didAddToSuperlayer() }
+    }
+
+    // Apple's removeFromSuperlayer(): a sublayer that owns an element takes it
+    // out of the page, and is told, so a layer that animates can stop. A layer
+    // a view owns has no element of its own to take out.
+    removeFromSuperlayer() {
+        var element = this._boundElement
+        if (!element) { return }
+        element.remove()
+        if (typeof this._didRemoveFromSuperlayer === "function") { this._didRemoveFromSuperlayer() }
     }
 }
