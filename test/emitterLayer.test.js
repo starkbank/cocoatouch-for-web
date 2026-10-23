@@ -343,3 +343,19 @@ test("removing the layer clears what it was drawing and a second add starts agai
     assert.equal(lastFrameDraws(canvasOf()).length, 0)
     layer.removeFromSuperlayer()
 })
+
+test("a cell's tint is resolved once per frame, not once per particle", function() {
+    reset()
+    var layer = emitter([cell({birthRate: 100, lifetime: 5}), cell({birthRate: 100, lifetime: 5, color: "rgba(1,2,3,1)"}), cell({birthRate: 0, lifetime: 5})])
+    keyWindow.layer.addSublayer(layer)
+    run(5)
+    var resolutions = 0
+    var original = layer._tint
+    layer._tint = function(...a) { resolutions += 1; return original.apply(this, a) }
+    frame(600)
+    layer._tint = original
+    assert.ok(lastFrameDraws(canvasOf()).length > 10)
+    assert.equal(resolutions, 2)
+    layer.removeFromSuperlayer()
+})
+
