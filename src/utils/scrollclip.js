@@ -15,11 +15,12 @@ export function clipAncestors(element) {
     return found
 }
 
-// The viewport's vertical extent cut by each ancestor's client box (its padding box, scrollbars excluded). An empty intersection comes
-// back as a zero-height clip at its top, never inverted.
+// The viewport's vertical extent cut by each ancestor's client box (its padding box, scrollbars excluded). A document with no layout
+// reports a client height of 0, so the window's height stands in for it there. An empty intersection comes back as a zero-height clip
+// at its top, never inverted.
 export function visibleClip(element, ancestors) {
     var top = 0
-    var bottom = element.ownerDocument.documentElement.clientHeight
+    var bottom = element.ownerDocument.documentElement.clientHeight || element.ownerDocument.defaultView.innerHeight
     for (var ancestor of ancestors) {
         var node = ancestor.element
         var clientTop = node.getBoundingClientRect().top + node.clientTop
