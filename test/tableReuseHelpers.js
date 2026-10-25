@@ -35,7 +35,7 @@ export function at(...rows) {
 
 // Builds the page, the layout, the table and its data source, in the order a site does: the table is placed before the data source is
 // set, because setting it loads the rows, and the frame that setting the delegate scheduled is run, so a test starts settled. `model.count` and `model.identifier(row)` are what the data source answers.
-export function setup({count = 1000, innerHeight = 900, top = 100, container = false, box = null, hidden = false, delegate = null, estimatedRowHeight, identifier = () => "row", heightOf = null} = {}) {
+export function setup({count = 1000, innerHeight = 900, top = 100, padding = 0, container = false, box = null, hidden = false, delegate = null, estimatedRowHeight, identifier = () => "row", heightOf = null} = {}) {
     counters.constructed = 0
     counters.prepared = 0
     counters.disposed.length = 0
@@ -45,7 +45,7 @@ export function setup({count = 1000, innerHeight = 900, top = 100, container = f
     var boxClose = box ? "</div>" : ""
     page(boxOpen + open + "<table id=\"table\"><thead><tr data-height=\"30\"><th>h</th></tr></thead><tbody></tbody></table>" + close + boxClose)
     var layout = installLayout({innerHeight})
-    layout.table(document.getElementById("table"), {top})
+    layout.table(document.getElementById("table"), {top, padding})
     if (box) { layout.scroller(document.getElementById("box"), box) }
     var table = new UITableView("#table")
     if (hidden) { table.isHidden = true }

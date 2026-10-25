@@ -2,7 +2,8 @@
 // states, so the row arithmetic can be asserted to the pixel. Import it after test/dom.js.
 //
 // The model is vertical only:
-//   - layout.table(table, {top, width}) places a table at `top` in unscrolled document coordinates; its rows stack from there in
+//   - layout.table(table, {top, width, padding}) places a table at `top` in unscrolled document coordinates; `padding` is the inline
+//     space between its border box and its content box, which a ResizeObserver does not count; its rows stack from there in
 //     document order, each as tall as its data-height attribute, else its inline height (a spacer), else the `rowHeight` option;
 //   - an element, or any ancestor, with display: none or [hidden] has no size, and neither do the rows in it;
 //   - layout.box(element, {top, height}) gives an element a box of its own, layout.scroller(...) makes that box scroll its content, and
@@ -247,7 +248,11 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         observers.add(this)
     }
 
-    FakeResizeObserver.prototype.observe = function(target) { this._targets.add(target) }
+    // A browser reports an observed element's size once as it starts to observe it, unless the element has none.
+    FakeResizeObserver.prototype.observe = function(target) {
+        this._targets.add(target)
+        if (rectOf(target).width > 0) { pendingResizes.push(target) }
+    }
     FakeResizeObserver.prototype.unobserve = function(target) { this._targets.delete(target) }
     FakeResizeObserver.prototype.disconnect = function() {
         this._targets.clear()
@@ -259,8 +264,10 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         pendingResizes = []
         for (var target of targets) {
             var rect = rectOf(target)
-            var size = [{inlineSize: rect.width, blockSize: rect.height}]
-            var entry = {target: target, contentRect: {top: 0, left: 0, width: rect.width, height: rect.height}, contentBoxSize: size, borderBoxSize: size}
+            var inset = tables.has(target) ? tables.get(target).padding : 0
+            var content = [{inlineSize: rect.width - inset, blockSize: rect.height}]
+            var border = [{inlineSize: rect.width, blockSize: rect.height}]
+            var entry = {target: target, contentRect: {top: 0, left: 0, width: rect.width - inset, height: rect.height}, contentBoxSize: content, borderBoxSize: border}
             for (var observer of Array.from(observers)) {
                 if (observer._targets.has(target)) { observer._callback([entry], observer) }
             }
@@ -268,8 +275,8 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
     }
 
     var layout = {
-        table: function(table, {top, width = 1000}) {
-            tables.set(table, {top: top, width: width})
+        table: function(table, {top, width = 1000, padding = 0}) {
+            tables.set(table, {top: top, width: width, padding: padding})
         },
 
         box: function(element, {top, height}) {

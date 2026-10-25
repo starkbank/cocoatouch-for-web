@@ -221,3 +221,26 @@ test("native scroll anchoring keeps an anchored element still when a mutation mo
         assert.equal(fired, 1)
     })
 })
+
+test("a ResizeObserver reports once when it starts observing a sized element, and reports the content box, which padding makes narrower than the border box", function() {
+    withLayout({}, function(layout) {
+        fill(2, 100)
+        var table = document.getElementById("t")
+        layout.table(table, {top: 0, width: 800, padding: 20})
+        var reports = []
+        var observer = new ResizeObserver(function(entries) {
+            for (var entry of entries) { reports.push([entry.contentBoxSize[0].inlineSize, entry.contentRect.width, entry.borderBoxSize[0].inlineSize]) }
+        })
+        observer.observe(table)
+        assert.deepEqual(reports, [], "delivery waits for the frame")
+        layout.flushFrames()
+        assert.deepEqual(reports, [[780, 780, 800]])
+        assert.equal(table.getBoundingClientRect().width, 800)
+        var hidden = document.createElement("div")
+        hidden.style.display = "none"
+        document.body.appendChild(hidden)
+        observer.observe(hidden)
+        layout.flushFrames()
+        assert.equal(reports.length, 1, "an element with no size has nothing to report")
+    })
+})

@@ -226,6 +226,7 @@ export class UITableView extends UIScrollView {
     // The data source is asked for the rows of the area only. The cell displayed at a row before the reload is handed back to it
     // by dequeue; the cells the reload does not hand back go to the reuse queue, and when no row is left they are all released.
     reloadData() {
+        this._assertNotUpdating("reloadData")
         if (this._dataSource === null) { return }
         var count = this.numberOfRows({inSection: 0})
         this._selectedRows = new Set(Array.from(this._selectedRows).filter(function(row) { return row < count }))
@@ -251,6 +252,7 @@ export class UITableView extends UIScrollView {
         var signature = "Apple's is insertRows(at:with:); write insertRows({at: [indexPath], with: UITableViewRowAnimation.none})."
         required(at, "at", arrayOf(IndexPathType), "UITableView.insertRows", signature)
         required(animation, "with", rowAnimationType, "UITableView.insertRows", signature)
+        this._assertNotUpdating("insertRows")
         if (this._dataSource === null) { return }
         var count = this.numberOfRows({inSection: 0})
         var inserted = _rowsOf(at, {count, method: "insertRows"})
@@ -283,6 +285,7 @@ export class UITableView extends UIScrollView {
     reconfigureRows({at} = {}) {
         var signature = "Apple's is reconfigureRows(at:); write reconfigureRows({at: [indexPath]})."
         required(at, "at", arrayOf(IndexPathType), "UITableView.reconfigureRows", signature)
+        this._assertNotUpdating("reconfigureRows")
         if (this._dataSource === null) { return }
         var rows = _rowsOf(at, {count: this._heights.count, method: "reconfigureRows"})
         this._reusableCells = new Map()
@@ -304,10 +307,14 @@ export class UITableView extends UIScrollView {
     }
 
     // Hands back the cell displayed at that row before a reload, after
-    // prepareForReuse(); otherwise a cell from the identifier's queue, placed
-    // in the rows, renumbered and only then sent prepareForReuse(), so the app
-    // sees its own, connected row; otherwise creates the row element from the
-    // registered cell's nib and binds the cell class to it.
+    // prepareForReuse(), when it is of the identifier and class asked for;
+    // otherwise a cell from the identifier's queue, placed in the rows,
+    // renumbered and only then sent prepareForReuse(), so the app sees its own,
+    // connected row, once the row's previous cell, of another identifier or
+    // class, is disposed and its element removed, so no two rows ever have one
+    // id; otherwise creates the row element from the registered cell's nib, or
+    // takes the previous cell's over when the nib is the same, and binds the
+    // cell class to it.
     /**
      * @param {object} options
      * @param {string} options.withIdentifier
@@ -325,6 +332,10 @@ export class UITableView extends UIScrollView {
             return reusable
         }
         var queued = this._takeQueued(withIdentifier, cellClass)
+        if (queued && reusable) {
+            this._reusableCells.delete(row)
+            this._replace(reusable, row)
+        }
         if (queued) { return this._reuseQueued(queued, {row, indexPath}) }
         var id = "cell-" + row
         var element = _childRow(this._body(), id)
@@ -388,6 +399,7 @@ export class UITableView extends UIScrollView {
         required(at, "at", optional(rowType), "UITableView.selectRow", signature)
         required(animated, "animated", Bool, "UITableView.selectRow", signature)
         required(scrollPosition, "scrollPosition", scrollPositionType, "UITableView.selectRow", signature)
+        if (scrollPosition !== UITableViewScrollPosition.none) { this._assertNotUpdating("selectRow") }
         if (at === null) {
             Array.from(this._selectedRows).forEach((selected) => this._deselect(selected))
             return
@@ -432,6 +444,7 @@ export class UITableView extends UIScrollView {
         typed(indexPath, "indexPath", rowType, "UITableView.scrollToRow", signature)
         required(at, "at", scrollPositionType, "UITableView.scrollToRow", signature)
         required(animated, "animated", Bool, "UITableView.scrollToRow", signature)
+        this._assertNotUpdating("scrollToRow")
         var section = indexPath instanceof IndexPath ? indexPath.section : 0
         var row = _row(indexPath)
         var count = this.numberOfRows({inSection: 0})
@@ -452,6 +465,13 @@ export class UITableView extends UIScrollView {
     _drawSelection(cell, row) {
         var isSelected = this._selectedRows.has(row)
         cell._$el.toggleClass("selected", isSelected).find("[id^=table-cell-selected] :input").prop("checked", isSelected)
+    }
+
+    // UIKit raises when an update is asked for while the table view is sending its data source or delegate a message: the update would
+    // change the rows the pass is walking.
+    _assertNotUpdating(method) {
+        if (!this._isLaying) { return }
+        throw new Error(`UITableView.${method}: the table view is already updating its rows. Apple's UITableView raises the same when an update is asked for from inside tableView(_:cellForRowAt:) or a delegate method it is sending.`)
     }
 
     _dirtyAndSchedule() {
@@ -681,6 +701,13 @@ export class UITableView extends UIScrollView {
         queueElement.appendChild(cell._$el[0])
         if (!queue) { this._queues.set(cell.reuseIdentifier, queue = []) }
         queue.push(cell)
+    }
+
+    // A row's previous cell, of an identifier or class other than the one now asked for, is told it left, then released: it does not go
+    // to the queue, which holds cells of the identifier's registered class only.
+    _replace(cell, row) {
+        this._delegateCall("tableViewDidEndDisplayingCellForRowAtIndexPath", cell, new IndexPath({row}))
+        this._release(cell)
     }
 
     // Disposed while its element is still in the document, so its outlets release their own nodes, and only then removed.
@@ -966,7 +993,7 @@ export class UITableView extends UIScrollView {
         this._isObserving = true
         this._observeScrollers()
         if (typeof ResizeObserver !== "function") { return }
-        this._observedWidth = read.width
+        this._observedWidth = read.width > 0 ? null : 0
         this._resizeObserver = new ResizeObserver((entries) => this._widthReported(entries))
         this._resizeObserver.observe(this.$el[0])
     }
@@ -984,12 +1011,18 @@ export class UITableView extends UIScrollView {
 
     // Reports that leave the width as it was are the table's own spacer writes changing its height, which would be a loop to act on.
     // A new width changes every height, so they are dropped, and the pass waits for the next frame: a pass inside the callback would
-    // resize what is being observed.
+    // resize what is being observed. A ResizeObserver reports the content box, which padding and borders make narrower than the box the
+    // table was measured at, so the first report of a table that has a width only records the content width it will be compared with;
+    // a table hidden when it began to be observed has 0 recorded, and its first report, the unhide, is a change.
     _widthReported(entries) {
         if (this._isDetached()) { return }
         var entry = entries[entries.length - 1]
         var box = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize
         var width = box ? box.inlineSize : entry.contentRect.width
+        if (this._observedWidth === null) {
+            this._observedWidth = width
+            return
+        }
         if (width === this._observedWidth) { return }
         this._observedWidth = width
         reset(this._heights, {count: this._heights.count, keepEstimates: false})

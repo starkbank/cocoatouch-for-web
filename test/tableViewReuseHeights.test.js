@@ -218,6 +218,20 @@ test("12. height-only reports schedule nothing, however many spacer writes a scr
     })
 })
 
+test("12. the report a ResizeObserver makes as it starts observing a table with padding is not a width change", function() {
+    withTable({padding: 20}, function({table, layout}) {
+        assert.equal(layout.flushFrames(), 0, "the content box (980) is narrower than the border box the table was measured at (1000), and the first report only records it")
+        var before = table._heights.estimates.get("row")
+        layout.resize(document.getElementById("table"), {})
+        layout.flushFrames()
+        assert.equal(layout.flushFrames(), 0, "a report that leaves the width as it was schedules nothing")
+        assert.equal(table._heights.estimates.get("row"), before, "and keeps what was measured")
+        layout.resize(document.getElementById("table"), {width: 700})
+        layout.flushFrames()
+        assert.equal(layout.flushFrames(), 1, "a real width change still does")
+    })
+})
+
 test("13. a width change drops the measured heights and the estimates and measures the rendered rows again", function() {
     withTable({}, function({table, layout}) {
         var tableElement = document.getElementById("table")
