@@ -296,3 +296,18 @@ test("15. disposing the table releases its scroll observers on the document and 
         assert.deepEqual(layout.readWriteLog(), [], "the ResizeObserver is disconnected")
     })
 })
+
+test("a scroll step that stays inside the rendered rows reads the clip and touches no DOM", function() {
+    withTable({}, function({layout}) {
+        layout.clearLog()
+        window.scrollTo(0, 120)
+        layout.flushFrames()
+        var log = layout.readWriteLog()
+        assert.ok(log.length > 0, "the scroll was seen")
+        assert.ok(!log.includes("write"), log.join())
+        window.scrollTo(0, 4000)
+        layout.clearLog()
+        layout.flushFrames()
+        assert.ok(layout.readWriteLog().includes("write"), "a step that leaves the rendered rows redraws the window")
+    })
+})
