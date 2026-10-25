@@ -5,6 +5,7 @@ import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
+import { addPendingUnhide, removePendingUnhide, resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { keyWindowKey } from "../utils/documentkeys.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
@@ -216,20 +217,26 @@ export class UIView extends UIResponder {
 
     // Unhiding restores the stylesheet's display; a view the stylesheet keeps
     // hidden until code shows it, like a spinner, gets the display its element
-    // has by nature: a cell is a table-cell, a span inline, a div a block. Inside
-    // UIView.animate the change fades over the animation's duration.
+    // has by nature: a cell is a table-cell, a span inline, a div a block. That
+    // fallback is written for every view unhidden in a turn at once, when the
+    // turn ends or when something reads what it decides. Inside UIView.animate
+    // the change fades over the animation's duration.
     set isHidden(bool) {
+        var $el = this.$el
         if (_animation) {
-            var $el = this.$el.stop(true, true).delay(_animation.delay)
-            bool ? $el.fadeOut(_animation.duration) : $el.fadeIn(_animation.duration)
+            var $animated = $el.stop(true, true).delay(_animation.delay)
+            bool ? $animated.fadeOut(_animation.duration) : $animated.fadeIn(_animation.duration)
             return
         }
         if (bool) {
-            this.$el.css("display", "none")
+            $el.css("display", "none")
+            for (var i = 0; i < $el.length; i++) { removePendingUnhide($el[i]) }
             return
         }
-        this.$el.css("display", "")
-        if (this.$el.css("display") === "none") { this.$el.css("display", _naturalDisplay(this.$el[0])) }
+        $el.css("display", "")
+        for (var j = 0; j < $el.length; j++) {
+            if ($el[j] && $el[j].style) { addPendingUnhide($el[j]) }
+        }
     }
 
     set alpha(value) {
@@ -256,6 +263,7 @@ export class UIView extends UIResponder {
     }
 
     becomeFirstResponder() {
+        resolvePendingUnhides()
         this.$el.trigger("focus")
     }
 
@@ -280,6 +288,7 @@ export class UIView extends UIResponder {
     get frame() {
         var element = this.$el[0]
         if (!element) { return CGRect.zero }
+        resolvePendingUnhides()
         var rect = element.getBoundingClientRect()
         return new CGRect({x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height})
     }
@@ -290,6 +299,7 @@ export class UIView extends UIResponder {
     }
 
     get isHidden() {
+        resolvePendingUnhides()
         return this.$el.css("display") === "none"
     }
 
@@ -309,6 +319,7 @@ export class UIView extends UIResponder {
     // The view's affine transform, as the element's CSS transform. Inside
     // UIView.animate the element transitions to it over the animation's duration.
     get transform() {
+        resolvePendingUnhides()
         var matrix = this.$el.css("transform")
         var parsed = /^matrix\(([^)]+)\)$/.exec(matrix || "")
         if (!parsed) { return CGAffineTransform.identity }
@@ -500,6 +511,9 @@ export class UIView extends UIResponder {
      * @param {Function} [options.completion]
      */
     static animate({withDuration, delay = 0, animations, completion}) {
+        // A transition starts only from a style in which the element has a box,
+        // so a view unhidden just before must already have its display.
+        resolvePendingUnhides()
         var previous = _animation
         _animation = {duration: withDuration * 1000, delay: delay * 1000}
         try {
@@ -524,6 +538,8 @@ export class UIView extends UIResponder {
      * @param {Function} [parameters.completion]
      */
     static transition({from, to, duration, options = [], completion}) {
+        // fadeOut and hide decide from the computed display at the moment of the call.
+        resolvePendingUnhides()
         var milliseconds = duration * 1000
         var direction = _slideDirection(options)
         from.$el.stop(true, true).fadeOut(Math.min(40, milliseconds), () => {
@@ -576,22 +592,6 @@ export class UIView extends UIResponder {
         super._dispose()
     }
 
-}
-
-
-// What a browser draws an element as when no stylesheet says otherwise.
-const naturalDisplays = Object.freeze({
-    tr: "table-row", td: "table-cell", th: "table-cell", table: "table",
-    thead: "table-header-group", tbody: "table-row-group", tfoot: "table-footer-group",
-    li: "list-item",
-    span: "inline", a: "inline", b: "inline", i: "inline", em: "inline", strong: "inline", small: "inline",
-    label: "inline", code: "inline", abbr: "inline", sub: "inline", sup: "inline", u: "inline", s: "inline", img: "inline",
-    input: "inline-block", button: "inline-block", select: "inline-block", textarea: "inline-block",
-})
-
-function _naturalDisplay(element) {
-    var tag = element && element.tagName ? element.tagName.toLowerCase() : ""
-    return naturalDisplays[tag] || "block"
 }
 
 

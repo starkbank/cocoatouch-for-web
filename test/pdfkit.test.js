@@ -5,7 +5,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, PDFDocumentFoundSelectionKey } from "../src/pdfkit/index.js"
-import { NotificationCenter, NSNotification, NSString, NSNotFound } from "../src/index.js"
+import { NotificationCenter, NSNotification, NSString, NSNotFound, UIView } from "../src/index.js"
 import { assertTextLayerStylesheet } from "../src/pdfkit/pdfjs.js"
 import { pageIn } from "../src/pdfkit/pdfpage.js"
 import { selectionForMatch } from "../src/pdfkit/pdfselection.js"
@@ -2389,4 +2389,33 @@ test("a PDFView adds ct-pdfview to its own element when it binds, keeping the cl
     assert.equal(document.querySelectorAll(".ct-pdfview").length >= 2, true)
     host.remove()
     uninstallPdfjs()
+})
+
+test("visiblePages measures the host only after a hidden ancestor has been resolved", async function() {
+    installPdfjs({resolve: fakeProxy({numPages: 1, pages: [fakePage([])]})})
+    var style = document.createElement("style")
+    style.textContent = ".gone { display: none; }"
+    document.head.appendChild(style)
+    try {
+        var view = makeView()
+        var ancestor = document.createElement("div")
+        ancestor.id = "pdf-ancestor"
+        ancestor.className = "gone"
+        document.body.appendChild(ancestor)
+        ancestor.appendChild(view.$el[0])
+        var displays = []
+        view.$el[0].getBoundingClientRect = function() {
+            displays.push(ancestor.style.display)
+            return {left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100}
+        }
+        view.document = new PDFDocument({url: "/a.pdf"})
+        await flush()
+        new UIView("#pdf-ancestor").isHidden = false
+        view.visiblePages
+        assert.deepEqual(displays, ["block"])
+        ancestor.remove()
+    } finally {
+        style.remove()
+        uninstallPdfjs()
+    }
 })

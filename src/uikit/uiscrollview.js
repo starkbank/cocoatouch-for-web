@@ -3,6 +3,7 @@ import { CGPoint } from "../coregraphics/cgpoint.js"
 import { CGSize } from "../coregraphics/cgsize.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { required, typed, Bool, CGPointType } from "../utils/required.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 
 
 // UIKit's UIScrollView: an element that scrolls its overflowing content.
@@ -76,6 +77,7 @@ export class UIScrollView extends UIView {
     get contentOffset() {
         var element = this.$el[0]
         if (!element) { return new CGPoint({x: 0, y: 0}) }
+        resolvePendingUnhides()
         return new CGPoint({x: element.scrollLeft, y: element.scrollTop})
     }
 
@@ -87,6 +89,7 @@ export class UIScrollView extends UIView {
     get contentSize() {
         var element = this.$el[0]
         if (!element) { return new CGSize({width: 0, height: 0}) }
+        resolvePendingUnhides()
         return new CGSize({width: element.scrollWidth, height: element.scrollHeight})
     }
 
@@ -102,6 +105,7 @@ export class UIScrollView extends UIView {
         typed(point, "point", CGPointType, "UIScrollView.setContentOffset", signature)
         var element = this.$el[0]
         if (!element) { return }
+        resolvePendingUnhides()
         if (typeof element.scrollTo === "function") {
             element.scrollTo({left: point.x, top: point.y, behavior: animated ? "smooth" : "auto"})
             return

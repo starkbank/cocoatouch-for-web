@@ -1,5 +1,6 @@
 import { UIView } from "./uiview.js"
 import { setText, setMarkup } from "../utils/text.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { UIColor } from "./uicolor.js"
 
@@ -64,6 +65,7 @@ export class UILabel extends UIView {
     _fitTextToWidth() {
         var element = this.$el[0]
         if (!element) { return }
+        resolvePendingUnhides()
         element.style.fontSize = ""
         element.style.lineHeight = ""
         if (element.offsetParent === null || element.clientWidth === 0) { return }
