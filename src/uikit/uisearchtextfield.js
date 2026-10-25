@@ -3,6 +3,7 @@ import { UITextField } from "./uitextfield.js"
 import { UIColor } from "./uicolor.js"
 import { autocompleteTokenOf, textContentTypeOf, textContentTypeDescriptor, textContentTypeSignature } from "./uitextcontenttype.js"
 import { required, typed, optional, Int } from "../utils/required.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 
 
 export class UISearchToken {
@@ -125,6 +126,7 @@ export class UISearchTextField extends UITextField {
     // element here is the inner input, so those three need the same override
     // for the same reason text did.
     becomeFirstResponder() {
+        resolvePendingUnhides()
         this.textField[0]?.focus()
     }
 

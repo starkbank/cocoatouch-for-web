@@ -171,7 +171,7 @@ this.navigationController.popViewController({animated: true})
 
 ## Animations
 
-`isHidden = false` shows the view whatever hid it: it removes the inline value, and when the stylesheet still hides the element it writes the display the element has by nature (`table-cell` for a `td`, `table-row` for a `tr`, `list-item` for an `li`, `inline` for a `span`, `block` for anything else). A stylesheet that owns an element's visibility, a responsive rule for one, is not driven through `isHidden`.
+`isHidden = false` shows the view whatever hid it: it removes the inline value, and when the stylesheet still hides the element it writes the display the element has by nature (`table-cell` for a `td`, `table-row` for a `tr`, `list-item` for an `li`, `inline` for a `span`, `block` for anything else). That display is written at the end of the current turn, or at once when a property that depends on it is read (`isHidden`, `frame`, `bounds`, `transform`, `contentOffset`, `contentSize`, focus); `isHidden = false` itself makes no style read. A stylesheet that owns an element's visibility, a responsive rule for one, is not driven through `isHidden`.
 
 `UIView.animate` runs property changes over a duration: `alpha` and `isHidden` fade instead of switching. `UIView.transition` swaps two views, sliding the new one in from the side named by a flip option or dissolving it.
 

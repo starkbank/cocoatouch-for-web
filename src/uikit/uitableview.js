@@ -3,6 +3,7 @@ import { UIControl } from "./uicontrol.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
 import { Bind } from "../utils/bind.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
@@ -393,5 +394,6 @@ var _blocks = {top: "start", middle: "center", bottom: "end"}
 function _scroll(element, scrollPosition) {
     var block = _blocks[scrollPosition]
     if (!block || !element || typeof element.scrollIntoView !== "function") { return }
+    resolvePendingUnhides()
     element.scrollIntoView({block: block})
 }

@@ -1,5 +1,6 @@
 import { UIScrollView } from "./uiscrollview.js"
 import { typed, Bool } from "../utils/required.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 
 
 var measuringHeight = "0px"
@@ -122,6 +123,7 @@ export class UITextView extends UIScrollView {
         var element = this.$el[0]
         if (!element || !element.isConnected || this.isScrollEnabled) { return }
         if (this._adjustment === undefined) { this._adjustment = _adjustmentOf(element) }
+        resolvePendingUnhides()
         element.style.height = measuringHeight
         var height = element.scrollHeight + this._adjustment
         element.style.height = height + "px"
