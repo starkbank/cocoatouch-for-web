@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IndexPath, UITableView } from "../src/index.js"
+import { IndexPath, UITableView, UIView, UITableViewRowAnimation, UITableViewScrollPosition } from "../src/index.js"
 import { counters, Row, Other, at, setup, rowsBody, renderedIds, renderedRows, spacers, scrollTo, rows, click } from "./tableReuseHelpers.js"
 
 
@@ -283,5 +283,84 @@ test("a renumbered view whose selector is not a string is left alone", function(
         assert.doesNotThrow(() => table._renumber(cell, "cell-1", "reusable-99"))
         assert.equal(cell._$el[0].id, "reusable-99")
         table._renumber(cell, "reusable-99", "cell-1")
+    })
+})
+
+test("a view a cell added in code is renamed with its row when the cell is reused, so the fresh cell for row 3 never meets a duplicate id", function() {
+    class Badge extends UIView {}
+    Badge.nib = "<span></span>"
+    withTable({count: 4, estimatedRowHeight: 20, heightOf: () => 20}, function({table, model}) {
+        var badges = []
+        model.onAsk = function(row, cell) {
+            if (row !== 3 || cell.constructor === Row && badges.length > 0) { return }
+            var badge = new Badge()
+            cell.addSubview(badge)
+            badges.push(badge)
+        }
+        table.reloadData()
+        var x = table.cellForRow({at: 3})
+        var xBadge = badges[0]
+        assert.equal(xBadge._$el[0].id, "cell-3-1")
+        model.count = 3
+        table.reloadData()
+        assert.match(x._$el[0].id, /^reusable-/)
+        assert.equal(xBadge._$el[0].id.startsWith(x._$el[0].id + "-"), true, "renamed with the queued cell: " + xBadge._$el[0].id)
+        model.identifier = (row) => row < 3 ? "row" : row === 40 ? "row" : "other"
+        model.count = 41
+        table.reloadData()
+        assert.equal(table.cellForRow({at: 40}), x, "the queued cell serves row 40")
+        assert.equal(xBadge._$el[0].id, "cell-40-1")
+        assert.equal(xBadge.selector, "#cell-40-1")
+        var fresh = table.cellForRow({at: 3})
+        assert.notEqual(fresh, x)
+        assert.equal(badges[1]._$el[0].id, "cell-3-1")
+        assert.equal(document.querySelectorAll("#cell-3-1").length, 1)
+    })
+})
+
+test("a reload never has two rows with one id: the row's previous cell of another identifier is gone before a queued cell takes the id", function() {
+    withTable({count: 4, estimatedRowHeight: 20, heightOf: () => 20, identifier: (row) => row < 2 ? "other" : "row"}, function({table, model}) {
+        model.count = 2
+        table.reloadData()
+        assert.equal(document.querySelectorAll("tr[id^=reusable-]").length, 2, "the two Row cells of rows 2 and 3 wait in the queue")
+        model.identifier = (row) => row < 2 ? "row" : "other"
+        model.count = 4
+        var seen = []
+        model.onAsk = function(row) {
+            seen.push([row, document.querySelectorAll("tr[id=\"cell-" + row + "\"]").length])
+        }
+        counters.constructed = 0
+        table.reloadData()
+        assert.deepEqual(seen, [0, 1, 2, 3].map((row) => [row, 1]))
+        assert.equal(table.cellForRow({at: 0}).constructor, Row)
+        assert.equal(table.cellForRow({at: 3}).constructor, Other)
+        assert.equal(counters.constructed, 0, "rows 0 and 1 took the queued Row cells; the Other cells were handed back or are plain")
+    })
+})
+
+test("an update asked for from inside the data source throws an Error that names the method, as UIKit raises, and leaves the pass to finish", function() {
+    var calls = {
+        reloadData: (table) => table.reloadData(),
+        insertRows: (table, model) => { model.count++; table.insertRows({at: at(0), with: UITableViewRowAnimation.none}) },
+        reconfigureRows: (table) => table.reconfigureRows({at: at(0)}),
+        scrollToRow: (table) => table.scrollToRow(0, {at: UITableViewScrollPosition.top, animated: false}),
+        selectRow: (table) => table.selectRow({at: 1, animated: false, scrollPosition: UITableViewScrollPosition.top}),
+    }
+    for (var method of Object.keys(calls)) {
+        withTable({count: 5}, function({table, model}) {
+            var raised = []
+            model.onAsk = function(row) {
+                if (row !== 2) { return }
+                try { calls[method](table, model) } catch (error) { raised.push(error) }
+            }
+            table.reloadData()
+            assert.equal(raised.length, 1, method)
+            assert.ok(raised[0] instanceof Error && raised[0].message.includes("UITableView." + method), method + ": " + raised[0].message)
+            assert.equal(table.visibleCells.length, 5, "the outer reload finished")
+        })
+    }
+    withTable({count: 5}, function({table}) {
+        table.selectRow({at: 1, animated: false, scrollPosition: UITableViewScrollPosition.none})
+        assert.equal(table.indexPathsForSelectedRows.length, 1, "outside an update, none still only records")
     })
 })

@@ -1,7 +1,7 @@
 import "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIView, UITableViewScrollPosition, UITableViewRowAnimation } from "../src/index.js"
+import { UITableViewScrollPosition, UITableViewRowAnimation } from "../src/index.js"
 import { counters, setup, renderedIds, renderedRows, scrollTo, at } from "./tableReuseHelpers.js"
 
 
@@ -75,29 +75,5 @@ test("reconfigureRows asks again for the rows that have a cell and ignores the r
         model.asked.length = 0
         table.reconfigureRows({at: at(3, 700)})
         assert.deepEqual(model.asked, [3])
-    })
-})
-
-test("a view added to a cell in code is renamed with the row, so the next cell for that row never meets a duplicate id", function() {
-    withTable({}, function({table, model, layout}) {
-        class Badge extends UIView {}
-        Badge.nib = "<span></span>"
-        var made = []
-        var ask = model.onAsk
-        model.onAsk = function(row, cell) {
-            if (row !== 3 || made.length > 0) { return }
-            var badge = new Badge()
-            cell.addSubview(badge)
-            made.push(badge._$el[0])
-        }
-        table.reloadData()
-        assert.equal(made[0].id, "cell-3-1")
-        scrollTo(layout, 50000)
-        assert.ok(made[0].id.startsWith(made[0].closest("tr").id + "-"), made[0].id + " in " + made[0].closest("tr").id)
-        scrollTo(layout, 0)
-        assert.ok(made[0].id.startsWith(made[0].closest("tr").id + "-"), made[0].id + " in " + made[0].closest("tr").id)
-        var ids = Array.from(document.querySelectorAll("[id]")).map((element) => element.id).filter((id) => /^(cell|reusable)-/.test(id))
-        assert.equal(new Set(ids).size, ids.length, "no two framework ids are the same")
-        assert.ok(ask === null)
     })
 })
