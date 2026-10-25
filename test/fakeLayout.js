@@ -25,12 +25,24 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
     var scrollY = 0
     var nextFrame = 1
     var restores = []
+    var anchored = null
 
     var writes = new win.MutationObserver(function() {})
     writes.observe(doc, {subtree: true, childList: true, attributes: true, characterData: true})
 
     function noteWrites() {
-        if (writes.takeRecords().length > 0) { push("write") }
+        if (writes.takeRecords().length === 0) { return }
+        push("write")
+        keepAnchorStill()
+    }
+
+    // What a browser's scroll anchoring does after layout changes above the anchored element: it scrolls by the drift, so the element
+    // stays where the user saw it.
+    function keepAnchorStill() {
+        if (!anchored) { return }
+        var drift = clientRect(anchored.element).top - anchored.top
+        if (drift !== 0) { scrollElementTo(doc.documentElement, scrollY + drift) }
+        anchored.top = clientRect(anchored.element).top
     }
 
     function push(kind) {
@@ -178,6 +190,7 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         if (target === current) { return }
         if (isPage) { scrollY = target } else { boxes.get(element).scrollTop = target }
         pendingScrolls.add(isPage ? win : element)
+        if (anchored) { anchored.top = clientRect(anchored.element).top }
     }
 
     function argumentTop(args, current) {
@@ -272,6 +285,11 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
             if (width !== undefined && tables.has(element)) { tables.get(element).width = width }
             if (height !== undefined && boxes.has(element)) { boxes.get(element).height = height }
             pendingResizes.push(element)
+        },
+
+        // Turns on native scroll anchoring for this element, which Chrome and Firefox have and Safari lacks; null turns it off.
+        anchorTo: function(element) {
+            anchored = element ? {element: element, top: clientRect(element).top} : null
         },
 
         flushScroll: function() {

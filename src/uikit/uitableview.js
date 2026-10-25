@@ -2,23 +2,36 @@ import { UIScrollView } from "./uiscrollview.js"
 import { UIControl } from "./uicontrol.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { IndexPath } from "../foundation/indexpath.js"
+import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { Bind } from "../utils/bind.js"
 import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
+import { automaticDimension, createRowHeights, offsetOf, firstRowAt, totalHeight, effectiveHeight, insert, measure, reset } from "../utils/rowheights.js"
+import { clipAncestors, visibleClip, scroller } from "../utils/scrollclip.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
-import { required, enumeration, optional, arrayOf, Bool, Int, IndexPathType } from "../utils/required.js"
+import { required, typed, enumeration, optional, arrayOf, Bool, Int, Float, IndexPathType } from "../utils/required.js"
 
 
 const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
 
+// What a document without layout, or a table without an element, has for a viewport: jsdom's window height.
+const layoutlessViewportHeight = 768
+// Extra batches of rows one layout pass may add when the rows it measured cover less than the area.
+const maxExtensions = 3
+// Scrolls scrollToRow may correct after its first, once the rows it reached are measured.
+const maxCorrections = 2
+// An anchor row that moved less than this on screen is not compensated.
+const anchorTolerance = 0.5
 
-// Rows are <tr id="cell-<row>"> children of the table's tbody. A cell class
-// registered for a reuse identifier supplies the row html through its nib,
-// the .xib of the same name, and is instantiated bound to that row so its
-// outlets work like any other view's.
+
+// Rows are <tr id="cell-<row>"> children of the table's tbody, but only the rows in or near the visible area exist: a cell that
+// leaves that area waits in a hidden tbody, in the document, under a reusable-<n> id, and serves the next row that comes into view,
+// as UITableView's reuse queue does. A spacer row above and one below, as tall as the rows they stand for, keep the page's height.
+// A cell class registered for a reuse identifier supplies the row html through its nib, the .xib of the same name, and is
+// instantiated bound to that row so its outlets work like any other view's.
 export class UITableView extends UIScrollView {
 
     static get ScrollPosition() {
@@ -29,6 +42,10 @@ export class UITableView extends UIScrollView {
         return UITableViewRowAnimation
     }
 
+    static get automaticDimension() {
+        return automaticDimension
+    }
+
     constructor(selector) {
         super(selector)
         this._dataSource = null
@@ -36,12 +53,28 @@ export class UITableView extends UIScrollView {
         this._isEditing = false
         this._allowsSelection = true
         this._allowsMultipleSelection = false
-        this._selectedRows = []
+        this._selectedRows = new Set()
         this._registeredCells = {}
-        this._cells = []
-        this._reusableCells = []
+        this._heights = createRowHeights({count: 0})
+        this._first = 0
+        this._visible = []
+        this._queues = new Map()
+        this._queueBody = null
+        this._maxWindow = 0
+        this._serial = 0
+        this._reusableCells = new Map()
+        this._staleCells = []
+        this._unbound = []
         this._isReconfiguring = false
-        this._insertion = null
+        this._isLaying = false
+        this._scrollObserver = {}
+        this._clipAncestors = null
+        this._isObserving = false
+        this._resizeObserver = null
+        this._observedWidth = null
+        this._frame = null
+        this._topSpacer = null
+        this._bottomSpacer = null
     }
 
     set isHidden(bool) {
@@ -62,14 +95,37 @@ export class UITableView extends UIScrollView {
     }
 
     // UITableViewDelegate is a UIScrollViewDelegate, so the scroll observation
-    // is the scroll view's own, over the same delegate.
+    // is the scroll view's own, over the same delegate. A delegate's
+    // estimates change every unmeasured row's height, so replacing it dirties
+    // them all and schedules a pass.
     set delegate(delegate) {
         rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UITableView.delegate", "1.6.0")
         super.delegate = delegate
+        var estimates = delegate && typeof delegate.tableViewEstimatedHeightForRowAtIndexPath === "function"
+        this._heights.estimatedHeightForRow = estimates ? (row) => this._delegateEstimate(row) : null
+        this._dirtyAndSchedule()
     }
 
     get delegate() {
         return this._delegate
+    }
+
+    // The height an unmeasured row is given before it is displayed: UITableView.automaticDimension, the default, estimates from the
+    // cells already measured; a number is the estimate of every row the delegate does not answer for.
+    /** @param {number} height */
+    set estimatedRowHeight(height) {
+        typed(height, "estimatedRowHeight", Float, "UITableView.estimatedRowHeight", "Apple's is var estimatedRowHeight: CGFloat; write tableView.estimatedRowHeight = UITableView.automaticDimension.")
+        this._heights.estimatedRowHeight = height
+        this._dirtyAndSchedule()
+    }
+
+    get estimatedRowHeight() {
+        return this._heights.estimatedRowHeight
+    }
+
+    // Rows are sized automatically in this version, so Apple's default is all there is to read.
+    get rowHeight() {
+        return automaticDimension
     }
 
     set allowsSelection(bool) {
@@ -105,21 +161,35 @@ export class UITableView extends UIScrollView {
     }
 
     get indexPathsForSelectedRows() {
-        return this._selectedRows.map(function(row) { return new IndexPath({row: row}) })
+        return Array.from(this._selectedRows, function(row) { return new IndexPath({row: row}) })
     }
 
     get indexPathForSelectedRow() {
-        if (this._selectedRows.length === 0) { return null }
-        return new IndexPath({row: this._selectedRows[0]})
+        if (this._selectedRows.size === 0) { return null }
+        return new IndexPath({row: this._selectedRows.values().next().value})
     }
 
+    // The cells that exist: the rows in or near the visible area, from willDisplay to didEndDisplaying.
+    /** @returns {UITableViewCell[]} */
+    get visibleCells() {
+        return this._visible.slice()
+    }
+
+    get indexPathsForVisibleRows() {
+        return this._visible.map((cell, index) => new IndexPath({row: this._first + index}))
+    }
+
+    // A class or nib that changed for an identifier retires that identifier's queue: its cells are of the old class.
     /**
      * @param {Function} cellClass
      * @param {object} options
      * @param {string} options.forCellReuseIdentifier
      */
     register(cellClass, {forCellReuseIdentifier}) {
+        var previous = this._registeredCells[forCellReuseIdentifier]
         this._registeredCells[forCellReuseIdentifier] = cellClass
+        if (!previous || (previous === cellClass && previous.nib === cellClass.nib)) { return }
+        this._discardQueue(forCellReuseIdentifier)
     }
 
     /**
@@ -132,13 +202,14 @@ export class UITableView extends UIScrollView {
         return this._dataSource.tableViewNumberOfRowsInSection(this, inSection)
     }
 
+    // null for a row that has no cell, as Apple's nil: a row outside the rendered window.
     /**
      * @param {object} options
      * @param {IndexPath|number} options.at
      * @returns {UITableViewCell|null}
      */
     cellForRow({at}) {
-        return this._cells[_row(at)] || null
+        return this._visible[_row(at) - this._first] || null
     }
 
     /**
@@ -147,40 +218,30 @@ export class UITableView extends UIScrollView {
      * @returns {IndexPath|null}
      */
     indexPath({for: cell}) {
-        var row = this._cells.indexOf(cell)
-        if (row === -1) { return null }
-        return new IndexPath({row: row})
+        var index = this._visible.indexOf(cell)
+        if (index === -1) { return null }
+        return new IndexPath({row: this._first + index})
     }
 
-    // The previous pass's cells leave the subviews before the new pass, so a
-    // table reloaded on every filter does not retain every cell it ever made;
-    // a cell the data source dequeues again for its row is handed back, and
-    // the rest are released once the pass is over.
+    // The data source is asked for the rows of the area only. The cell displayed at a row before the reload is handed back to it
+    // by dequeue; the cells the reload does not hand back go to the reuse queue, and when no row is left they are all released.
     reloadData() {
         if (this._dataSource === null) { return }
-        var numberOfRows = this.numberOfRows({inSection: 0})
-        var body = this._body()
-        body.find("> tr[id^=cell-]").each(function() {
-            if (Number(this.id.slice("cell-".length)) >= numberOfRows) { $(this).remove() }
-        })
-        this._reusableCells = this._cells
-        this._cells = []
-        this._unlinkCells(this._reusableCells)
-        this._selectedRows = this._selectedRows.filter(function(row) { return row < numberOfRows })
-        for (var row = 0; row < numberOfRows; row++) {
-            this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row: row}))
-        }
-        for (var cell of this._reusableCells) {
-            if (cell && this._cells.indexOf(cell) === -1) { cell._dispose() }
-        }
-        this._reusableCells = []
-        this._bindRows()
+        var count = this.numberOfRows({inSection: 0})
+        this._selectedRows = new Set(Array.from(this._selectedRows).filter(function(row) { return row < count }))
+        var previous = this._renderedRows()
+        reset(this._heights, {count: count, keepEstimates: true})
+        this._reusableCells = previous
+        this._unlinkCells(Array.from(previous.values()))
+        this._visible = []
+        this._layoutRows({force: true, retained: new Map()})
     }
 
     // insertRows(at:with:): the data source already holds the new rows, as on
-    // Apple, so only the inserted rows are asked for a cell; the rows after them
-    // are renumbered in place and keep their cells, elements and selection. The
-    // animation is recorded and not acted on, as setEditing's animated is.
+    // Apple, so only the inserted rows that come into view are asked for a cell;
+    // the rendered rows after them are renumbered in place and keep their cells,
+    // elements and selection. The animation is recorded and not acted on, as
+    // setEditing's animated is.
     /**
      * @param {object} options
      * @param {IndexPath[]} options.at
@@ -193,31 +254,28 @@ export class UITableView extends UIScrollView {
         if (this._dataSource === null) { return }
         var count = this.numberOfRows({inSection: 0})
         var inserted = _rowsOf(at, {count, method: "insertRows"})
-        if (count !== this._cells.length + inserted.length) {
-            throw new Error(`Invalid update: invalid number of rows in section 0. The number of rows contained in an existing section after the update (${count}) must be equal to the number of rows contained in that section before the update (${this._cells.length}), plus or minus the number of rows inserted or deleted (${inserted.length} inserted, 0 deleted).`)
+        var before = this._heights.count
+        if (count !== before + inserted.length) {
+            throw new Error(`Invalid update: invalid number of rows in section 0. The number of rows contained in an existing section after the update (${count}) must be equal to the number of rows contained in that section before the update (${before}), plus or minus the number of rows inserted or deleted (${inserted.length} inserted, 0 deleted).`)
         }
-        var shifts = _shifts(inserted, count)
-        for (var i = shifts.length - 1; i >= 0; i--) {
-            this._renumber(shifts[i].from, shifts[i].to)
-            this._cells[shifts[i].to] = this._cells[shifts[i].from]
+        var moved = new Map()
+        var rendered = Array.from(this._renderedRows())
+        for (var i = rendered.length - 1; i >= 0; i--) {
+            var [row, cell] = rendered[i]
+            var to = _shifted(row, inserted)
+            if (to !== row) { this._renumber(cell, "cell-" + row, "cell-" + to) }
+            moved.set(to, cell)
         }
-        var moved = new Map(shifts.map((shift) => [shift.from, shift.to]))
-        this._selectedRows = this._selectedRows.map((row) => moved.has(row) ? moved.get(row) : row)
-        this._reusableCells = []
-        this._insertion = typeof document.createDocumentFragment === "function" ? document.createDocumentFragment() : null
-        try {
-            for (var row of inserted) {
-                this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
-            }
-        } finally {
-            this._insertion = null
-        }
-        this._placeInserted(inserted, count)
+        insert(this._heights, inserted)
+        this._selectedRows = new Set(Array.from(this._selectedRows, (row) => _shifted(row, inserted)))
+        this._reusableCells = new Map()
+        this._layoutRows({force: true, retained: moved})
     }
 
-    // reconfigureRows(at:), iOS 15: the data source is asked again for the rows,
-    // and each row's cell comes back from dequeue as it is, without
-    // prepareForReuse(), which is Apple's contract for a reconfigure.
+    // reconfigureRows(at:), iOS 15: the data source is asked again for the rows
+    // that have a cell, and each row's cell comes back from dequeue as it is,
+    // without prepareForReuse(), which is Apple's contract for a reconfigure. A
+    // row without a cell is ignored, as Apple ignores an invisible row.
     /**
      * @param {object} options
      * @param {IndexPath[]} options.at
@@ -226,26 +284,30 @@ export class UITableView extends UIScrollView {
         var signature = "Apple's is reconfigureRows(at:); write reconfigureRows({at: [indexPath]})."
         required(at, "at", arrayOf(IndexPathType), "UITableView.reconfigureRows", signature)
         if (this._dataSource === null) { return }
-        var rows = _rowsOf(at, {count: this._cells.length, method: "reconfigureRows"})
-        this._reusableCells = []
+        var rows = _rowsOf(at, {count: this._heights.count, method: "reconfigureRows"})
+        this._reusableCells = new Map()
         for (var row of rows) {
-            var cell = this._cells[row]
+            var cell = this.cellForRow({at: row})
+            if (!cell) { continue }
             this._unlinkCells([cell])
-            this._reusableCells[row] = cell
+            this._reusableCells.set(row, cell)
             this._isReconfiguring = true
             try {
-                this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+                this._visible[row - this._first] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+                this._bindCreated()
             } finally {
                 this._isReconfiguring = false
             }
         }
-        this._reusableCells = []
+        this._reusableCells = new Map()
+        this._layoutRows({force: true})
     }
 
-    // Hands back the cell already bound to that row for the identifier, after
-    // prepareForReuse(); otherwise reuses the row element when it exists,
-    // creates it from the registered cell's nib when not, and binds the cell
-    // class to it.
+    // Hands back the cell displayed at that row before a reload, after
+    // prepareForReuse(); otherwise a cell from the identifier's queue, placed
+    // in the rows, renumbered and only then sent prepareForReuse(), so the app
+    // sees its own, connected row; otherwise creates the row element from the
+    // registered cell's nib and binds the cell class to it.
     /**
      * @param {object} options
      * @param {string} options.withIdentifier
@@ -255,22 +317,28 @@ export class UITableView extends UIScrollView {
     dequeueReusableCell({withIdentifier, for: indexPath}) {
         var cellClass = this._registeredCells[withIdentifier] || UITableViewCell
         var row = _row(indexPath)
-        var reusable = this._reusableCells[row]
+        var reusable = this._reusableCells.get(row)
         if (reusable && reusable.reuseIdentifier === withIdentifier && reusable.constructor === cellClass) {
-            this._reusableCells[row] = null
+            this._reusableCells.delete(row)
             if (!this._isReconfiguring) { reusable.prepareForReuse() }
             this._link(reusable)
             return reusable
         }
+        var queued = this._takeQueued(withIdentifier, cellClass)
+        if (queued) { return this._reuseQueued(queued, {row, indexPath}) }
         var id = "cell-" + row
         var element = _childRow(this._body(), id)
         if (reusable && reusable.constructor.nib !== cellClass.nib) {
             element = this._replaceRow(reusable, {cellClass, id, row})
         }
+        if (reusable && reusable.constructor.nib === cellClass.nib) {
+            this._reusableCells.delete(row)
+            this._staleCells.push({cell: reusable, row})
+        }
         if (element.length === 0) {
             element = $(cellClass.nib || "<tr></tr>").first()
             element.attr("id", id)
-            if (this._insertion) { this._insertion.appendChild(element[0]) } else { this._body().append(element) }
+            this._body().append(element)
         }
         var cell = Bind.construct(cellClass, this.selector + " #" + id, element, indexPath)
         cell.reuseIdentifier = withIdentifier
@@ -281,6 +349,7 @@ export class UITableView extends UIScrollView {
         Bind.ibAction(cell)
         Bind.ibInspectable(cell)
         cell.awakeFromNib()
+        this._unbound.push(element[0] || element)
         return cell
     }
 
@@ -290,10 +359,11 @@ export class UITableView extends UIScrollView {
     // disposed, which releases its outlets, targets and observers, and its
     // element is replaced in place so the rows keep their order. A class with
     // the same nib takes the element over, as it always did, and the old cell is
-    // disposed when the reload ends.
+    // disposed when the pass ends.
     _replaceRow(stale, {cellClass, id, row}) {
-        this._reusableCells[row] = null
-        var old = stale.$el
+        this._reusableCells.delete(row)
+        this._delegateCall("tableViewDidEndDisplayingCellForRowAtIndexPath", stale, new IndexPath({row}))
+        var old = stale._$el
         stale._dispose()
         var element = $(cellClass.nib || "<tr></tr>").first()
         element.attr("id", id)
@@ -303,8 +373,10 @@ export class UITableView extends UIScrollView {
     }
 
     // selectRow(at:animated:scrollPosition:): at: null clears the selection, as
-    // Apple's nil does; scrollPosition scrolls the row to the edge or middle it
-    // names, animated is recorded and not acted on.
+    // Apple's nil does; a row without a cell is recorded and drawn selected
+    // when it appears; scrollPosition scrolls the row to the edge or middle it
+    // names, where none does not scroll, as Apple documents for selectRow;
+    // animated is recorded and not acted on.
     /**
      * @param {object} options
      * @param {IndexPath|number|null} options.at
@@ -317,18 +389,19 @@ export class UITableView extends UIScrollView {
         required(animated, "animated", Bool, "UITableView.selectRow", signature)
         required(scrollPosition, "scrollPosition", scrollPositionType, "UITableView.selectRow", signature)
         if (at === null) {
-            this._selectedRows.slice().forEach((selected) => this._deselect(selected))
+            Array.from(this._selectedRows).forEach((selected) => this._deselect(selected))
             return
         }
         var row = _row(at)
-        if (this._selectedRows.indexOf(row) !== -1) { return }
+        if (this._selectedRows.has(row)) { return }
         if (!this._allowsMultipleSelection) {
-            this._selectedRows.slice().forEach((selected) => this._deselect(selected))
+            Array.from(this._selectedRows).forEach((selected) => this._deselect(selected))
         }
-        this._selectedRows.push(row)
-        var $row = this._rowElement(row)
-        $row.addClass("selected").find("[id^=table-cell-selected] :input").prop("checked", true)
-        _scroll($row[0], scrollPosition)
+        this._selectedRows.add(row)
+        var cell = this.cellForRow({at: row})
+        if (cell) { this._drawSelection(cell, row) }
+        if (scrollPosition === UITableViewScrollPosition.none) { return }
+        this._scrollRowTo(row, scrollPosition)
     }
 
     /**
@@ -343,11 +416,78 @@ export class UITableView extends UIScrollView {
         this._deselect(_row(at))
     }
 
+    // scrollToRow(at:at:animated:): the row is brought to the top, middle or
+    // bottom of what the page or its scroller shows, or, for none, only far
+    // enough to show it whole. A row without a cell is reached through the
+    // height model and measured as it is drawn, so the target is corrected
+    // after the first scroll; animated is recorded and not acted on.
+    /**
+     * @param {IndexPath|number} indexPath
+     * @param {object} options
+     * @param {"none"|"top"|"middle"|"bottom"} options.at
+     * @param {boolean} options.animated
+     */
+    scrollToRow(indexPath, {at, animated} = {}) {
+        var signature = "Apple's is scrollToRow(at:at:animated:); write scrollToRow(indexPath, {at: UITableViewScrollPosition.top, animated: false})."
+        typed(indexPath, "indexPath", rowType, "UITableView.scrollToRow", signature)
+        required(at, "at", scrollPositionType, "UITableView.scrollToRow", signature)
+        required(animated, "animated", Bool, "UITableView.scrollToRow", signature)
+        var section = indexPath instanceof IndexPath ? indexPath.section : 0
+        var row = _row(indexPath)
+        var count = this.numberOfRows({inSection: 0})
+        if (section !== 0 || row < 0 || row >= count) {
+            throw new RangeError(`UITableView.scrollToRow: attempt to scroll to invalid index path, section ${section} row ${row} of a table with one section of ${count} rows. ${signature}`)
+        }
+        this._scrollRowTo(row, at)
+    }
+
     _deselect(row) {
-        var index = this._selectedRows.indexOf(row)
-        if (index === -1) { return }
-        this._selectedRows.splice(index, 1)
-        this._rowElement(row).removeClass("selected").find("[id^=table-cell-selected] :input").prop("checked", false)
+        if (!this._selectedRows.delete(row)) { return }
+        var cell = this.cellForRow({at: row})
+        if (cell) { this._drawSelection(cell, row) }
+    }
+
+    // The selected state is drawn from the selected rows whenever a cell shows a row, so a cell reused from a selected row never
+    // shows its selection and a selected row always does.
+    _drawSelection(cell, row) {
+        var isSelected = this._selectedRows.has(row)
+        cell._$el.toggleClass("selected", isSelected).find("[id^=table-cell-selected] :input").prop("checked", isSelected)
+    }
+
+    _dirtyAndSchedule() {
+        this._heights.dirtyFrom = 0
+        this._schedule()
+    }
+
+    // One animation frame pass however many estimates changed; nothing runs where there is no frame to wait for.
+    _schedule() {
+        if (this._frame !== null || typeof requestAnimationFrame !== "function") { return }
+        this._frame = requestAnimationFrame(() => {
+            this._frame = null
+            if (this._isDetached()) { return }
+            this._layoutRows({compensate: true})
+        })
+    }
+
+    // A table whose element left the document is not asked to lay out by what it was listening to: its view would look itself up
+    // again by selector and find whatever element has that id now.
+    _isDetached() {
+        var node = this._cachedElement && this._cachedElement[0]
+        return !node || node.isConnected === false
+    }
+
+    _delegateEstimate(row) {
+        var delegate = this._delegate
+        if (!delegate || typeof delegate.tableViewEstimatedHeightForRowAtIndexPath !== "function") { return undefined }
+        var height = delegate.tableViewEstimatedHeightForRowAtIndexPath(this, new IndexPath({row}))
+        if (typeof height === "number" && !Number.isNaN(height)) { return height }
+        throw new TypeError(`UITableView.delegate: tableViewEstimatedHeightForRowAtIndexPath must return a number, got ${typeof height}. Apple's is tableView(_:estimatedHeightForRowAt:) -> CGFloat; return UITableView.automaticDimension for no estimate.`)
+    }
+
+    _renderedRows() {
+        var rendered = new Map()
+        this._visible.forEach((cell, index) => rendered.set(this._first + index, cell))
+        return rendered
     }
 
     _unlinkCells(cells) {
@@ -356,65 +496,35 @@ export class UITableView extends UIScrollView {
     }
 
     // The element's id and every selector the framework fixed under it at bind
-    // time follow the row to its new number, or an outlet would re-resolve to
-    // the row that now has the old number. The prefix match is exact, so a
-    // nested table's own cell ids are left alone.
-    _renumber(from, to) {
-        var cell = this._cells[from]
-        var element = cell.$el[0]
-        var oldPrefix = this.selector + " #cell-" + from
-        var newPrefix = this.selector + " #cell-" + to
+    // time follow the row to its new id, or an outlet would re-resolve to the
+    // row that now has the old id. The prefix match is exact, so a nested
+    // table's own cell ids are left alone. Every read goes through the cell's
+    // cached element, because a view's $el re-queries by selector once a node
+    // has left the document, and the selector is what is being changed.
+    // Elements the framework named after the row (a view added in code gets
+    // <row id>-<n>) are renamed too, so the next cell to show that row never
+    // meets a duplicate id.
+    _renumber(cell, fromId, toId) {
+        var element = cell._$el[0]
+        var oldPrefix = this.selector + " #" + fromId
+        var newPrefix = this.selector + " #" + toId
         var views = new Set()
         _collectSubviews(cell, views)
+        var named = []
         for (var descendant of element.querySelectorAll("*")) {
             var owner = ownerOf(descendant)
             if (owner) { _collectSubviews(owner, views) }
+            if (descendant.id.startsWith(fromId + "-")) { named.push(descendant) }
         }
-        element.id = "cell-" + to
         for (var view of views) {
+            if (typeof view.selector !== "string") { continue }
             if (view.selector === oldPrefix || view.selector.startsWith(oldPrefix + " ")) {
                 view.selector = newPrefix + view.selector.slice(oldPrefix.length)
             }
         }
-        cell._identifier = "cell-" + to
-    }
-
-    // Each contiguous run of inserted rows joins the page in one insertBefore of
-    // a fragment, its anchor the element of the row after the run, so the
-    // observers of the page see one record per run and not one per row and
-    // write. Dequeue built the new rows detached, so an append is one run.
-    // A document without createDocumentFragment, the lifecycle tests' stand-in,
-    // gets the rows appended at dequeue and moved before their successor one by
-    // one, as before.
-    _placeInserted(inserted, count) {
-        var body = this._body()[0]
-        var isInserted = new Set(inserted)
-        var anchor = null
-        if (typeof document.createDocumentFragment !== "function") {
-            for (var at = count - 1; at >= inserted[0]; at--) {
-                var element = this._cells[at].$el[0]
-                if (isInserted.has(at) && element.nextSibling !== anchor) { body.insertBefore(element, anchor) }
-                if (isInserted.has(at)) { this._bindRow(element) }
-                anchor = element
-            }
-            return
-        }
-        var row = count - 1
-        while (row >= inserted[0]) {
-            if (!isInserted.has(row)) {
-                anchor = this._cells[row].$el[0]
-                row--
-                continue
-            }
-            var first = row
-            while (first - 1 >= inserted[0] && isInserted.has(first - 1)) { first-- }
-            var run = document.createDocumentFragment()
-            for (var member = first; member <= row; member++) { run.appendChild(this._cells[member].$el[0]) }
-            body.insertBefore(run, anchor)
-            for (member = first; member <= row; member++) { this._bindRow(this._cells[member].$el[0]) }
-            anchor = this._cells[first].$el[0]
-            row = first - 1
-        }
+        for (var node of named) { _renameNamed(node, fromId, toId, views) }
+        element.id = toId
+        cell._identifier = toId
     }
 
     // The table's own last tbody, found through the element's tBodies: a
@@ -430,16 +540,22 @@ export class UITableView extends UIScrollView {
         return body.last()
     }
 
-    _rowElement(row) {
-        return this._body().find("> #cell-" + row)
-    }
-
-    // Each purpose binds under its own namespace and removes only that, so a
-    // reload or an editing change leaves a cell's recognizers and targets alone.
-    // A row's index path is read from its id when the event fires, so renumbering
-    // a row in insertRows needs no rebinding.
+    // Each purpose binds under its own namespace and removes only that, so an
+    // editing change leaves a cell's recognizers and targets alone. The rows
+    // and the queued rows are bound alike, so a cell made while not editing
+    // has its delete handler when editing starts. A row's index path is read
+    // from its id when the event fires, so renumbering a row needs no rebinding.
     _bindRows() {
         this._body().find("> tr[id^=cell-]").each((index, element) => this._bindRow(element))
+        if (this._queueBody) { $(this._queueBody).children("tr").each((index, element) => this._bindRow(element)) }
+    }
+
+    // A new row element is bound after the data source has configured its cell, so the recognizers and targets the app adds to the
+    // cell run before the row's own tap, which stops the click, as they did when a reload bound the rows once it was over.
+    _bindCreated() {
+        var created = this._unbound
+        this._unbound = []
+        for (var element of created) { this._bindRow(element) }
     }
 
     _bindRow(element) {
@@ -489,7 +605,7 @@ export class UITableView extends UIScrollView {
     // unselected row and deselects a selected one, each followed by its delegate
     // call, through the same path the selection checkbox takes so the two agree.
     _toggle(indexPath) {
-        if (this._selectedRows.indexOf(indexPath.row) !== -1) {
+        if (this._selectedRows.has(indexPath.row)) {
             this._userDeselect(indexPath)
             return
         }
@@ -511,6 +627,421 @@ export class UITableView extends UIScrollView {
         if (!delegate || typeof delegate[method] !== "function") { return }
         var args = Array.prototype.slice.call(arguments, 1)
         delegate[method].apply(delegate, [this].concat(args))
+    }
+
+    // The reuse queue ------------------------------------------------------------------------------------------------------------
+
+    // A queued cell's element stays in the document, in a hidden tbody before the rows, because a view whose node left the document
+    // looks itself up again by selector and would find the row that now has its old id. The tbody exists only while something waits.
+    _queueElement() {
+        if (this._queueBody) { return this._queueBody }
+        var rows = this._body()[0]
+        if (!rows || rows.tagName !== "TBODY" || !rows.parentNode || typeof document.createElement !== "function") { return null }
+        var tbody = document.createElement("tbody")
+        tbody.style.display = "none"
+        rows.parentNode.insertBefore(tbody, rows)
+        this._queueBody = tbody
+        return tbody
+    }
+
+    _takeQueued(identifier, cellClass) {
+        var queue = this._queues.get(identifier)
+        while (queue && queue.length > 0) {
+            var cell = queue.pop()
+            if (cell.constructor === cellClass) { return cell }
+            this._release(cell)
+        }
+        return null
+    }
+
+    // Place first, so the app's prepareForReuse runs on a connected row of the table; renumber through the cell's own element; link;
+    // then prepare. Where the row sits among the others is settled when the pass ends.
+    _reuseQueued(cell, {row, indexPath}) {
+        var element = cell._$el[0]
+        this._body()[0].appendChild(element)
+        this._renumber(cell, element.id, "cell-" + row)
+        cell._indexPath = indexPath
+        this._link(cell)
+        cell.prepareForReuse()
+        return cell
+    }
+
+    // A cell leaving its row: told so while its element is still the row, then renumbered out of the way, its drawn selection
+    // cleared, and queued; or released, while still connected, when its queue is already as long as the largest window seen.
+    _retire(cell, row) {
+        this._delegateCall("tableViewDidEndDisplayingCellForRowAtIndexPath", cell, new IndexPath({row}))
+        var queue = this._queues.get(cell.reuseIdentifier)
+        var queueElement = cell._$el && cell._$el[0] && cell.reuseIdentifier !== null ? this._queueElement() : null
+        if (!queueElement || (queue && queue.length >= this._maxWindow)) {
+            this._release(cell)
+            return
+        }
+        this._renumber(cell, cell._$el[0].id, "reusable-" + (++this._serial))
+        cell._$el.removeClass("selected").find("[id^=table-cell-selected] :input").prop("checked", false)
+        queueElement.appendChild(cell._$el[0])
+        if (!queue) { this._queues.set(cell.reuseIdentifier, queue = []) }
+        queue.push(cell)
+    }
+
+    // Disposed while its element is still in the document, so its outlets release their own nodes, and only then removed.
+    _release(cell) {
+        var element = cell._$el
+        cell._dispose()
+        if (element) { element.remove() }
+    }
+
+    _discardQueue(identifier) {
+        for (var cell of this._queues.get(identifier) || []) { this._release(cell) }
+        this._queues.delete(identifier)
+    }
+
+    _discardQueues() {
+        for (var identifier of Array.from(this._queues.keys())) { this._discardQueue(identifier) }
+        if (this._queueBody) { this._queueBody.remove() }
+        this._queueBody = null
+    }
+
+    // The layout pass -------------------------------------------------------------------------------------------------------------
+
+    // Brings the rendered window to the rows in the area, which is the visible clip and one clip above and below it. It reads once,
+    // writes the window, reads once more to measure, and repeats while the measured rows still leave the area uncovered. The scroll
+    // that heights above the first visible row moved is taken back through the page's scroller, so what the user sees does not jump.
+    // `retained` is the cells that stay as they are when their row is in the window, which a reload empties and an insert shifts.
+    _layoutRows({force = false, compensate = false, retained = null} = {}) {
+        if (this._dataSource === null || this._isLaying) { return }
+        this._isLaying = true
+        try {
+            this._runPass({force, compensate, retained})
+        } finally {
+            this._isLaying = false
+        }
+    }
+
+    _runPass({force, compensate, retained}) {
+        if (this._heights.count === 0) {
+            this._empty()
+            return
+        }
+        var cells = retained ? Array.from(retained).sort((a, b) => a[0] - b[0]) : Array.from(this._renderedRows())
+        var read = this._read(cells)
+        if (read.clip.bottom - read.clip.top <= 0 && !force) { return }
+        if (read.clip.bottom - read.clip.top <= 0) { read.clip = visibleClip(this.$el[0], []) }
+        this._record(read, cells)
+        var anchor = compensate ? _anchorOf(read, cells) : null
+        var extension = null
+        for (var round = 0; round <= maxExtensions; round++) {
+            var range = this._rangeFor(read, extension)
+            if (round > 0 && range.a === this._first && range.b === this._first + this._visible.length) { break }
+            this._setWindow(range, round === 0 ? retained : null)
+            cells = Array.from(this._renderedRows()).sort((a, b) => a[0] - b[0])
+            read = this._read(cells)
+            this._record(read, cells)
+            extension = this._extensionFor(read)
+        }
+        if (this._arrange()) {
+            read = this._read(cells)
+            this._record(read, cells)
+        }
+        this._observe(read)
+        if (anchor) { this._compensate(anchor, read, cells) }
+    }
+
+    // The rows to render: those that end past the top of the area through the one that contains its bottom edge, plus the rows
+    // an extension asks for when what is measured does not cover it. A window starts at firstRowAt, never at rowAt, because rows
+    // with no height make equal offsets and only the first of them is where the unmeasured rows begin.
+    _rangeFor(read, extension) {
+        var heights = this._heights
+        var count = heights.count
+        var clipHeight = read.clip.bottom - read.clip.top
+        var areaTop = read.clip.top - clipHeight - read.origin
+        var areaBottom = read.clip.bottom + clipHeight - read.origin
+        if (areaBottom <= 0) { return {a: 0, b: 0} }
+        var a = firstRowAt(heights, areaTop)
+        var b = firstRowAt(heights, areaBottom)
+        if (b < count && offsetOf(heights, b) < areaBottom) { b += 1 }
+        if (extension !== null) { b = Math.max(b, extension) }
+        return {a: a, b: Math.max(a, Math.min(count, b))}
+    }
+
+    // Where the window must end to cover the area when the rows measured so far fall short of it, sized by what a row is believed to
+    // measure; null when the area is covered or the rows have run out.
+    _extensionFor(read) {
+        var heights = this._heights
+        var end = this._first + this._visible.length
+        if (end >= heights.count) { return null }
+        var clipHeight = read.clip.bottom - read.clip.top
+        var uncovered = read.clip.bottom + clipHeight - read.origin - offsetOf(heights, end)
+        if (uncovered <= anchorTolerance) { return null }
+        return end + Math.ceil(uncovered / this._batchHeight())
+    }
+
+    // Only sizes a batch of rows to add, never a row: the estimate if there is one, else the mean of what was measured, else 44.
+    _batchHeight() {
+        var heights = this._heights
+        if (heights.estimatedRowHeight > 0) { return heights.estimatedRowHeight }
+        var dominant = heights.estimates.get(heights.dominantIdentifier)
+        return dominant ? dominant.sum / dominant.count : effectiveHeight(heights, 0) || 44
+    }
+
+    // One batch of reads: the clip, where row 0 begins, and the top of every rendered row and of what follows the last, so a row's
+    // height is the distance to the next top, borders and spacing included. Anything unhidden since the last read is resolved first.
+    _read(cells) {
+        var element = this.$el[0]
+        if (!element || typeof element.getBoundingClientRect !== "function") {
+            return {clip: {top: 0, bottom: layoutlessViewportHeight}, origin: 0, tops: null, terminal: 0, width: 0}
+        }
+        resolvePendingUnhides()
+        if (this._clipAncestors === null) { this._clipAncestors = clipAncestors(element) }
+        var body = this._body()[0]
+        var tops = cells.map(function(entry) { return entry[1]._$el[0].getBoundingClientRect().top })
+        var last = body.lastElementChild
+        var terminal = cells.length > 0 && last === this._bottomSpacer ? last.getBoundingClientRect().top : body.getBoundingClientRect().bottom
+        var first = body.firstElementChild
+        var origin = first ? first.getBoundingClientRect().top : body.getBoundingClientRect().top
+        return {clip: visibleClip(element, this._clipAncestors), origin: origin, tops: tops, terminal: terminal, width: element.getBoundingClientRect().width}
+    }
+
+    _record(read, cells) {
+        if (read.tops === null) { return }
+        for (var i = 0; i < cells.length; i++) {
+            var next = i + 1 < cells.length ? read.tops[i + 1] : read.terminal
+            measure(this._heights, cells[i][0], next - read.tops[i], cells[i][1].reuseIdentifier)
+        }
+    }
+
+    // Writes: the cells whose row left the window are retired first, so they can serve the rows that come in; the rows that have no
+    // cell are asked of the data source, in order, and each is drawn selected or not and told it will display.
+    _setWindow(range, retained) {
+        var rendered = retained || this._renderedRows()
+        var leaving = []
+        for (var [row, cell] of rendered) {
+            if (row < range.a || row >= range.b) { leaving.push([row, cell]) }
+        }
+        for (var [row, cell] of this._reusableCells) {
+            if (row < range.a || row >= range.b) { leaving.push([row, cell]) }
+        }
+        this._unlinkCells(leaving.map((entry) => entry[1]))
+        for (var [row, cell] of leaving) {
+            this._reusableCells.delete(row)
+            this._retire(cell, row)
+        }
+        var next = []
+        for (var row = range.a; row < range.b; row++) {
+            if (rendered.has(row)) {
+                next.push(rendered.get(row))
+                continue
+            }
+            var indexPath = new IndexPath({row})
+            var cell = this._dataSource.tableViewCellForRowAtIndexPath(this, indexPath)
+            this._bindCreated()
+            this._drawSelection(cell, row)
+            this._delegateCall("tableViewWillDisplayCellForRowAtIndexPath", cell, indexPath)
+            next.push(cell)
+        }
+        this._finishReload()
+        this._first = range.a
+        this._visible = next
+        this._maxWindow = Math.max(this._maxWindow, next.length)
+        this._arrange()
+    }
+
+    // What a reload did not hand back: the cells whose row is in the window but were not dequeued again leave, and a cell another
+    // class's nib took the element of is released.
+    _finishReload() {
+        var unclaimed = Array.from(this._reusableCells)
+        this._reusableCells = new Map()
+        for (var [row, cell] of unclaimed) { this._retire(cell, row) }
+        var stale = this._staleCells
+        this._staleCells = []
+        for (var entry of stale) {
+            this._delegateCall("tableViewDidEndDisplayingCellForRowAtIndexPath", entry.cell, new IndexPath({row: entry.row}))
+            entry.cell._dispose()
+        }
+    }
+
+    // The rows' order and the two spacers, from the model. A node already in its place is not touched, so a pass that changes
+    // nothing writes nothing. Returns whether anything changed.
+    _arrange() {
+        var body = this._body()[0]
+        if (!body || typeof body.insertBefore !== "function" || typeof document.createElement !== "function") { return false }
+        var heights = this._heights
+        var end = this._first + this._visible.length
+        var top = offsetOf(heights, this._first)
+        var bottom = totalHeight(heights) - offsetOf(heights, end)
+        var changed = false
+        var desired = []
+        if (top > 0) { desired.push(this._spacer("_topSpacer")) }
+        for (var cell of this._visible) { desired.push(cell._$el[0]) }
+        if (bottom > 0) { desired.push(this._spacer("_bottomSpacer")) }
+        for (var key of ["_topSpacer", "_bottomSpacer"]) {
+            var spacer = this[key]
+            if (spacer && spacer.parentNode && desired.indexOf(spacer) === -1) {
+                spacer.parentNode.removeChild(spacer)
+                changed = true
+            }
+        }
+        var cursor = body.firstElementChild
+        for (var node of desired) {
+            if (node === cursor) {
+                cursor = cursor.nextElementSibling
+                continue
+            }
+            body.insertBefore(node, cursor)
+            changed = true
+        }
+        return this._sizeSpacers(top, bottom) || changed
+    }
+
+    _sizeSpacers(top, bottom) {
+        var changed = false
+        for (var [key, height] of [["_topSpacer", top], ["_bottomSpacer", bottom]]) {
+            var spacer = this[key]
+            if (!spacer || height <= 0 || spacer._height === height) { continue }
+            spacer.style.height = height + "px"
+            spacer._height = height
+            changed = true
+        }
+        return changed
+    }
+
+    // A spacer stands in for the rows it replaces: a row of one empty cell with nothing but a height, so sibling selectors keep
+    // their meaning and no column gains width. It belongs to no cell, has no id and is never bound.
+    _spacer(key) {
+        if (!this[key]) {
+            var row = document.createElement("tr")
+            row.setAttribute("aria-hidden", "true")
+            row.style.cssText = "padding: 0; border: 0; background: transparent;"
+            var cell = document.createElement("td")
+            cell.style.cssText = "padding: 0; border: 0;"
+            row.appendChild(cell)
+            this[key] = row
+        }
+        return this[key]
+    }
+
+    // Nothing to render: every cell is released, the queued ones too, which is what keeps a rule such as :has(> tbody > tr) from
+    // matching rows that wait hidden after the last one is gone.
+    _empty() {
+        var leaving = Array.from(this._renderedRows())
+        for (var entry of Array.from(this._reusableCells)) { leaving.push(entry) }
+        this._reusableCells = new Map()
+        this._unlinkCells(leaving.map((entry) => entry[1]))
+        for (var [row, cell] of leaving) {
+            this._delegateCall("tableViewDidEndDisplayingCellForRowAtIndexPath", cell, new IndexPath({row}))
+            this._release(cell)
+        }
+        this._finishReload()
+        this._discardQueues()
+        for (var key of ["_topSpacer", "_bottomSpacer"]) {
+            if (this[key] && this[key].parentNode) { this[key].parentNode.removeChild(this[key]) }
+        }
+        this._first = 0
+        this._visible = []
+    }
+
+    // The first rendered row whose bottom is below the clip's top keeps its place on screen: what the pass measured above it moves
+    // it by the difference, and the page's scroller is scrolled by that, unless a browser's own scroll anchoring already did.
+    _compensate(anchor, read, cells) {
+        var index = cells.findIndex(function(entry) { return entry[0] === anchor.row })
+        if (index === -1 || read.tops === null) { return }
+        var drift = read.tops[index] - anchor.top
+        if (Math.abs(drift) < anchorTolerance) { return }
+        this._scrollBy(drift)
+    }
+
+    _scrollBy(delta) {
+        var target = scroller(this.$el[0])
+        if (!target) { return }
+        if (typeof target.scrollBy === "function") {
+            target.scrollBy({top: delta, behavior: "instant"})
+            return
+        }
+        target.scrollTop += delta
+    }
+
+    // Scroll events and width reports ------------------------------------------------------------------------------------------
+
+    _observe(read) {
+        if (this._isObserving || read.tops === null) { return }
+        this._isObserving = true
+        this._observeScrollers()
+        if (typeof ResizeObserver !== "function") { return }
+        this._observedWidth = read.width
+        this._resizeObserver = new ResizeObserver((entries) => this._widthReported(entries))
+        this._resizeObserver.observe(this.$el[0])
+    }
+
+    // Scroll events do not bubble: the document's is observed for the page, and each ancestor that scrolls for itself. The
+    // observer is its own object, so releasing it never takes the delegate's scroll observation with it.
+    _observeScrollers() {
+        NotificationCenter.default.removeObserver(this._scrollObserver)
+        this._clipAncestors = clipAncestors(this.$el[0])
+        var targets = [document].concat(this._clipAncestors.filter(function(ancestor) { return ancestor.scrolls }).map(function(ancestor) { return ancestor.element }))
+        for (var target of targets) {
+            NotificationCenter.default.addObserver(this._scrollObserver, {name: "scroll", object: target, selector: () => this._scrolled()})
+        }
+    }
+
+    // Reports that leave the width as it was are the table's own spacer writes changing its height, which would be a loop to act on.
+    // A new width changes every height, so they are dropped, and the pass waits for the next frame: a pass inside the callback would
+    // resize what is being observed.
+    _widthReported(entries) {
+        if (this._isDetached()) { return }
+        var entry = entries[entries.length - 1]
+        var box = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize
+        var width = box ? box.inlineSize : entry.contentRect.width
+        if (width === this._observedWidth) { return }
+        this._observedWidth = width
+        reset(this._heights, {count: this._heights.count, keepEstimates: false})
+        this._observeScrollers()
+        this._schedule()
+    }
+
+    // One read for the clip and where the rows begin, and a pass only when the clip extended by half an overscan has left the
+    // rendered rows, so a scroll step inside them touches nothing.
+    _scrolled() {
+        if (this._isDetached()) { return }
+        var read = this._read([])
+        var clipHeight = read.clip.bottom - read.clip.top
+        var heights = this._heights
+        if (clipHeight <= 0 || heights.count === 0) { return }
+        var end = this._first + this._visible.length
+        var needTop = read.clip.top - read.origin - clipHeight / 2
+        var needBottom = read.clip.bottom - read.origin + clipHeight / 2
+        var topCovered = this._first === 0 || offsetOf(heights, this._first) <= needTop
+        var bottomCovered = end === heights.count || offsetOf(heights, end) >= needBottom
+        if (this._visible.length > 0 && topCovered && bottomCovered) { return }
+        this._layoutRows({compensate: true})
+    }
+
+    // scrollToRow's and selectRow's scroll: the row's place comes from the height model, so it is estimated until the rows around it
+    // are drawn and measured; each scroll draws them, and what is left of the distance is scrolled again, a bounded number of times.
+    _scrollRowTo(row, position) {
+        var heights = this._heights
+        if (row < 0 || row >= heights.count) { return }
+        for (var attempt = 0; attempt <= maxCorrections; attempt++) {
+            var read = this._read([])
+            var top = read.origin + offsetOf(heights, row)
+            var bottom = top + effectiveHeight(heights, row)
+            var delta = _distance({top, bottom}, read.clip, position)
+            if (Math.abs(delta) < anchorTolerance) { return }
+            this._scrollBy(delta)
+            this._layoutRows({force: true})
+        }
+    }
+
+    // Tear-down ---------------------------------------------------------------------------------------------------------------
+
+    // The scroll and width observation and the queued cells belong to the table, so they go with it; the rendered cells are the
+    // subviews, which UIView's disposal releases.
+    _dispose() {
+        if (this._resizeObserver) { this._resizeObserver.disconnect() }
+        this._resizeObserver = null
+        if (this._frame !== null && typeof cancelAnimationFrame === "function") { cancelAnimationFrame(this._frame) }
+        this._frame = null
+        NotificationCenter.default.removeObserver(this._scrollObserver)
+        this._discardQueues()
+        super._dispose()
     }
 }
 
@@ -569,18 +1100,13 @@ function _rowsOf(indexPaths, {count, method}) {
     return rows.sort((a, b) => a - b)
 }
 
-// Where each old row lands once the inserted rows are in: the rows below the
-// lowest inserted one keep their place, so only the rest are walked.
-function _shifts(inserted, count) {
-    var isInserted = new Set(inserted)
-    var shifts = []
-    var old = inserted[0]
-    for (var row = inserted[0]; row < count; row++) {
-        if (isInserted.has(row)) { continue }
-        if (row !== old) { shifts.push({from: old, to: row}) }
-        old += 1
+// Where a row that was at `old` is once the rows at `inserted` (ascending, final positions) are in.
+function _shifted(old, inserted) {
+    var row = old
+    for (var position of inserted) {
+        if (position <= row) { row += 1 }
     }
-    return shifts
+    return row
 }
 
 function _collectSubviews(view, views) {
@@ -589,16 +1115,40 @@ function _collectSubviews(view, views) {
     for (var subview of view.subviews) { _collectSubviews(subview, views) }
 }
 
+function _renameNamed(node, fromId, toId, views) {
+    var oldId = node.id
+    var newId = toId + oldId.slice(fromId.length)
+    node.id = newId
+    var owner = ownerOf(node)
+    if (!owner || typeof owner.selector !== "string") { return }
+    for (var view of views) {
+        if (view.selector === "#" + oldId || (typeof view.selector === "string" && view.selector.startsWith("#" + oldId + " "))) {
+            view.selector = "#" + newId + view.selector.slice(oldId.length + 1)
+        }
+    }
+    if (owner._identifier === oldId) { owner._identifier = newId }
+}
+
+// The first rendered row whose bottom is below the top of the clip, with where it was.
+function _anchorOf(read, cells) {
+    if (read.tops === null) { return null }
+    for (var i = 0; i < cells.length; i++) {
+        var bottom = i + 1 < cells.length ? read.tops[i + 1] : read.terminal
+        if (bottom > read.clip.top) { return {row: cells[i][0], top: read.tops[i]} }
+    }
+    return null
+}
+
+// How far to scroll, positive down, to put the row where the position says; none shows it whole by the shortest scroll.
+function _distance(rect, clip, position) {
+    if (position === UITableViewScrollPosition.top) { return rect.top - clip.top }
+    if (position === UITableViewScrollPosition.middle) { return (rect.top + rect.bottom) / 2 - (clip.top + clip.bottom) / 2 }
+    if (position === UITableViewScrollPosition.bottom) { return rect.bottom - clip.bottom }
+    if (rect.top < clip.top) { return rect.top - clip.top }
+    return Math.max(0, rect.bottom - clip.bottom)
+}
+
 // A row is an IndexPath or, as the framework has always accepted, a bare row number.
 const rowType = Object.freeze({kind: "row", name: "IndexPath"})
 const scrollPositionType = enumeration(UITableViewScrollPosition, "UITableView.ScrollPosition")
 const rowAnimationType = enumeration(UITableViewRowAnimation, "UITableView.RowAnimation")
-
-var _blocks = {top: "start", middle: "center", bottom: "end"}
-
-function _scroll(element, scrollPosition) {
-    var block = _blocks[scrollPosition]
-    if (!block || !element || typeof element.scrollIntoView !== "function") { return }
-    resolvePendingUnhides()
-    element.scrollIntoView({block: block})
-}

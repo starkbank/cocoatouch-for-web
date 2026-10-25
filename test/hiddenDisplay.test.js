@@ -356,7 +356,7 @@ test("UIScrollView contentOffset, contentSize and setContentOffset resolve a hid
 class RowCell extends UITableViewCell {}
 RowCell.nib = "<tr><td></td></tr>"
 
-test("UITableView.selectRow with a scroll position resolves a hidden ancestor before scrolling the row into view", function() {
+test("UITableView.selectRow with a scroll position resolves a hidden ancestor before reading where the row is", function() {
     var scene = hiddenBox("<table id=\"table\"><tbody></tbody></table>")
     var style = withStyle(".gone { display: none; }")
     try {
@@ -368,7 +368,7 @@ test("UITableView.selectRow with a scroll position resolves a hidden ancestor be
                 return tableView.dequeueReusableCell({withIdentifier: "row", for: indexPath})
             },
         }
-        document.querySelector("#table tr").scrollIntoView = scene.record
+        spyOn(document.querySelector("#table tr"), "getBoundingClientRect", scene)
         scene.unhide()
         table.selectRow({at: 0, animated: false, scrollPosition: UITableViewScrollPosition.top})
         assertSettled(scene, "selectRow")
