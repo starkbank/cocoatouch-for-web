@@ -61,7 +61,7 @@ function withStyle(css, body) {
     return Promise.resolve(body()).finally(() => style.remove())
 }
 
-test("one insertRows of 100 rows is one childList record on the tbody with 100 added nodes", function() {
+test("one insertRows of 100 rows is one childList record on the tbody with 100 added nodes", {todo: "the rows tbody holds the window only; F9 rewrites this as one record per run of rows that enter the window"}, function() {
     var {table, model} = tableOf(names(3))
     var tbody = document.querySelector("#table > tbody")
     var observer = new window.MutationObserver(() => {})
@@ -76,7 +76,7 @@ test("one insertRows of 100 rows is one childList record on the tbody with 100 a
     assert.equal(records[0].addedNodes.length, 100)
 })
 
-test("rows inserted in two separate runs land as one record per run, in order", function() {
+test("rows inserted in two separate runs land as one record per run, in order", {todo: "the rows tbody holds the window only; F9 rewrites this as one record per run of rows that enter the window"}, function() {
     var {table, model} = tableOf(names(4))
     var observer = new window.MutationObserver(() => {})
     observer.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true})

@@ -200,3 +200,24 @@ test("restore gives the document its unstyled answers back", function() {
     assert.equal(document.getElementById("cell-0").getBoundingClientRect().height, 0)
     assert.equal(typeof ResizeObserver, "undefined")
 })
+
+test("native scroll anchoring keeps an anchored element still when a mutation moves it, and reports it as a scroll", function() {
+    withLayout({innerHeight: 900}, function(layout) {
+        fill(60, 100)
+        var table = document.getElementById("t")
+        layout.table(table, {top: 0})
+        var row = document.getElementById("cell-30")
+        window.scrollTo(0, 2500)
+        layout.anchorTo(row)
+        var before = row.getBoundingClientRect().top
+        var spacer = document.createElement("tr")
+        spacer.style.height = "300px"
+        document.getElementById("body").insertBefore(spacer, document.getElementById("cell-0"))
+        assert.equal(row.getBoundingClientRect().top, before, "the page scrolled by the 300 px the row moved")
+        assert.equal(window.scrollY, 2800)
+        var fired = 0
+        document.addEventListener("scroll", function() { fired++ })
+        layout.flushFrames()
+        assert.equal(fired, 1)
+    })
+})
