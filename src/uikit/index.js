@@ -5,6 +5,7 @@ import { UILabel } from "./uilabel.js"
 import { UITableView } from "./uitableview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { UITextField } from "./uitextfield.js"
 import { UITextContentType } from "./uitextcontenttype.js"
@@ -62,6 +63,7 @@ export {
      UITableView,
      UITableViewCell,
      UITableViewScrollPosition,
+     UITableViewRowAnimation,
      UITableViewCellEditingStyle,
      UITextField,
      UITextContentType,
