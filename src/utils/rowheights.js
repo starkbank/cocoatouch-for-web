@@ -61,6 +61,19 @@ export function rowAt(heights, y) {
     return high
 }
 
+// The first row that ends past y, so a window starting here never begins on a zero-height row that ends at or before y, where `rowAt`
+// answers the last row of an equal-offset run (999 of 1000 with nothing measured and no estimate). When no row ends past y it is the
+// first row of the trailing zero-height run, which is the first unmeasured row when estimates are off, and the count when the last row
+// has height. Equal to `rowAt` for a y inside a table whose rows all have height.
+export function firstRowAt(heights, y) {
+    _rebuild(heights)
+    if (heights.count === 0) { return 0 }
+    var offsets = heights.offsets
+    var total = offsets[heights.count]
+    if (y < total) { return _lowerBound(offsets, 1, heights.count, function(offset) { return offset > y }) - 1 }
+    return _lowerBound(offsets, 0, heights.count, function(offset) { return offset >= total })
+}
+
 // `rows` are the inserted rows' positions after the insertion, ascending, as insertRows(at:) names them. The rows around them keep
 // their measurement and identifier, so the estimates, which count measured rows only, are untouched.
 export function insert(heights, rows) {
@@ -108,6 +121,16 @@ export function reset(heights, {count, keepEstimates = false}) {
     if (keepEstimates) { return }
     heights.estimates = new Map()
     heights.dominantIdentifier = undefined
+}
+
+// The smallest index in [low, high] whose offset satisfies isPast, which must hold at `high` and, the offsets never decreasing, from
+// the answer on.
+function _lowerBound(offsets, low, high, isPast) {
+    while (low < high) {
+        var middle = (low + high) >> 1
+        if (isPast(offsets[middle])) { high = middle } else { low = middle + 1 }
+    }
+    return low
 }
 
 function _meanEstimate(heights, identifier) {
