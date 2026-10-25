@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { automaticDimension, defaultEstimate, createRowHeights, effectiveHeight, offsetOf, rowAt, totalHeight, insert, measure, reset } from "../src/utils/rowheights.js"
+import { automaticDimension, defaultEstimate, createRowHeights, effectiveHeight, offsetOf, rowAt, firstRowAt, totalHeight, insert, measure, reset } from "../src/utils/rowheights.js"
 
 
 // The same arithmetic written the slow way, from the public fields only, so the cached prefix sums are checked against something
@@ -124,6 +124,56 @@ test("rowAt skips zero-height rows: the row at an offset is the one that has hei
     assert.equal(rowAt(heights, 9), 0)
     assert.equal(rowAt(heights, 10), 3)
     assert.equal(rowAt(heights, 20), 4)
+})
+
+test("firstRowAt with nothing measured and no estimate is row 0 at any y, where rowAt answers the last row of the run", function() {
+    var heights = createRowHeights({count: 1000, estimatedRowHeight: 0})
+    for (var y of [-50, 0, 1, 1000, 1e9]) { assert.equal(firstRowAt(heights, y), 0, "y = " + y) }
+    assert.equal(rowAt(heights, 0), 999)
+})
+
+test("firstRowAt over measured rows followed by zero-height ones: the first row that ends past y, else the first row of the trailing run", function() {
+    var heights = createRowHeights({count: 1000, estimatedRowHeight: 0})
+    for (var row = 0; row < 20; row++) { measure(heights, row, 95, "a") }
+    assert.equal(firstRowAt(heights, 1000), 10)
+    assert.equal(firstRowAt(heights, 1899.5), 19)
+    assert.equal(firstRowAt(heights, 1900), 20)
+    assert.equal(firstRowAt(heights, 2500), 20)
+    assert.equal(firstRowAt(heights, -1), 0)
+})
+
+test("firstRowAt on a boundary is the row that starts there, and it skips zero-height rows before it", function() {
+    var heights = measured(5, [[0, 10, "a"], [3, 10, "a"], [4, 10, "a"]], {estimatedRowHeight: 0})
+    assert.equal(firstRowAt(heights, 0), 0)
+    assert.equal(firstRowAt(heights, 9.99), 0)
+    assert.equal(firstRowAt(heights, 10), 3, "rows 1 and 2 end at 10, which is not past it")
+    assert.equal(firstRowAt(heights, 19.99), 3)
+    assert.equal(firstRowAt(heights, 20), 4)
+    assert.equal(firstRowAt(heights, 30), 5, "no row ends past the total and none is left: one past the last row")
+    var leading = measured(3, [[1, 10, "a"]], {estimatedRowHeight: 0})
+    assert.equal(firstRowAt(leading, 0), 1, "a leading zero-height row ends at 0")
+})
+
+test("firstRowAt equals rowAt for every y below the total when every row has height", function() {
+    var heights = measured(40, [[0, 30, "a"], [7, 95, "a"], [8, 120, "b"], [30, 15, "a"]], {estimatedRowHeight: 60})
+    for (var y = -20; y < totalHeight(heights); y += 7.3) { assert.equal(firstRowAt(heights, y), rowAt(heights, y), "y = " + y) }
+    assert.equal(firstRowAt(heights, totalHeight(heights)), 40)
+})
+
+test("firstRowAt on an empty table is 0", function() {
+    var heights = createRowHeights({count: 0})
+    assert.equal(firstRowAt(heights, 0), 0)
+    assert.equal(firstRowAt(heights, 500), 0)
+})
+
+test("firstRowAt is a search: 100000 rows and 2000 lookups", function() {
+    var heights = createRowHeights({count: 100000, estimatedRowHeight: 50})
+    totalHeight(heights)
+    var started = process.hrtime.bigint()
+    for (var step = 0; step < 2000; step++) { firstRowAt(heights, step * 2400) }
+    var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6
+    assert.ok(elapsedMs < 200, "took " + elapsedMs + " ms")
+    assert.equal(firstRowAt(heights, 2400 * 1000), 48000)
 })
 
 test("a measurement below the first unmeasured row, with an explicit estimate, dirties only from that row", function() {
