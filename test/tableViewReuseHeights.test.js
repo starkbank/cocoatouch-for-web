@@ -1,7 +1,7 @@
 import "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IndexPath } from "../src/index.js"
+import { IndexPath, NotificationCenter } from "../src/index.js"
 import { effectiveHeight, offsetOf, totalHeight } from "../src/utils/rowheights.js"
 import { counters, setup, rowsBody, renderedRows, spacers, scrollTo, rows } from "./tableReuseHelpers.js"
 
@@ -278,6 +278,8 @@ test("15. disposing the table releases its scroll observers on the document and 
             target.dispatchEvent(new window.Event("scroll", {bubbles: target === document}))
             return layout.readWriteLog().filter((kind) => kind === "read").length
         }
+        var observers = NotificationCenter.default._observers
+        assert.equal(observers.has(table._scrollObserver), true, "the scroll listeners are registered under the table's own token")
         assert.ok(reads(document) > 0, "the table follows the document's scroll")
         assert.ok(reads(container) > 0, "and its scrolling ancestor's")
         model.count = 5
@@ -285,6 +287,7 @@ test("15. disposing the table releases its scroll observers on the document and 
         assert.ok(document.getElementById("table").tBodies.length > 1, "a queue exists")
         table.estimatedRowHeight = 70
         table._dispose()
+        assert.equal(observers.has(table._scrollObserver), false, "NSObject's disposal only knows observers registered under the table itself, so the token is removed by the table")
         assert.equal(layout.flushFrames(), 0, "the scheduled pass was cancelled")
         assert.equal(document.getElementById("table").tBodies.length, 1, "the queue's tbody is gone")
         assert.equal(document.querySelectorAll("tr[id^=reusable-]").length, 0)

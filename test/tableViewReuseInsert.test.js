@@ -13,19 +13,24 @@ function withTable(options, body) {
     try { body(context) } finally { context.layout.restore() }
 }
 
-test("insertRows below the area asks the data source for nothing, and above it only renumbers", function() {
-    withTable({}, function({table, model, layout}) {
+test("a statement-style append of 100 rows below the area asks the data source for none of them", function() {
+    withTable({}, function({table, model}) {
         model.asked.length = 0
         var before = table.visibleCells.slice()
         model.count = 1100
         table.insertRows({at: at(...Array.from({length: 100}, (_, i) => 1000 + i)), with: animation})
         assert.deepEqual(model.asked, [])
         assert.deepEqual(table.visibleCells, before)
+    })
+})
+
+test("insertRows above the window only renumbers: the cells keep their elements and at most one row comes in at the top", function() {
+    withTable({}, function({table, model, layout}) {
         scrollTo(layout, 50000)
         model.asked.length = 0
         var rows = renderedRows()
         var cells = table.visibleCells.slice()
-        model.count = 1101
+        model.count = 1001
         table.insertRows({at: at(10), with: animation})
         assert.ok(model.asked.length <= 1, "the inserted row pushes the content down, so at most one more row comes in at the top: " + model.asked)
         assert.ok(!model.asked.includes(10))
@@ -55,15 +60,21 @@ test("insertRows inside the window asks only the inserted rows and shifts the ro
     })
 })
 
-test("reconfigureRows asks again for the rows that have a cell, without prepareForReuse, and ignores the others", function() {
+test("reconfigureRows hands the row's cell back without prepareForReuse", function() {
     withTable({}, function({table, model}) {
-        model.asked.length = 0
         counters.prepared = 0
         var cell = table.cellForRow({at: 3})
-        table.reconfigureRows({at: at(3, 700)})
-        assert.deepEqual(model.asked, [3])
+        table.reconfigureRows({at: at(3)})
         assert.equal(table.cellForRow({at: 3}), cell)
         assert.equal(counters.prepared, 0)
+    })
+})
+
+test("reconfigureRows asks again for the rows that have a cell and ignores the rows that have none", function() {
+    withTable({}, function({table, model}) {
+        model.asked.length = 0
+        table.reconfigureRows({at: at(3, 700)})
+        assert.deepEqual(model.asked, [3])
     })
 })
 
