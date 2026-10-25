@@ -6,9 +6,10 @@ import { Bind } from "../utils/bind.js"
 import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
-import { required, enumeration, optional, Bool, Int, IndexPathType } from "../utils/required.js"
+import { required, enumeration, optional, arrayOf, Bool, Int, IndexPathType } from "../utils/required.js"
 
 
 const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
@@ -24,6 +25,10 @@ export class UITableView extends UIScrollView {
         return UITableViewScrollPosition
     }
 
+    static get RowAnimation() {
+        return UITableViewRowAnimation
+    }
+
     constructor(selector) {
         super(selector)
         this._dataSource = null
@@ -35,6 +40,7 @@ export class UITableView extends UIScrollView {
         this._registeredCells = {}
         this._cells = []
         this._reusableCells = []
+        this._isReconfiguring = false
     }
 
     set isHidden(bool) {
@@ -170,6 +176,66 @@ export class UITableView extends UIScrollView {
         this._bindRows()
     }
 
+    // insertRows(at:with:): the data source already holds the new rows, as on
+    // Apple, so only the inserted rows are asked for a cell; the rows after them
+    // are renumbered in place and keep their cells, elements and selection. The
+    // animation is recorded and not acted on, as setEditing's animated is.
+    /**
+     * @param {object} options
+     * @param {IndexPath[]} options.at
+     * @param {"fade"|"right"|"left"|"top"|"bottom"|"none"|"middle"|"automatic"} options.with
+     */
+    insertRows({at, with: animation} = {}) {
+        var signature = "Apple's is insertRows(at:with:); write insertRows({at: [indexPath], with: UITableViewRowAnimation.none})."
+        required(at, "at", arrayOf(IndexPathType), "UITableView.insertRows", signature)
+        required(animation, "with", rowAnimationType, "UITableView.insertRows", signature)
+        if (this._dataSource === null) { return }
+        var count = this.numberOfRows({inSection: 0})
+        var inserted = _rowsOf(at, {count, method: "insertRows"})
+        if (count !== this._cells.length + inserted.length) {
+            throw new Error(`Invalid update: invalid number of rows in section 0. The number of rows contained in an existing section after the update (${count}) must be equal to the number of rows contained in that section before the update (${this._cells.length}), plus or minus the number of rows inserted or deleted (${inserted.length} inserted, 0 deleted).`)
+        }
+        var shifts = _shifts(inserted, count)
+        for (var i = shifts.length - 1; i >= 0; i--) {
+            this._renumber(shifts[i].from, shifts[i].to)
+            this._cells[shifts[i].to] = this._cells[shifts[i].from]
+        }
+        var moved = new Map(shifts.map((shift) => [shift.from, shift.to]))
+        this._selectedRows = this._selectedRows.map((row) => moved.has(row) ? moved.get(row) : row)
+        this._reusableCells = []
+        for (var row of inserted) {
+            this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+        }
+        this._placeInserted(inserted, count)
+    }
+
+    // reconfigureRows(at:), iOS 15: the data source is asked again for the rows,
+    // and each row's cell comes back from dequeue as it is, without
+    // prepareForReuse(), which is Apple's contract for a reconfigure.
+    /**
+     * @param {object} options
+     * @param {IndexPath[]} options.at
+     */
+    reconfigureRows({at} = {}) {
+        var signature = "Apple's is reconfigureRows(at:); write reconfigureRows({at: [indexPath]})."
+        required(at, "at", arrayOf(IndexPathType), "UITableView.reconfigureRows", signature)
+        if (this._dataSource === null) { return }
+        var rows = _rowsOf(at, {count: this._cells.length, method: "reconfigureRows"})
+        this._reusableCells = []
+        for (var row of rows) {
+            var cell = this._cells[row]
+            this._unlinkCells([cell])
+            this._reusableCells[row] = cell
+            this._isReconfiguring = true
+            try {
+                this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+            } finally {
+                this._isReconfiguring = false
+            }
+        }
+        this._reusableCells = []
+    }
+
     // Hands back the cell already bound to that row for the identifier, after
     // prepareForReuse(); otherwise reuses the row element when it exists,
     // creates it from the registered cell's nib when not, and binds the cell
@@ -186,12 +252,12 @@ export class UITableView extends UIScrollView {
         var reusable = this._reusableCells[row]
         if (reusable && reusable.reuseIdentifier === withIdentifier && reusable.constructor === cellClass) {
             this._reusableCells[row] = null
-            reusable.prepareForReuse()
+            if (!this._isReconfiguring) { reusable.prepareForReuse() }
             this._link(reusable)
             return reusable
         }
         var id = "cell-" + row
-        var element = this._body().find("> #" + id)
+        var element = _childRow(this._body(), id)
         if (reusable && reusable.constructor.nib !== cellClass.nib) {
             element = this._replaceRow(reusable, {cellClass, id, row})
         }
@@ -283,7 +349,53 @@ export class UITableView extends UIScrollView {
         this._subviews = this.subviews.filter(function(view) { return !gone.has(view) })
     }
 
+    // The element's id and every selector the framework fixed under it at bind
+    // time follow the row to its new number, or an outlet would re-resolve to
+    // the row that now has the old number. The prefix match is exact, so a
+    // nested table's own cell ids are left alone.
+    _renumber(from, to) {
+        var cell = this._cells[from]
+        var element = cell.$el[0]
+        var oldPrefix = this.selector + " #cell-" + from
+        var newPrefix = this.selector + " #cell-" + to
+        var views = new Set()
+        _collectSubviews(cell, views)
+        for (var descendant of element.querySelectorAll("*")) {
+            var owner = ownerOf(descendant)
+            if (owner) { _collectSubviews(owner, views) }
+        }
+        element.id = "cell-" + to
+        for (var view of views) {
+            if (view.selector === oldPrefix || view.selector.startsWith(oldPrefix + " ")) {
+                view.selector = newPrefix + view.selector.slice(oldPrefix.length)
+            }
+        }
+        cell._identifier = "cell-" + to
+    }
+
+    // Walks the rows from the last to the lowest inserted one with the element
+    // that follows as anchor, so each inserted row lands before its successor.
+    // Dequeue appended the new elements, so an append finds every one in place.
+    _placeInserted(inserted, count) {
+        var body = this._body()[0]
+        var isInserted = new Set(inserted)
+        var anchor = null
+        for (var row = count - 1; row >= inserted[0]; row--) {
+            var element = this._cells[row].$el[0]
+            if (isInserted.has(row) && element.nextSibling !== anchor) { body.insertBefore(element, anchor) }
+            if (isInserted.has(row)) { this._bindRow(element) }
+            anchor = element
+        }
+    }
+
+    // The table's own last tbody, found through the element's tBodies: a
+    // descendant search would also reach a table nested in a row, and scans the
+    // whole table on every dequeue.
     _body() {
+        var table = this.$el[0]
+        if (table && table.tagName === "TABLE" && table.tBodies && table.tBodies.length > 0) {
+            return $(table.tBodies[table.tBodies.length - 1])
+        }
         var body = this.$el.find("tbody")
         if (body.length === 0) { return this.$el }
         return body.last()
@@ -295,38 +407,41 @@ export class UITableView extends UIScrollView {
 
     // Each purpose binds under its own namespace and removes only that, so a
     // reload or an editing change leaves a cell's recognizers and targets alone.
+    // A row's index path is read from its id when the event fires, so renumbering
+    // a row in insertRows needs no rebinding.
     _bindRows() {
+        this._body().find("> tr[id^=cell-]").each((index, element) => this._bindRow(element))
+    }
+
+    _bindRow(element) {
         var tableView = this
-        var rows = this._body().find("> tr[id^=cell-]")
-        rows.off("click.uitableview").on("click.uitableview", function(event) {
+        var $row = $(element)
+        $row.off("click.uitableview").on("click.uitableview", function(event) {
             event.stopImmediatePropagation()
             if (!tableView._allowsSelection) { return }
             if (_isInsideControl(event.target, this)) { return }
-            var indexPath = new IndexPath({row: Number(this.id.slice("cell-".length))})
+            var indexPath = _indexPathOf(this)
             if (!tableView._allowsMultipleSelection) {
                 tableView._selectOnly(indexPath)
                 return
             }
             tableView._toggle(indexPath)
         })
-        rows.each((index, element) => {
-            var indexPath = new IndexPath({row: index})
-            var deleteButton = $(element).find("[id^=delete-button]").off("click.uitableviewdelete")
-            if (this._isEditing) {
-                deleteButton.on("click.uitableviewdelete", (event) => {
-                    event.stopImmediatePropagation()
-                    this._delegateCall("tableViewCommitEditingStyleForRowAtIndexPath", UITableViewCellEditingStyle.delete, indexPath)
-                })
-            }
-            var selection = $(element).find("[id^=table-cell-selected]")
-            selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
-            selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
-                if (event.target.checked) {
-                    this._userSelect(indexPath)
-                    return
-                }
-                this._userDeselect(indexPath)
+        var deleteButton = $row.find("[id^=delete-button]").off("click.uitableviewdelete")
+        if (this._isEditing) {
+            deleteButton.on("click.uitableviewdelete", (event) => {
+                event.stopImmediatePropagation()
+                this._delegateCall("tableViewCommitEditingStyleForRowAtIndexPath", UITableViewCellEditingStyle.delete, _indexPathOf(element))
             })
+        }
+        var selection = $row.find("[id^=table-cell-selected]")
+        selection.off("click.uitableviewselect").on("click.uitableviewselect", function(event) { event.stopImmediatePropagation() })
+        selection.find(":checkbox").off("change.uitableviewselect").on("change.uitableviewselect", (event) => {
+            if (event.target.checked) {
+                this._userSelect(_indexPathOf(element))
+                return
+            }
+            this._userDeselect(_indexPathOf(element))
         })
     }
 
@@ -385,9 +500,70 @@ function _row(indexPath) {
     return indexPath
 }
 
+function _indexPathOf(rowElement) {
+    return new IndexPath({row: Number(rowElement.id.slice("cell-".length))})
+}
+
+// The row element with that id among the body's own children. A browser's
+// getElementById answers a missing id without a search, which is every row an
+// append is about to create; a detached body, or an id another element of the
+// page carries, takes the children scan, which still never walks descendants.
+// Without a real body (the lifecycle tests' stand-in) the selector stays.
+function _childRow(body, id) {
+    var element = body[0]
+    if (!element || !element.children) { return body.find("> #" + id) }
+    if (element.isConnected === true && typeof document.getElementById === "function" && document.getElementById(id) === null) { return $() }
+    for (var i = 0; i < element.children.length; i++) {
+        if (element.children[i].id === id) { return $(element.children[i]) }
+    }
+    return $()
+}
+
+// The rows an update names, validated before anything changes: this table has
+// one section, a row is named once, and it lies inside the table.
+function _rowsOf(indexPaths, {count, method}) {
+    var rows = []
+    var seen = new Set()
+    for (var indexPath of indexPaths) {
+        if (indexPath.section !== 0) {
+            throw new Error(`UITableView.${method}: this table view has one section, so every index path must be in section 0, got section ${indexPath.section}.`)
+        }
+        if (seen.has(indexPath.row)) {
+            throw new Error(`UITableView.${method}: row ${indexPath.row} is named more than once; each row must be unique.`)
+        }
+        if (!Number.isInteger(indexPath.row) || indexPath.row < 0 || indexPath.row >= count) {
+            throw new Error(`UITableView.${method}: row ${indexPath.row} is out of range 0...${count - 1}.`)
+        }
+        seen.add(indexPath.row)
+        rows.push(indexPath.row)
+    }
+    return rows.sort((a, b) => a - b)
+}
+
+// Where each old row lands once the inserted rows are in: the rows below the
+// lowest inserted one keep their place, so only the rest are walked.
+function _shifts(inserted, count) {
+    var isInserted = new Set(inserted)
+    var shifts = []
+    var old = inserted[0]
+    for (var row = inserted[0]; row < count; row++) {
+        if (isInserted.has(row)) { continue }
+        if (row !== old) { shifts.push({from: old, to: row}) }
+        old += 1
+    }
+    return shifts
+}
+
+function _collectSubviews(view, views) {
+    if (views.has(view)) { return }
+    views.add(view)
+    for (var subview of view.subviews) { _collectSubviews(subview, views) }
+}
+
 // A row is an IndexPath or, as the framework has always accepted, a bare row number.
 const rowType = Object.freeze({kind: "row", name: "IndexPath"})
 const scrollPositionType = enumeration(UITableViewScrollPosition, "UITableView.ScrollPosition")
+const rowAnimationType = enumeration(UITableViewRowAnimation, "UITableView.RowAnimation")
 
 var _blocks = {top: "start", middle: "center", bottom: "end"}
 
