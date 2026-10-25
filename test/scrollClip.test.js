@@ -169,3 +169,10 @@ test("scroller skips an ancestor whose overflow-y is hidden or visible even when
         layout.restore()
     }
 })
+
+test("a document with no layout, where clientHeight is 0, is as tall as the window", function() {
+    page("<table id=\"t\"><tbody id=\"body\"></tbody></table>")
+    assert.equal(document.documentElement.clientHeight, 0)
+    assert.equal(window.innerHeight, 768)
+    assert.deepEqual(clip(document.getElementById("t")), {top: 0, bottom: 768})
+})
