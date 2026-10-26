@@ -155,3 +155,18 @@ test("resolvePendingUnhides writes the connected element, keeps the detached one
         assert.equal(away.style.display, "block")
     })
 })
+
+test("a view unhidden while detached and then disposed leaves nothing pending to resolve", async function() {
+    await withStyle(".gone { display: none; }", async function() {
+        page("")
+        var element = document.createElement("div")
+        element.className = "gone"
+        var view = new UIView()
+        view._$el = $(element)
+        view.isHidden = false
+        view._dispose()
+        document.body.appendChild(element)
+        resolvePendingUnhides()
+        assert.equal(element.style.display, "")
+    })
+})
