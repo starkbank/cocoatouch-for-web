@@ -41,6 +41,7 @@ export class UITableView extends UIScrollView {
         this._cells = []
         this._reusableCells = []
         this._isReconfiguring = false
+        this._insertion = null
     }
 
     set isHidden(bool) {
@@ -203,8 +204,13 @@ export class UITableView extends UIScrollView {
         var moved = new Map(shifts.map((shift) => [shift.from, shift.to]))
         this._selectedRows = this._selectedRows.map((row) => moved.has(row) ? moved.get(row) : row)
         this._reusableCells = []
-        for (var row of inserted) {
-            this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+        this._insertion = typeof document.createDocumentFragment === "function" ? document.createDocumentFragment() : null
+        try {
+            for (var row of inserted) {
+                this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+            }
+        } finally {
+            this._insertion = null
         }
         this._placeInserted(inserted, count)
     }
@@ -264,7 +270,7 @@ export class UITableView extends UIScrollView {
         if (element.length === 0) {
             element = $(cellClass.nib || "<tr></tr>").first()
             element.attr("id", id)
-            this._body().append(element)
+            if (this._insertion) { this._insertion.appendChild(element[0]) } else { this._body().append(element) }
         }
         var cell = Bind.construct(cellClass, this.selector + " #" + id, element, indexPath)
         cell.reuseIdentifier = withIdentifier
@@ -373,18 +379,41 @@ export class UITableView extends UIScrollView {
         cell._identifier = "cell-" + to
     }
 
-    // Walks the rows from the last to the lowest inserted one with the element
-    // that follows as anchor, so each inserted row lands before its successor.
-    // Dequeue appended the new elements, so an append finds every one in place.
+    // Each contiguous run of inserted rows joins the page in one insertBefore of
+    // a fragment, its anchor the element of the row after the run, so the
+    // observers of the page see one record per run and not one per row and
+    // write. Dequeue built the new rows detached, so an append is one run.
+    // A document without createDocumentFragment, the lifecycle tests' stand-in,
+    // gets the rows appended at dequeue and moved before their successor one by
+    // one, as before.
     _placeInserted(inserted, count) {
         var body = this._body()[0]
         var isInserted = new Set(inserted)
         var anchor = null
-        for (var row = count - 1; row >= inserted[0]; row--) {
-            var element = this._cells[row].$el[0]
-            if (isInserted.has(row) && element.nextSibling !== anchor) { body.insertBefore(element, anchor) }
-            if (isInserted.has(row)) { this._bindRow(element) }
-            anchor = element
+        if (typeof document.createDocumentFragment !== "function") {
+            for (var at = count - 1; at >= inserted[0]; at--) {
+                var element = this._cells[at].$el[0]
+                if (isInserted.has(at) && element.nextSibling !== anchor) { body.insertBefore(element, anchor) }
+                if (isInserted.has(at)) { this._bindRow(element) }
+                anchor = element
+            }
+            return
+        }
+        var row = count - 1
+        while (row >= inserted[0]) {
+            if (!isInserted.has(row)) {
+                anchor = this._cells[row].$el[0]
+                row--
+                continue
+            }
+            var first = row
+            while (first - 1 >= inserted[0] && isInserted.has(first - 1)) { first-- }
+            var run = document.createDocumentFragment()
+            for (var member = first; member <= row; member++) { run.appendChild(this._cells[member].$el[0]) }
+            body.insertBefore(run, anchor)
+            for (member = first; member <= row; member++) { this._bindRow(this._cells[member].$el[0]) }
+            anchor = this._cells[first].$el[0]
+            row = first - 1
         }
     }
 

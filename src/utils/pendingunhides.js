@@ -33,14 +33,19 @@ export function removePendingUnhide(element) {
 
 // Called before anything that reads what the fallback decides, and by the
 // turn-end microtask. Every read comes before any write, so the batch costs one
-// style recalculation. A detached element has no computed style to ask, and a
-// test stand-in has no isConnected, so only a connected element is read.
+// style recalculation. A detached element has no computed style to ask, so it
+// stays pending until it is attached: a row built before it joins the table is
+// resolved by the next call after the insert. A test stand-in has no
+// isConnected, so its elements are dropped as before.
 export function resolvePendingUnhides() {
     if (_pending.size === 0) { return }
     var batch = Array.from(_pending)
     _pending.clear()
     var stillHidden = batch.filter((element) => element.isConnected === true && element.style.display === "" && getComputedStyle(element).display === "none")
     for (var element of stillHidden) { element.style.display = naturalDisplay(element) }
+    for (element of batch) {
+        if (element.isConnected === false) { _pending.add(element) }
+    }
 }
 
 // A getter that resolved early leaves the flag set, so a later unhide in the
