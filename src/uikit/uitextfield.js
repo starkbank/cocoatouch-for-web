@@ -214,7 +214,8 @@ export class UITextField extends UIControl {
     }
 
     _dispose() {
-        if (this.$el) { this.$el.off(pasteNamespace) }
+        var cached = this._$el
+        if (cached) { cached.off(pasteNamespace) }
         super._dispose()
     }
 
