@@ -585,6 +585,10 @@ export class UIView extends UIResponder {
         for (var interaction of this.interactions) {
             this.removeInteraction(interaction)
         }
+        // The cached element, not $el: a disposed view's element has usually left
+        // the document, and $el would query the document for it, once per view.
+        var cached = this._$el
+        for (var i = 0; cached && i < cached.length; i++) { removePendingUnhide(cached[i]) }
         for (var view of this.subviews) {
             view._dispose()
         }
