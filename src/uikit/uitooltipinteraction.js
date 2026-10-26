@@ -75,7 +75,11 @@ export class UIToolTipInteraction extends NSObject {
         this._view.$el.attr("tooltip", text)
     }
 
+    // Through the view's cached element, never $el: a view that already left the
+    // page would have $el query the document for its selector, which costs a
+    // query per disposed view and can land on a sibling with the same id.
     _erase() {
-        if (this._view) { this._view.$el.removeAttr("tooltip") }
+        var cached = this._view && this._view._$el
+        if (cached) { cached.removeAttr("tooltip") }
     }
 }
