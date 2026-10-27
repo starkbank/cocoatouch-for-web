@@ -8,7 +8,7 @@ import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { automaticDimension, createRowHeights, offsetOf, firstRowAt, totalHeight, effectiveHeight, insert, measure, reset } from "../utils/rowheights.js"
 import { clipAncestors, visibleClip, scroller } from "../utils/scrollclip.js"
-import { createColumnWidths, reset as resetColumns, insert as insertColumns, noteSignature, skeleton, otherSignatures } from "../utils/columnwidths.js"
+import { createColumnWidths, reset as resetColumns, insert as insertColumns, noteSignature, skeleton, otherSignatures, need, record, invalidate, pending, pendingCount, settle, aggregate, replaySpans, finiteWidth } from "../utils/columnwidths.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
@@ -26,6 +26,8 @@ const maxExtensions = 3
 const maxCorrections = 2
 // A colSpan beyond this is no structure a table has; the skeleton falls back to 1.
 const maxColSpan = 1000
+// The rows one measuring chunk asks the data source for, and the least the reuse queue may hold, since it is the pool they are measured in.
+const measuringBatch = 100
 // An anchor row that moved less than this on screen is not compensated.
 const anchorTolerance = 0.5
 
@@ -80,6 +82,19 @@ export class UITableView extends UIScrollView {
         this._bottomSpacer = null
         this._insertion = null
         this._columns = createColumnWidths()
+        this._measuring = false
+        this._measured = []
+        this._measureFrame = null
+        this._isMeasured = false
+        this._lastWidth = 0
+        this._mode = null
+        this._innerWidth = null
+        this._needAll = false
+        this._aggregateKey = ""
+        this._fonts = null
+        this._onFonts = null
+        this._readyGeneration = -1
+        this._replayReport = new Map()
     }
 
     set isHidden(bool) {
@@ -237,10 +252,11 @@ export class UITableView extends UIScrollView {
         this._selectedRows = new Set(Array.from(this._selectedRows).filter(function(row) { return row < count }))
         var previous = this._renderedRows()
         reset(this._heights, {count: count, keepEstimates: true})
-        resetColumns(this._columns)
+        this._resetColumns({keepFloor: true})
         this._reusableCells = previous
         this._unlinkCells(Array.from(previous.values()))
         this._visible = []
+        this._needAll = true
         this._layoutRows({force: true, retained: new Map()})
     }
 
@@ -279,6 +295,9 @@ export class UITableView extends UIScrollView {
         this._selectedRows = new Set(Array.from(this._selectedRows, (row) => _shifted(row, inserted)))
         this._reusableCells = new Map()
         this._layoutRows({force: true, retained: moved})
+        this._needOutsideWindow(inserted)
+        this._measureChunk()
+        this._replay()
     }
 
     // reconfigureRows(at:), iOS 15: the data source is asked again for the rows
@@ -298,6 +317,7 @@ export class UITableView extends UIScrollView {
         this._reusableCells = new Map()
         for (var row of rows) {
             var cell = this.cellForRow({at: row})
+            invalidate(this._columns, [row])
             if (!cell) { continue }
             this._unlinkCells([cell])
             this._reusableCells.set(row, cell)
@@ -312,6 +332,9 @@ export class UITableView extends UIScrollView {
         }
         this._reusableCells = new Map()
         this._layoutRows({force: true})
+        this._needOutsideWindow(rows)
+        this._measureChunk()
+        this._replay()
     }
 
     // Hands back the cell displayed at that row before a reload, after
@@ -331,6 +354,7 @@ export class UITableView extends UIScrollView {
      */
     dequeueReusableCell({withIdentifier, for: indexPath}) {
         var cellClass = this._registeredCells[withIdentifier] || UITableViewCell
+        if (this._measuring) { return this._dequeueMeasuring(withIdentifier, cellClass, indexPath) }
         var row = _row(indexPath)
         var reusable = this._reusableCells.get(row)
         if (reusable && reusable.reuseIdentifier === withIdentifier && reusable.constructor === cellClass) {
@@ -369,6 +393,34 @@ export class UITableView extends UIScrollView {
         Bind.ibInspectable(cell)
         cell.awakeFromNib()
         this._unbound.push(element[0] || element)
+        return cell
+    }
+
+    // A cell asked for only to be measured: it comes from the queue, or is built there, and stays there under its reusable-<n> id. It is
+    // never bound to touches, drawn selected or sent willDisplay, because it is never displayed.
+    _dequeueMeasuring(identifier, cellClass, indexPath) {
+        var cell = this._takeQueued(identifier, cellClass)
+        if (cell) {
+            cell._indexPath = indexPath
+            this._link(cell)
+            cell.prepareForReuse()
+        } else {
+            var id = "reusable-" + (++this._serial)
+            var element = $(cellClass.nib || "<tr></tr>").first()
+            element.attr("id", id)
+            this._queueElement().appendChild(element[0])
+            cell = Bind.construct(cellClass, this.selector + " #" + id, element, indexPath)
+            cell.reuseIdentifier = identifier
+            cell._$el = element
+            ownElement(element, cell)
+            this._link(cell)
+            Bind.ibOutlet(cell)
+            Bind.ibAction(cell)
+            Bind.ibInspectable(cell)
+            cell.awakeFromNib()
+            measuredOnly.add(cell)
+        }
+        this._measured.push(cell)
         return cell
     }
 
@@ -687,6 +739,7 @@ export class UITableView extends UIScrollView {
     // the rest of its run, so the rows tbody is written once per run and not once per cell.
     _reuseQueued(cell, {row, indexPath}) {
         var element = cell._$el[0]
+        if (measuredOnly.delete(cell)) { this._unbound.push(element) }
         this._renumber(cell, element.id, "cell-" + row)
         cell._indexPath = indexPath
         this._link(cell)
@@ -700,10 +753,13 @@ export class UITableView extends UIScrollView {
         this._delegateCall("tableViewDidEndDisplayingCellForRowAtIndexPath", cell, new IndexPath({row}))
         var queue = this._queues.get(cell.reuseIdentifier)
         var queueElement = cell._$el && cell._$el[0] && cell.reuseIdentifier !== null ? this._queueElement() : null
-        if (!queueElement || (queue && queue.length >= this._maxWindow)) {
+        if (!queueElement) {
             this._release(cell)
             return
         }
+        // The queue is the pool the rows are measured in as well, so it may hold measuringBatch cells; when it is full the oldest
+        // waits no longer, because the cell that just left a row has been bound and drawn and is the one that serves the next.
+        if (queue && queue.length >= Math.max(this._maxWindow, measuringBatch)) { this._release(queue.shift()) }
         this._renumber(cell, cell._$el[0].id, "reusable-" + (++this._serial))
         cell._$el.removeClass("selected").find("[id^=table-cell-selected] :input").prop("checked", false)
         queueElement.appendChild(cell._$el[0])
@@ -759,6 +815,8 @@ export class UITableView extends UIScrollView {
         }
         var cells = retained ? Array.from(retained).sort((a, b) => a[0] - b[0]) : Array.from(this._renderedRows())
         var read = this._read(cells)
+        this._lastWidth = read.width
+        this._noteEnvironment(read)
         if (read.clip.bottom - read.clip.top <= 0 && !force) { return }
         if (read.clip.bottom - read.clip.top <= 0) { read.clip = visibleClip(this.$el[0], []) }
         this._record(read, cells)
@@ -779,6 +837,7 @@ export class UITableView extends UIScrollView {
         }
         this._observe(read)
         if (anchor) { this._compensate(anchor, read, cells) }
+        this._settleColumns()
     }
 
     // The rows to render: those that end past the top of the area through the one that contains its bottom edge, plus the rows
@@ -860,6 +919,7 @@ export class UITableView extends UIScrollView {
             this._reusableCells.delete(row)
             this._retire(cell, row)
         }
+        need(this._columns, leaving.map((entry) => entry[0]))
         var next = []
         // A row that has no element yet is built into a fragment, and _arrange moves each run of new rows into the page with one write.
         this._insertion = typeof document.createDocumentFragment === "function" ? document.createDocumentFragment() : null
@@ -1019,7 +1079,10 @@ export class UITableView extends UIScrollView {
         }
         this._first = 0
         this._visible = []
-        resetColumns(this._columns)
+        this._needAll = false
+        this._cancelMeasuring()
+        this._resetColumns({keepFloor: false})
+        this._unwatchFonts()
     }
 
     // The first rendered row whose bottom is below the clip's top keeps its place on screen: what the pass measured above it moves
@@ -1040,6 +1103,269 @@ export class UITableView extends UIScrollView {
             return
         }
         target.scrollTop += delta
+    }
+
+    // Column widths --------------------------------------------------------------------------------------------------------------
+
+    // A new generation of column records: the rows are new data, or the page's layout changed. The aggregate the table had stays as a
+    // floor for a reload, so the columns do not shrink to the rows measured so far while the rest are still to come.
+    _resetColumns({keepFloor}) {
+        var floor = null
+        if (keepFloor) {
+            var all = aggregate(this._columns, {from: 0, to: 0})
+            if (all.max.length > 0 || all.min.length > 0) { floor = all }
+        }
+        resetColumns(this._columns, {floor})
+        this._isMeasured = false
+        this._cancelMeasuring()
+    }
+
+    // Every row the update names that is not rendered has to be measured, as the rows it does not name that are rendered will be when
+    // they leave. With no rows named it is all of them.
+    _needOutsideWindow(rows = null) {
+        var end = this._first + this._visible.length
+        var candidates = rows
+        if (candidates === null) {
+            candidates = []
+            for (var row = 0; row < this._heights.count; row++) { candidates.push(row) }
+        }
+        need(this._columns, candidates.filter((row) => row < this._first || row >= end))
+        if (pendingCount(this._columns) === 0) { settle(this._columns) }
+    }
+
+    // What a pass reads about the page that changes what a cell asks of its column: the window's width, which media queries answer to,
+    // and whether the table is laid out fixed, where content cannot change a column. A switch from auto to fixed only rewrites the
+    // replay, because the records hold both widths; any other change starts a new generation with no floor.
+    _noteEnvironment(read) {
+        var element = this.$el[0]
+        if (!element || read.tops === null || typeof getComputedStyle !== "function") { return }
+        var mode = getComputedStyle(element).getPropertyValue("table-layout") === "fixed" ? "fixed" : "auto"
+        var inner = typeof window === "object" && window ? window.innerWidth : null
+        var modeChanged = this._mode !== null && mode !== this._mode
+        var innerChanged = this._innerWidth !== null && inner !== this._innerWidth
+        this._mode = mode
+        this._innerWidth = inner
+        if (modeChanged && mode === "fixed") {
+            this._forgetReplay()
+            return
+        }
+        if (!modeChanged && !innerChanged) { return }
+        this._resetColumns({keepFloor: false})
+        this._needAll = true
+    }
+
+    // The pass has placed the window: the rows that wait to be measured are asked for, the first chunk now so a page of up to
+    // measuringBatch rows is exact before the next paint, and the replay in the spacers follows what is known.
+    _settleColumns() {
+        if (this._needAll) {
+            this._needAll = false
+            this._needOutsideWindow()
+        }
+        this._measureChunk()
+        this._replay()
+    }
+
+    // One chunk: the nearest rows that have no record are asked of the data source with measuring on, which serves them from the
+    // queue, and each cell's smallest and widest width is read in the queue's tbody, written as a box of its own; every write is
+    // undone before the chunk returns, whatever the data source did. Reads are two, one after each width keyword, and one when the
+    // table is laid out fixed, where only the smallest can reach beyond a column.
+    _measureChunk() {
+        var columns = this._columns
+        if (this._measuring || this._isDetached() || this._dataSource === null || this._lastWidth <= 0 || this._mode === null) { return }
+        if (pendingCount(columns) === 0) {
+            settle(columns)
+            return
+        }
+        var rows = pending(columns, {from: this._first, to: this._first + this._visible.length, limit: measuringBatch})
+        if (rows.length === 0 || !this._queueElement()) { return }
+        var generation = columns.generation
+        var owned = !this._isLaying
+        this._isLaying = true
+        this._measuring = true
+        this._measured = []
+        var entries = []
+        try {
+            for (var row of rows) {
+                var cell = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+                entries.push({row: row, element: cell && cell._$el ? cell._$el[0] : null})
+            }
+            this._recordChunk(entries, generation)
+        } finally {
+            this._measuring = false
+            this._returnMeasured()
+            if (owned) { this._isLaying = false }
+        }
+        this._isMeasured = true
+        this._watchFonts()
+        if (pendingCount(columns) > 0) { this._scheduleMeasuring() } else { settle(columns) }
+    }
+
+    _recordChunk(entries, generation) {
+        var fixed = this._mode === "fixed"
+        var reads = this._readWidths(entries.map((entry) => entry.element).filter((element) => element !== null), fixed)
+        for (var entry of entries) {
+            if (entry.element === null) { continue }
+            var widths = reads.get(entry.element)
+            record(this._columns, {row: entry.row, generation: generation, signature: _signatureOf(entry.element), min: widths.min, max: fixed ? widths.min : widths.max})
+        }
+    }
+
+    // The queue's tbody becomes a box with no size and no paint whose rows and cells size themselves to their content, and the
+    // widths are read from it: the cells' border boxes at max-content, then at min-content. Collapsed borders are counted by the
+    // table at half, and the replay adds the cell's own padding and border back, so what is read here is the border box.
+    _readWidths(elements, fixed) {
+        var reads = new Map()
+        var tbody = this._queueBody
+        resolvePendingUnhides()
+        var written = []
+        try {
+            for (var [property, value] of measuringBox) { _write(tbody, property, value, written) }
+            for (var element of elements) {
+                _write(element, "display", "block", written)
+                for (var cell of Array.from(element.children)) {
+                    _write(cell, "display", "inline-block", written)
+                    _write(cell, "min-width", "0", written)
+                    _write(cell, "max-width", "none", written)
+                }
+            }
+            var max = new Map()
+            if (!fixed) {
+                for (element of elements) {
+                    for (cell of Array.from(element.children)) { _write(cell, "width", "max-content", written) }
+                }
+                for (element of elements) { max.set(element, Array.from(element.children).map((cell) => finiteWidth(cell.getBoundingClientRect().width))) }
+            }
+            for (element of elements) {
+                for (cell of Array.from(element.children)) { _write(cell, "width", "min-content", written) }
+            }
+            for (element of elements) {
+                var min = Array.from(element.children).map((cell) => finiteWidth(cell.getBoundingClientRect().width))
+                reads.set(element, {min: min, max: max.get(element) || min})
+            }
+        } finally {
+            for (var entry of written.reverse()) { _unwrite(entry) }
+        }
+        return reads
+    }
+
+    // The cells that were measured go back to the queue they came from, or are released when it is full.
+    _returnMeasured() {
+        var cells = this._measured
+        this._measured = []
+        this._unlinkCells(cells)
+        for (var cell of cells) {
+            var queue = this._queues.get(cell.reuseIdentifier)
+            if (!queue) { this._queues.set(cell.reuseIdentifier, queue = []) }
+            if (queue.length >= Math.max(this._maxWindow, measuringBatch)) {
+                this._release(cell)
+                continue
+            }
+            queue.push(cell)
+        }
+    }
+
+    // The rows still to measure go one chunk per frame, nearest the window first. A frame that outlives its generation, or its
+    // table, does nothing and asks the data source nothing.
+    _scheduleMeasuring() {
+        if (this._measureFrame !== null || typeof requestAnimationFrame !== "function") { return }
+        var generation = this._columns.generation
+        this._measureFrame = requestAnimationFrame(() => {
+            this._measureFrame = null
+            if (generation !== this._columns.generation || this._isDetached()) { return }
+            this._measureChunk()
+            this._replay()
+        })
+    }
+
+    _cancelMeasuring() {
+        if (this._measureFrame !== null && typeof cancelAnimationFrame === "function") { cancelAnimationFrame(this._measureFrame) }
+        this._measureFrame = null
+    }
+
+    // Web fonts change what a cell asks of its column when they arrive, so a table that has measured starts over when the page says
+    // fonts finished loading, keeping what it knows as the floor. One listener per table, released with it.
+    _watchFonts() {
+        var fonts = typeof document === "object" && document ? document.fonts : null
+        if (!fonts || typeof fonts.addEventListener !== "function") { return }
+        if (!this._onFonts) {
+            this._onFonts = () => this._fontsLoaded()
+            this._fonts = fonts
+            fonts.addEventListener("loadingdone", this._onFonts)
+        }
+        var generation = this._columns.generation
+        if (fonts.status !== "loading" || this._readyGeneration === generation || !fonts.ready || typeof fonts.ready.then !== "function") { return }
+        this._readyGeneration = generation
+        fonts.ready.then(() => {
+            if (generation === this._columns.generation) { this._fontsLoaded() }
+        })
+    }
+
+    _unwatchFonts() {
+        if (this._fonts && this._onFonts) { this._fonts.removeEventListener("loadingdone", this._onFonts) }
+        this._fonts = null
+        this._onFonts = null
+    }
+
+    _fontsLoaded() {
+        if (this._isDetached() || !this._isMeasured) { return }
+        this._resetColumns({keepFloor: true})
+        this._needOutsideWindow()
+        this._measureChunk()
+        this._replay()
+        this._dirtyAndSchedule()
+    }
+
+    // The spacers carry what the rows that are not rendered ask of each column, so the browser lays the columns out as it would
+    // with every row in the table. Under auto layout a cell holds spans that add up to its widest content and whose widest is its
+    // narrowest content. Under fixed layout content cannot change a column, but it can reach beyond it, so the cell holds one span
+    // as wide as the narrowest content, and one pixel tall because a box with no height adds no scrollable overflow; a spacer of
+    // less than one pixel is left without, since the span would grow the row. The spans are rewritten only when what they say changes.
+    _replay() {
+        var spacers = [this._topSpacer, this._bottomSpacer].filter((spacer) => spacer && spacer.parentNode)
+        if (spacers.length === 0 || this._mode === null) { return }
+        var fixed = this._mode === "fixed"
+        var known = aggregate(this._columns, {from: this._first, to: this._first + this._visible.length})
+        var key = known.max.concat(known.min).every((width) => !width) ? "" : JSON.stringify([fixed ? known.min : known.max, known.min])
+        var extras = null
+        for (var spacer of spacers) {
+            var spacerKey = key + "|" + fixed + "|" + (spacer._height >= 1) + "|" + spacer._structure
+            if (spacer._replay === spacerKey) { continue }
+            spacer._replay = spacerKey
+            if (key === "" && !spacer._spanned) { continue }
+            if (extras === null) { extras = _cellExtras(spacer) }
+            var written = _writeReplay(spacer, known, extras, {fixed: fixed, tall: spacer._height >= 1})
+            spacer._spanned = written.some((entry) => entry.k > 0)
+            this._noteReplay(written)
+        }
+        if (key === this._aggregateKey) { return }
+        this._aggregateKey = key
+        reset(this._heights, {count: this._heights.count, keepEstimates: false})
+        this._schedule()
+    }
+
+    // The largest span count a replay asked for, and every column whose spans were widened to stay within the span ceiling, with the
+    // count that triggered it: the browser pass reports them.
+    _noteReplay(columns) {
+        for (var entry of columns) { this._replayReport.set(entry.column, entry) }
+    }
+
+    // What the latest replay of each column asked for, from the models alone, with no read of the page: numbers only, one entry per
+    // column whose spans the ceiling widened, with the span width it replaced the true min with.
+    _replayStatistics() {
+        var ceiled = []
+        var largestK = 0
+        for (var [column, entry] of this._replayReport) {
+            largestK = Math.max(largestK, entry.k)
+            if (entry.ceiled) { ceiled.push({column: column, k: entry.k, w: entry.w, minReplayed: entry.w, minTrue: entry.minTrue}) }
+        }
+        ceiled.sort((a, b) => a.column - b.column)
+        return {largestK: largestK, ceiled: ceiled}
+    }
+
+    _forgetReplay() {
+        for (var spacer of [this._topSpacer, this._bottomSpacer]) {
+            if (spacer) { spacer._replay = null }
+        }
     }
 
     // Scroll events and width reports ------------------------------------------------------------------------------------------
@@ -1128,6 +1454,9 @@ export class UITableView extends UIScrollView {
         this._resizeObserver = null
         if (this._frame !== null && typeof cancelAnimationFrame === "function") { cancelAnimationFrame(this._frame) }
         this._frame = null
+        this._cancelMeasuring()
+        this._resetColumns({keepFloor: false})
+        this._unwatchFonts()
         NotificationCenter.default.removeObserver(this._scrollObserver)
         this._discardQueues()
         super._dispose()
@@ -1151,6 +1480,64 @@ function _row(indexPath) {
 
 function _indexPathOf(rowElement) {
     return new IndexPath({row: Number(rowElement.id.slice("cell-".length))})
+}
+
+// Cells built to be measured and never displayed yet: they are bound to touches when a row first shows them.
+const measuredOnly = new WeakSet()
+
+const measuringBox = [["display", "block"], ["position", "absolute"], ["width", "0"], ["height", "0"], ["overflow", "hidden"], ["visibility", "hidden"], ["contain", "strict"]]
+
+// An important CSSOM write, remembering what the element had so the measuring leaves nothing behind.
+function _write(element, property, value, written) {
+    var style = element.style
+    written.push({element: element, property: property, value: style.getPropertyValue(property), priority: style.getPropertyPriority(property), hadStyle: element.hasAttribute("style")})
+    style.setProperty(property, value, "important")
+}
+
+function _unwrite(entry) {
+    var style = entry.element.style
+    if (entry.value === "") { style.removeProperty(entry.property) } else { style.setProperty(entry.property, entry.value, entry.priority) }
+    if (!entry.hadStyle && entry.element.getAttribute("style") === "") { entry.element.removeAttribute("style") }
+}
+
+// The cell's own horizontal padding and border, which the browser adds around the spans.
+function _cellExtras(spacer) {
+    var extras = []
+    for (var cell of Array.from(spacer.children)) {
+        var style = getComputedStyle(cell)
+        var total = 0
+        for (var property of ["padding-left", "padding-right", "border-left-width", "border-right-width"]) { total += finiteWidth(parseFloat(style.getPropertyValue(property))) }
+        extras.push(total)
+    }
+    return extras
+}
+
+function _writeReplay(spacer, known, extras, {fixed, tall}) {
+    var report = []
+    for (var index = 0; index < spacer.children.length; index++) {
+        var cell = spacer.children[index]
+        while (cell.firstChild) { cell.removeChild(cell.firstChild) }
+        if (fixed && !tall) { continue }
+        var min = Math.max(0, (known.min[index] || 0) - (extras[index] || 0))
+        var max = Math.max(0, (known.max[index] || 0) - (extras[index] || 0))
+        var spans = fixed ? {widths: min > 0 ? [Math.min(min, 10000)] : [], k: min > 0 ? 1 : 0, ceiled: false, w: min, minTrue: min} : replaySpans(min, max)
+        report.push({column: index, k: spans.k, ceiled: spans.ceiled, w: spans.w, minTrue: spans.minTrue})
+        if (spans.widths.length === 0) { continue }
+        var wrapper = document.createElement("div")
+        wrapper.style.setProperty("font-size", "0", "important")
+        wrapper.style.setProperty("line-height", "0", "important")
+        wrapper.style.setProperty("height", "0", "important")
+        for (var i = 0; i < spans.widths.length; i++) {
+            if (i > 0) { wrapper.appendChild(document.createTextNode(" ")) }
+            var span = document.createElement("span")
+            span.style.setProperty("display", "inline-block", "important")
+            span.style.setProperty("height", fixed ? "1px" : "0", "important")
+            span.style.setProperty("width", spans.widths[i] + "px", "important")
+            wrapper.appendChild(span)
+        }
+        cell.appendChild(wrapper)
+    }
+    return report
 }
 
 // The cell structure of a row element as a signature: the tag, class and colSpan of each cell, as JSON so that nothing in a class

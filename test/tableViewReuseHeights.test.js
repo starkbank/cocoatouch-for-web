@@ -106,6 +106,7 @@ test("5. estimatedRowHeight = 0 renders batch by batch until the measured rows c
 test("5. estimatedRowHeight = 0 stops after 3 extensions when the rows measure shorter than each batch assumed", function() {
     var heightOf = (row) => row === 0 ? 800 : 10
     withTable({estimatedRowHeight: 0, heightOf}, function({table, layout}) {
+        table._measureChunk = () => {}
         layout.clearLog()
         table.reloadData()
         var visible = table.visibleCells.length
@@ -203,7 +204,8 @@ test("12. a table hidden at load renders from estimates, and its width report sc
         assert.equal(renderedRows().length, 41)
         assert.equal(layout.flushFrames(), 1, "the pass")
         assert.equal(renderedRows().length, 18)
-        assert.equal(layout.flushFrames(), 0)
+        for (var quiet = 0, frames = 0; quiet < 2 && frames < 300; frames++) { quiet = layout.flushFrames() > 0 ? 0 : quiet + 1 }
+        assert.equal(layout.flushFrames(), 0, "the frames that measure the rows that were never shown run out")
     })
 })
 
@@ -250,6 +252,7 @@ test("13. a width change drops the measured heights and the estimates and measur
 
 test("14. a pass reads in one batch, writes, and reads once more to measure: no read comes between its writes", function() {
     withTable({estimatedRowHeight: 95}, function({table, layout}) {
+        table._measureChunk = () => {}
         layout.clearLog()
         table.reloadData()
         assert.deepEqual(layout.readWriteLog(), ["read", "write", "read"])

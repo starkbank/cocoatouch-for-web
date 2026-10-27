@@ -62,6 +62,7 @@ test("a queued cell is configured where it waits, in the document and outside th
         layout.flushFrames()
         seen.length = 0
         scrollTo(layout, 1900)
+        seen = seen.filter((entry) => !/^reusable-/.test(entry.id))
         assert.ok(seen.length > 5, "cells were reused: " + seen.length)
         assert.ok(seen.every((entry) => entry.connected), "connected: " + JSON.stringify(seen[0]))
         assert.ok(seen.every((entry) => !entry.inRows), "not yet in the rows: " + JSON.stringify(seen[0]))
