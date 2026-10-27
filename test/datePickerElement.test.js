@@ -4,8 +4,11 @@ import assert from "node:assert/strict"
 import { IBOutlet, UIDatePicker, UIView, UIViewController } from "../src/index.js"
 
 
+// A write to a calendar picker reaches the widget at the end of the turn, so the stand-in stays until then.
+var turnEnd = () => new Promise((resolve) => queueMicrotask(resolve))
+
 // jQuery UI is a page script the framework wraps; this stand-in records the calls.
-function withDatepicker(run) {
+async function withDatepicker(run) {
     var log = []
     $.fn.datepicker = function(method, name) {
         if (typeof method === "object") { log.push("init:" + this.attr("id")); return this }
@@ -13,14 +16,17 @@ function withDatepicker(run) {
         if (method === "getDate") { return null }
         return this
     }
-    try { run(log) } finally { delete $.fn.datepicker }
+    try { run(log) } finally {
+        await turnEnd()
+        delete $.fn.datepicker
+    }
 }
 
 var markup = "<div id=\"start\"><input id=\"start-field\" class=\"input\" readonly></div>"
 
-test("disposing a dateAndTime picker whose element has left the document does not throw, and the held input gets its type and readOnly back", function() {
+test("disposing a dateAndTime picker whose element has left the document does not throw, and the held input gets its type and readOnly back", async function() {
     page(markup)
-    withDatepicker(function() {
+    await withDatepicker(function() {
         var picker = new UIDatePicker("#start")
         picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         var input = document.getElementById("start-field")
@@ -34,9 +40,9 @@ test("disposing a dateAndTime picker whose element has left the document does no
     })
 })
 
-test("renaming the input's id after construction leaves date, value and the mode switches working", function() {
+test("renaming the input's id after construction leaves date, value and the mode switches working", async function() {
     page(markup)
-    withDatepicker(function(log) {
+    await withDatepicker(function(log) {
         var picker = new UIDatePicker("#start")
         picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         document.getElementById("start-field").id = "renamed"
@@ -53,12 +59,12 @@ test("renaming the input's id after construction leaves date, value and the mode
     })
 })
 
-test("an input given a new id by awakeFromNib still reads as the picker's, as an @IBOutlet", function() {
+test("an input given a new id by awakeFromNib still reads as the picker's, as an @IBOutlet", async function() {
     class Owner extends UIView {}
     Owner.nib = markup
     IBOutlet("#start", UIDatePicker)(Owner.prototype, "picker", {})
     page("<div id=\"owner\"></div>")
-    withDatepicker(function() {
+    await withDatepicker(function() {
         var owner = new Owner("#owner")
         owner.picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         document.getElementById("start-field").setAttribute("id", "start-accessibility-id")
@@ -68,9 +74,9 @@ test("an input given a new id by awakeFromNib still reads as the picker's, as an
     })
 })
 
-test("the picker keeps its input to itself, and nothing in it queries the document for the input", function() {
+test("the picker keeps its input to itself, and nothing in it queries the document for the input", async function() {
     page(markup)
-    withDatepicker(function() {
+    await withDatepicker(function() {
         var picker = new UIDatePicker("#start")
         assert.equal("inputSelector" in picker, false)
         assert.equal("$input" in picker, false)
@@ -91,9 +97,9 @@ test("the picker keeps its input to itself, and nothing in it queries the docume
     })
 })
 
-test("a picker whose element was replaced with a new node holds the input of the new one, and one whose element is only gone keeps the old", function() {
+test("a picker whose element was replaced with a new node holds the input of the new one, and one whose element is only gone keeps the old", async function() {
     page(markup)
-    withDatepicker(function() {
+    await withDatepicker(function() {
         var picker = new UIDatePicker("#start")
         picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         var first = document.getElementById("start-field")
@@ -111,9 +117,9 @@ test("a picker whose element was replaced with a new node holds the input of the
     })
 })
 
-test("date, time, dateAndTime and yearAndMonth behave as before on the held input", function() {
+test("date, time, dateAndTime and yearAndMonth behave as before on the held input", async function() {
     page(markup)
-    withDatepicker(function() {
+    await withDatepicker(function() {
         $.fn.clockpicker = function() { return this }
         try {
             var picker = new UIDatePicker("#start")
@@ -153,8 +159,8 @@ function nested(mode) {
     return child
 }
 
-test("a controller removed with a dateAndTime picker releases it without throwing, and the page can attach a new one", function() {
-    withDatepicker(function() {
+test("a controller removed with a dateAndTime picker releases it without throwing, and the page can attach a new one", async function() {
+    await withDatepicker(function() {
         var child = nested(UIDatePicker.Mode.dateAndTime)
         var input = document.getElementById("when-input")
         assert.equal(input.type, "datetime-local")
@@ -170,8 +176,8 @@ test("a controller removed with a dateAndTime picker releases it without throwin
     })
 })
 
-test("a calendar picker disposed after its element left the page closes and destroys the widget on the held input", function() {
-    withDatepicker(function(log) {
+test("a calendar picker disposed after its element left the page closes and destroys the widget on the held input", async function() {
+    await withDatepicker(function(log) {
         var child = nested(UIDatePicker.Mode.date)
         log.length = 0
         child.removeFromParent()

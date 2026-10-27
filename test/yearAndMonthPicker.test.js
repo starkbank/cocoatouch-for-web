@@ -4,11 +4,14 @@ import assert from "node:assert/strict"
 import { UIDatePicker, UIControlEvent } from "../src/index.js"
 
 
+// A write to a calendar picker reaches the widget at the end of the turn, so the stand-in stays until then.
+var turnEnd = () => new Promise((resolve) => queueMicrotask(resolve))
+
 // jQuery UI is a page script, so this stand-in records the options the picker
 // hands it. Its getDate answers a wrong day on purpose: the picker's own date
 // must not come from re-reading the widget's text. A test that wants the
 // widget empty, as a real one with no date answers, sets options.widgetDate to null.
-function withDatepicker(run) {
+async function withDatepicker(run) {
     var options = {}
     options.calls = []
     $.fn.datepicker = function(method, name, value) {
@@ -19,6 +22,7 @@ function withDatepicker(run) {
     }
     mock.timers.enable({apis: ["setTimeout"]})
     try { run(options) } finally {
+        await turnEnd()
         mock.timers.tick(200)
         mock.timers.reset()
         delete $.fn.datepicker
@@ -30,9 +34,9 @@ function pickMonth(options, year, month) {
     options.onClose()
 }
 
-test("in yearAndMonth mode date is the first of the picked month, local, and one valueChanged is sent", function() {
+test("in yearAndMonth mode date is the first of the picked month, local, and one valueChanged is sent", async function() {
     page("<div id=\"expiry\"></div>")
-    withDatepicker(function(options) {
+    await withDatepicker(function(options) {
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         var seen = []
@@ -44,9 +48,9 @@ test("in yearAndMonth mode date is the first of the picked month, local, and one
     })
 })
 
-test("entering yearAndMonth mode holds the first of the current month in memory and leaves the input text alone", function() {
+test("entering yearAndMonth mode holds the first of the current month in memory and leaves the input text alone", async function() {
     page("<div id=\"expiry\"><input id=\"expiry-field\" placeholder=\"mm/aaaa\"></div>")
-    withDatepicker(function(options) {
+    await withDatepicker(function(options) {
         var picker = new UIDatePicker("#expiry")
         options.widgetDate = null
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
@@ -58,9 +62,9 @@ test("entering yearAndMonth mode holds the first of the current month in memory 
     })
 })
 
-test("a locale or the same mode set again keeps the picked month, and the held date is a copy", function() {
+test("a locale or the same mode set again keeps the picked month, and the held date is a copy", async function() {
     page("<div id=\"expiry\"></div>")
-    withDatepicker(function(options) {
+    await withDatepicker(function(options) {
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         pickMonth(options, "2027", "0")
@@ -71,9 +75,9 @@ test("a locale or the same mode set again keeps the picked month, and the held d
     })
 })
 
-test("writing null in yearAndMonth mode throws a TypeError with Apple's signature and keeps the date", function() {
+test("writing null in yearAndMonth mode throws a TypeError with Apple's signature and keeps the date", async function() {
     page("<div id=\"expiry\"></div>")
-    withDatepicker(function() {
+    await withDatepicker(function() {
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         picker.date = new Date(2024, 2, 17)
@@ -83,9 +87,9 @@ test("writing null in yearAndMonth mode throws a TypeError with Apple's signatur
     })
 })
 
-test("writing a date in yearAndMonth mode keeps the first of its month", function() {
+test("writing a date in yearAndMonth mode keeps the first of its month", async function() {
     page("<div id=\"expiry\"></div>")
-    withDatepicker(function() {
+    await withDatepicker(function() {
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         picker.date = new Date(2024, 2, 17, 13, 45)
@@ -95,9 +99,9 @@ test("writing a date in yearAndMonth mode keeps the first of its month", functio
     })
 })
 
-test("leaving yearAndMonth mode forgets the month, and the calendar answers again", function() {
+test("leaving yearAndMonth mode forgets the month, and the calendar answers again", async function() {
     page("<div id=\"expiry\"></div>")
-    withDatepicker(function(options) {
+    await withDatepicker(function(options) {
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         pickMonth(options, "2026", "5")

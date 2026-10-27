@@ -29,6 +29,13 @@ const modeType = enumeration(Mode, "UIDatePicker.Mode")
 // rather than on the instance: the picker's element is its only public surface.
 const held = new WeakMap()
 
+// What a calendar picker was written since the turn began, kept here for the
+// same reason. jQuery UI redraws its one shared calendar for every write to a
+// widget, and on a large page each redraw forces a style recalculation, so the
+// writes of a turn are applied together, at its end or at the first read that
+// could see them.
+const pendingWrites = new WeakMap()
+
 
 export class UIDatePicker extends UIControl {
 
@@ -73,10 +80,10 @@ export class UIDatePicker extends UIControl {
             typed(date, "date", DateType, "UIDatePicker.date", "Apple's is var date: Date, never nil; write picker.date = new Date().")
             this._month = _firstOfMonth(date)
             this._settledKey = this._month.getTime()
-            _$input(this).datepicker("setDate", this._month)
+            _pendDate(this, this._month)
             return
         }
-        _$input(this).datepicker("setDate", date)
+        _pendDate(this, date)
         this._settledKey = _dayKey(date)
     }
 
@@ -88,6 +95,7 @@ export class UIDatePicker extends UIControl {
         if (this._mode === Mode.time) { return _timeOn(this._day, _$input(this).prop("value")) }
         if (this._mode === Mode.yearAndMonth) { return new Date(this._month.getTime()) }
         if (this._mode === Mode.dateAndTime) { return _parseLocal(_$input(this).prop("value")) }
+        _flush(this)
         return _$input(this).datepicker("getDate")
     }
 
@@ -104,12 +112,15 @@ export class UIDatePicker extends UIControl {
         this.date = date
     }
 
+    // What was written before the locale was written under the previous one.
     set locale(locale) {
+        _flush(this)
         this._locale = locale
-        if (this._hasCalendar()) {
-            _$input(this).datepicker("option", "dateFormat", datePickerDateFormat(locale))
+        if (!this._hasCalendar()) {
+            this._configure()
+            return
         }
-        this._configure()
+        _pend(this).locale = true
     }
 
     get locale() {
@@ -122,24 +133,26 @@ export class UIDatePicker extends UIControl {
     set minimumDate(date) {
         if (this._mode === Mode.dateAndTime) { return this._setLimit("min", date) }
         if (this._mode === Mode.time) { return }
-        _$input(this).datepicker("option", "minDate", date)
+        _pendLimit(this, "minDate", date)
     }
 
     get minimumDate() {
         if (this._mode === Mode.dateAndTime) { return _parseLocal(_$input(this).attr("min")) }
         if (this._mode === Mode.time) { return null }
+        _flush(this)
         return _$input(this).datepicker("option", "minDate")
     }
 
     set maximumDate(date) {
         if (this._mode === Mode.dateAndTime) { return this._setLimit("max", date) }
         if (this._mode === Mode.time) { return }
-        _$input(this).datepicker("option", "maxDate", date)
+        _pendLimit(this, "maxDate", date)
     }
 
     get maximumDate() {
         if (this._mode === Mode.dateAndTime) { return _parseLocal(_$input(this).attr("max")) }
         if (this._mode === Mode.time) { return null }
+        _flush(this)
         return _$input(this).datepicker("option", "maxDate")
     }
 
@@ -157,6 +170,7 @@ export class UIDatePicker extends UIControl {
         if (mode === Mode.countDownTimer) {
             throw new TypeError("UIDatePicker.datePickerMode = UIDatePicker.Mode.countDownTimer is not drawn: a page has no control for a duration, so use .time, .date, .dateAndTime or .yearAndMonth.")
         }
+        _flush(this)
         var previous = this._mode
         // jQuery UI's getDate answers its default day (today) for field text it
         // cannot read, such as a nib's "23:59" over a picker about to become a
@@ -170,6 +184,8 @@ export class UIDatePicker extends UIControl {
         this._settledKey = undefined
         this._configure()
         if (kept instanceof Date && !isNaN(kept.getTime())) { this.date = kept }
+        // The switch's own date is applied before the setter returns.
+        _flush(this)
     }
 
     get datePickerMode() {
@@ -183,7 +199,7 @@ export class UIDatePicker extends UIControl {
     // does not open its calendar (jQuery UI shows nothing when beforeShow
     // returns false) and ignores a selection that arrives anyway; sendActions
     // itself stays a direct call.
-    _configure() {
+    _configure(limits = {}) {
         var regional = datePickerRegional(this._locale)
         var onSelect = () => _userSelected(this)
         var beforeShow = () => {
@@ -204,7 +220,7 @@ export class UIDatePicker extends UIControl {
             return
         }
         if (this._mode === Mode.date) {
-            _$input(this).datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true, beforeShow: beforeShow, onSelect: onSelect})
+            _$input(this).datepicker({...regional, dateFormat: datePickerDateFormat(this._locale), changeMonth: true, changeYear: true, ...limits, beforeShow: beforeShow, onSelect: onSelect})
             this._calendar = _calendarOf(_heldInput(this))
             return
         }
@@ -214,6 +230,7 @@ export class UIDatePicker extends UIControl {
             changeMonth: true,
             changeYear: true,
             dateFormat: "MM yy",
+            ...limits,
             closeText: this._locale.identifier === "pt-BR" ? "Selecionar" : "Select",
             beforeShow: () => {
                 if (beforeShow() === false) { return false }
@@ -301,6 +318,7 @@ export class UIDatePicker extends UIControl {
     // that goes with its controller must remove the clock too. The calendar is
     // one div the page shares, so an open one is closed with its picker.
     _dispose() {
+        pendingWrites.delete(this)
         this._removeClock()
         this._removeNative()
         if (this._hasCalendar()) {
@@ -354,6 +372,49 @@ function _adoptInput(picker, root) {
     var found = $(root).find("input")[0]
     var previous = held.get(picker)
     held.set(picker, {root: root, input: found || (previous && previous.input)})
+}
+
+
+// The record is created with its turn-end flush, and a flush that finds none
+// does nothing, so a read or a mode switch that flushed first leaves it idle.
+function _pend(picker) {
+    var record = pendingWrites.get(picker)
+    if (record) { return record }
+    record = {locale: false, limits: {}, hasDate: false, date: undefined}
+    pendingWrites.set(picker, record)
+    queueMicrotask(() => _flush(picker))
+    return record
+}
+
+// A date written before a limit, or a limit written twice, is the order the
+// widget has to see them in, so what is pending goes first.
+function _pendLimit(picker, name, date) {
+    var record = pendingWrites.get(picker)
+    if (record && (record.hasDate || name in record.limits)) { _flush(picker) }
+    _pend(picker).limits[name] = date
+}
+
+function _pendDate(picker, date) {
+    var record = _pend(picker)
+    record.hasDate = true
+    record.date = date
+}
+
+// The record leaves before anything is applied, so a widget call that throws
+// surfaces once, here, and does not stay on the picker. Folded in this order,
+// the replay leaves the widget as the writes would have one by one: the
+// locale's rebuild drops limits, so they ride its creation only when a date
+// follows, and the date overwrites whatever the earlier calls left in the field.
+function _flush(picker) {
+    var record = pendingWrites.get(picker)
+    if (!record) { return }
+    pendingWrites.delete(picker)
+    var {locale, limits, hasDate, date} = record
+    if (locale && !hasDate) { _$input(picker).datepicker("option", "dateFormat", datePickerDateFormat(picker._locale)) }
+    if (locale) { picker._configure(hasDate ? limits : {}) }
+    var applied = locale && hasDate ? {} : limits
+    if (Object.keys(applied).length > 0) { _$input(picker).datepicker("option", applied) }
+    if (hasDate) { _$input(picker).datepicker("setDate", date) }
 }
 
 

@@ -4,11 +4,14 @@ import assert from "node:assert/strict"
 import { UIDatePicker, UIControlEvent } from "../src/index.js"
 
 
+// A write to a calendar picker reaches the widget at the end of the turn, so the stand-in stays until then.
+var turnEnd = () => new Promise((resolve) => queueMicrotask(resolve))
+
 // jQuery UI and ClockPicker are page scripts the framework wraps. This
 // stand-in for the calendar keeps a day, as getDate and setDate do, and `pick`
 // drives the widget's callbacks in the order it calls them: beforeShow when it
 // opens, then onSelect when a day is clicked.
-function withCalendar(run) {
+async function withCalendar(run) {
     var widget = {options: {}, date: null}
     $.fn.datepicker = function(method, name) {
         if (typeof method === "object") { Object.assign(widget.options, method); return this }
@@ -18,6 +21,7 @@ function withCalendar(run) {
     }
     mock.timers.enable({apis: ["setTimeout"]})
     try { run(widget) } finally {
+        await turnEnd()
         mock.timers.tick(200)
         mock.timers.reset()
         delete $.fn.datepicker
@@ -44,18 +48,18 @@ function counting(picker) {
 }
 
 
-test("UIDatePicker.Mode is Apple's UIDatePicker.Mode with its raw values, and the default mode is .date", function() {
+test("UIDatePicker.Mode is Apple's UIDatePicker.Mode with its raw values, and the default mode is .date", async function() {
     assert.deepEqual({...UIDatePicker.Mode}, {time: 0, date: 1, dateAndTime: 2, countDownTimer: 3, yearAndMonth: 4})
     assert.equal(Object.isFrozen(UIDatePicker.Mode), true)
     page("<div id=\"when\"></div>")
-    withCalendar(function() {
+    await withCalendar(function() {
         assert.equal(new UIDatePicker("#when").datePickerMode, UIDatePicker.Mode.date)
     })
 })
 
-test("a string is refused as the mode, naming the Swift property, and the mode stays", function() {
+test("a string is refused as the mode, naming the Swift property, and the mode stays", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function() {
+    await withCalendar(function() {
         var picker = new UIDatePicker("#when")
         for (var text of ["time", "date", "dateAndTime", "yearAndMonth", "countDownTimer", "datetime", ""]) {
             assert.throws(() => { picker.datePickerMode = text }, (error) => error instanceof TypeError && /UIDatePicker\.datePickerMode/.test(error.message) && /UIDatePicker\.Mode/.test(error.message), JSON.stringify(text))
@@ -66,18 +70,18 @@ test("a string is refused as the mode, naming the Swift property, and the mode s
     })
 })
 
-test(".countDownTimer is Apple's case, and a page has no control for it, so assigning it says so and keeps the mode", function() {
+test(".countDownTimer is Apple's case, and a page has no control for it, so assigning it says so and keeps the mode", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function() {
+    await withCalendar(function() {
         var picker = new UIDatePicker("#when")
         assert.throws(() => { picker.datePickerMode = UIDatePicker.Mode.countDownTimer }, (error) => error instanceof TypeError && /countDownTimer/.test(error.message))
         assert.equal(picker.datePickerMode, UIDatePicker.Mode.date)
     })
 })
 
-test("the picker does not publish its input: no inputSelector and no $input on the instance", function() {
+test("the picker does not publish its input: no inputSelector and no $input on the instance", async function() {
     page("<div id=\"when\"><input id=\"when-field\"></div>")
-    withCalendar(function() {
+    await withCalendar(function() {
         var picker = new UIDatePicker("#when")
         assert.equal("inputSelector" in picker, false)
         assert.equal("$input" in picker, false)
@@ -86,9 +90,9 @@ test("the picker does not publish its input: no inputSelector and no $input on t
     })
 })
 
-test("valueChanged is sent when the user picks a different day, and not when the pick leaves the date as it was", function() {
+test("valueChanged is sent when the user picks a different day, and not when the pick leaves the date as it was", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function(widget) {
+    await withCalendar(function(widget) {
         var picker = new UIDatePicker("#when")
         var count = counting(picker)
         pick(widget, new Date(2026, 2, 4))
@@ -102,9 +106,9 @@ test("valueChanged is sent when the user picks a different day, and not when the
     })
 })
 
-test("a day written from code is the date the next pick is compared with, and writing sends nothing", function() {
+test("a day written from code is the date the next pick is compared with, and writing sends nothing", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function(widget) {
+    await withCalendar(function(widget) {
         var picker = new UIDatePicker("#when")
         var count = counting(picker)
         picker.date = new Date(2026, 2, 4, 15, 30)
@@ -119,9 +123,9 @@ test("a day written from code is the date the next pick is compared with, and wr
     })
 })
 
-test("a disabled picker does not open its calendar, a selection that arrives anyway sends nothing, and sendActions keeps Apple's direct-call semantics", function() {
+test("a disabled picker does not open its calendar, a selection that arrives anyway sends nothing, and sendActions keeps Apple's direct-call semantics", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function(widget) {
+    await withCalendar(function(widget) {
         var picker = new UIDatePicker("#when")
         var count = counting(picker)
         picker.isEnabled = false
@@ -138,9 +142,9 @@ test("a disabled picker does not open its calendar, a selection that arrives any
     })
 })
 
-test("yearAndMonth sends valueChanged for a different month only, and a disabled picker does not open", function() {
+test("yearAndMonth sends valueChanged for a different month only, and a disabled picker does not open", async function() {
     page("<div id=\"expiry\"></div>")
-    withCalendar(function(widget) {
+    await withCalendar(function(widget) {
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
         var count = counting(picker)
@@ -195,9 +199,9 @@ test("a change the clock or the native input commits on a disabled picker reache
     }
 })
 
-test("changing the mode keeps a date that was set, written through the new mode", function() {
+test("changing the mode keeps a date that was set, written through the new mode", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function() {
+    await withCalendar(function() {
         var picker = new UIDatePicker("#when")
         picker.date = new Date(2026, 5, 17)
         picker.datePickerMode = UIDatePicker.Mode.yearAndMonth
@@ -213,9 +217,9 @@ test("changing the mode keeps a date that was set, written through the new mode"
     })
 })
 
-test("a date kept across a mode change is not a selection, so it sends nothing and the next pick of it sends nothing", function() {
+test("a date kept across a mode change is not a selection, so it sends nothing and the next pick of it sends nothing", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function(widget) {
+    await withCalendar(function(widget) {
         var picker = new UIDatePicker("#when")
         picker.date = new Date(2026, 5, 17)
         var count = counting(picker)
@@ -228,9 +232,9 @@ test("a date kept across a mode change is not a selection, so it sends nothing a
     })
 })
 
-test("changing the mode of a picker with no date keeps each mode's own default", function() {
+test("changing the mode of a picker with no date keeps each mode's own default", async function() {
     page("<div id=\"when\"></div>")
-    withCalendar(function() {
+    await withCalendar(function() {
         var picker = new UIDatePicker("#when")
         picker.datePickerMode = UIDatePicker.Mode.dateAndTime
         assert.equal(picker.date, null)
@@ -240,13 +244,13 @@ test("changing the mode of a picker with no date keeps each mode's own default",
     })
 })
 
-test("a day written in time mode survives the switch to the calendar", function() {
+test("a day written in time mode survives the switch to the calendar", async function() {
     page("<div id=\"clock\"></div>")
     $.fn.clockpicker = function(option) {
         if (typeof option === "object") { this.data("clockpicker", {remove() {}}) }
         return this
     }
-    withCalendar(function(widget) {
+    await withCalendar(function(widget) {
         var picker = new UIDatePicker("#clock")
         picker.datePickerMode = UIDatePicker.Mode.time
         picker.date = new Date(2026, 5, 17, 10, 30)
