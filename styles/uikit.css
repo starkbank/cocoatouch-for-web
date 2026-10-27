@@ -9,3 +9,16 @@
     display: flex;
     align-items: center;
 }
+
+/* UIButton.Configuration.showsActivityIndicator writes the activity-indicator attribute and adds the spinner overlay: the title keeps the button's size and leaves sight, the tab order and the accessibility tree, and the spinner keeps the button's color. */
+[activity-indicator] {
+    -webkit-text-fill-color: transparent;
+}
+
+[activity-indicator] > :not(.uibutton-activity-indicator) {
+    visibility: hidden;
+}
+
+[activity-indicator] > .uibutton-activity-indicator {
+    -webkit-text-fill-color: currentcolor;
+}

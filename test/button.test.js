@@ -76,9 +76,9 @@ test("a title the activity indicator hid is drawn again when it is turned off, e
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     button.setTitle("Send", {for: UIControlState.normal})
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = false
     assert.equal(document.getElementById("b").textContent, "Send")
 })
 
@@ -96,48 +96,89 @@ test("a button whose element was replaced under its selector draws its unchanged
 
 // UIButton.Configuration.showsActivityIndicator draws the indicator over the
 // button, which keeps its intrinsic size. jsdom has no layout, so these pin the
-// structure that holds the size (the title in flow, only hidden) and the spinner
-// out of flow; the width and height themselves are measured in a real browser.
+// structure that holds the size (the title's nodes in place, for the stylesheet
+// to hide by the attribute) and the spinner out of flow; the width and height
+// themselves are measured in a real browser.
 function drawn(id) {
     var element = document.getElementById(id)
     return {
         element: element,
-        title: element.querySelector(".uibutton-activity-title"),
         spinner: element.querySelector(".uibutton-activity-indicator"),
         icon: element.querySelector(".uibutton-activity-indicator > .fa-spin"),
     }
 }
 
-test("the activity indicator keeps the title in flow, hidden from sight, the tab order and assistive technology", function() {
+test("a button bound to a nib has Interface Builder's plain configuration, without the indicator", function() {
+    page("<button id=\"b\">Pay</button>")
+    var button = new UIButton("#b")
+    assert.ok(button.configuration instanceof UIButton.Configuration)
+    assert.equal(button.configuration, button.configuration)
+    assert.equal(button.configuration.showsActivityIndicator, false)
+    assert.equal(document.getElementById("b").hasAttribute("activity-indicator"), false)
+})
+
+test("the indicator draws the activity-indicator attribute and leaves the title's nodes where they are", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    var text = document.getElementById("b").firstChild
+    button.configuration.showsActivityIndicator = true
     var held = drawn("b")
-    assert.equal(held.title.textContent, "Save")
-    assert.equal(held.title.style.visibility, "hidden")
-    assert.notEqual(held.title.style.display, "none")
-    assert.equal(held.title.style.opacity, "")
-    assert.equal(held.title.style.position, "")
+    assert.equal(held.element.getAttribute("activity-indicator"), "")
+    assert.equal(held.element.firstChild, text)
     assert.equal(held.element.textContent, "Save")
+    assert.equal(held.element.querySelectorAll(".uibutton-activity-title").length, 0)
+    assert.equal(button.configuration.showsActivityIndicator, true)
 })
 
-test("the hidden title's controls are not focusable while the indicator shows", function() {
+test("an assigned configuration is copied, so two buttons given one configuration draw apart", function() {
+    page("<button id=\"b\"></button><button id=\"c\"></button>")
+    var first = new UIButton("#b")
+    var second = new UIButton("#c")
+    var configuration = UIButton.Configuration.plain()
+    configuration.showsActivityIndicator = true
+    first.configuration = configuration
+    second.configuration = configuration
+    assert.equal(document.getElementById("b").hasAttribute("activity-indicator"), true)
+    assert.equal(document.getElementById("c").hasAttribute("activity-indicator"), true)
+    second.configuration.showsActivityIndicator = false
+    assert.equal(document.getElementById("b").hasAttribute("activity-indicator"), true)
+    assert.equal(document.getElementById("c").hasAttribute("activity-indicator"), false)
+    assert.equal(configuration.showsActivityIndicator, true)
+    assert.notEqual(first.configuration, configuration)
+})
+
+test("a configuration replaced on a button no longer draws on it", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
-    button.setAttributedTitle(new NSAttributedString({data: "<a id=\"inner\" href=\"/x\">Go</a>", options: {documentType: NSAttributedStringDocumentType.html}}), {for: UIControlState.normal})
-    button.showsActivityIndicator = true
-    var inner = document.getElementById("inner")
-    var hidden = inner.closest("[style*=\"visibility: hidden\"]")
-    assert.ok(hidden, "the anchor sits under a visibility:hidden ancestor, which drops it from the tab order and the accessibility tree")
-    assert.equal(hidden.parentNode, document.getElementById("b"))
+    var previous = button.configuration
+    button.configuration = UIButton.Configuration.plain()
+    previous.showsActivityIndicator = true
+    assert.equal(document.getElementById("b").hasAttribute("activity-indicator"), false)
+})
+
+test("a nil configuration removes the indicator and reads back null", function() {
+    page("<button id=\"b\"></button>")
+    var button = new UIButton("#b")
+    button.configuration.showsActivityIndicator = true
+    button.configuration = null
+    assert.equal(button.configuration, null)
+    assert.equal(document.getElementById("b").hasAttribute("activity-indicator"), false)
+    assert.equal(document.querySelectorAll("#b .uibutton-activity-indicator").length, 0)
+})
+
+test("configuration and showsActivityIndicator refuse values of another type", function() {
+    page("<button id=\"b\"></button>")
+    var button = new UIButton("#b")
+    assert.throws(function() { button.configuration = {showsActivityIndicator: true} }, /UIButton\.configuration expects an? UIButton\.Configuration/)
+    assert.throws(function() { button.configuration.showsActivityIndicator = "yes" }, /showsActivityIndicator expects a Bool/)
 })
 
 test("the spinner is an overlay, absolutely filling the button and centring the icon with flex, taking no room in the flow", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     var held = drawn("b")
     assert.ok(held.spinner)
     assert.equal(held.spinner.parentNode, held.element)
@@ -164,202 +205,83 @@ test("the spinning icon is not the element that centres it, and carries no trans
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     var held = drawn("b")
     var spinning = held.element.querySelector(".fa-spin")
     assert.ok(spinning)
     assert.notEqual(spinning, held.spinner, "the overlay that centres is not the element that spins")
-    assert.equal(spinning.style.transform, "")
-    assert.equal(spinning.style.translate, "")
-    assert.equal(spinning.style.top, "")
-    assert.equal(spinning.style.left, "")
-    assert.equal(spinning.style.position, "")
     assert.equal(spinning.getAttribute("style"), null)
 })
 
-test("turning the indicator off removes the overlay and the icon with it", function() {
+test("turning the indicator off removes the overlay, the icon and the attribute", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = false
     assert.equal(document.querySelectorAll("#b .uibutton-activity-indicator, #b .fa-spin").length, 0)
+    assert.equal(document.getElementById("b").hasAttribute("activity-indicator"), false)
 })
 
 test("a button already positioned keeps its own positioning while the indicator shows", function() {
     page("<button id=\"b\" style=\"position: absolute; top: 4px\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     assert.equal(document.getElementById("b").style.position, "absolute")
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = false
     assert.equal(document.getElementById("b").style.position, "absolute")
     assert.equal(document.getElementById("b").style.top, "4px")
 })
 
-test("turning the indicator off restores the title exactly, the spinner and the containing block go, and a second on is idempotent", function() {
+test("turning the indicator off restores the button exactly, and a second on or off changes nothing", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Send & <go>", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     var first = document.getElementById("b").innerHTML
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     assert.equal(document.getElementById("b").innerHTML, first)
     assert.equal(document.querySelectorAll("#b .uibutton-activity-indicator").length, 1)
-    assert.equal(document.querySelectorAll("#b .uibutton-activity-title").length, 1)
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = false
     var element = document.getElementById("b")
     assert.equal(element.children.length, 0)
     assert.equal(element.textContent, "Send & <go>")
     assert.equal(element.getAttribute("style") || "", "")
     assert.equal(button.currentTitle, "Send & <go>")
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = false
     assert.equal(element.textContent, "Send & <go>")
-    assert.ok(!button.showsActivityIndicator)
+    assert.ok(!button.configuration.showsActivityIndicator)
 })
 
-test("a markup title with an icon is held under the spinner and restored node for node", function() {
-    page("<button id=\"b\"></button>")
+// Apple's showsActivityIndicator draws and does not disable: a button that
+// must not be pressed while it spins is disabled by the app, as on iOS.
+test("the indicator leaves isEnabled to the app, before, during and after it shows", function() {
+    page("<button id=\"b\">Pay now</button><button id=\"c\"></button>")
     var button = new UIButton("#b")
-    var markup = "<svg class=\"icon\" viewBox=\"0 0 1 1\"></svg><span>Save</span>"
-    button.setAttributedTitle(new NSAttributedString({data: markup, options: {documentType: NSAttributedStringDocumentType.html}}), {for: UIControlState.normal})
-    var before = document.getElementById("b").innerHTML
-    button.showsActivityIndicator = true
-    var held = drawn("b")
-    assert.equal(held.title.innerHTML, before)
-    assert.equal(held.title.querySelectorAll("svg.icon").length, 1)
-    assert.equal(held.title.querySelector("span").textContent, "Save")
-    assert.equal(held.title.style.visibility, "hidden")
-    button.showsActivityIndicator = false
-    assert.equal(document.getElementById("b").innerHTML, before)
-    assert.equal(document.querySelectorAll("#b .uibutton-activity-title").length, 0)
-})
-
-test("isEnabled is false while the indicator shows and true again after, and the title in the nib stands", function() {
-    page("<button id=\"b\">Pay now</button>")
-    var button = new UIButton("#b")
-    button.showsActivityIndicator = true
-    assert.equal(button.isEnabled, false)
-    assert.equal(document.getElementById("b").hasAttribute("disabled"), true)
-    assert.equal(document.getElementById("b").style.pointerEvents, "none")
-    assert.equal(document.querySelector("#b .uibutton-activity-title").textContent, "Pay now")
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = true
     assert.equal(button.isEnabled, true)
     assert.equal(document.getElementById("b").hasAttribute("disabled"), false)
-    assert.equal(document.getElementById("b").style.pointerEvents, "")
-    assert.equal(document.getElementById("b").textContent, "Pay now")
-})
-
-test("a title set while the indicator shows is drawn when it turns off", function() {
-    page("<button id=\"b\"></button>")
-    var button = new UIButton("#b")
-    button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
-    button.setTitle("Send", {for: UIControlState.normal})
-    assert.equal(drawn("b").title.textContent, "Save")
-    button.showsActivityIndicator = false
-    assert.equal(document.getElementById("b").textContent, "Send")
-    assert.equal(document.getElementById("b").children.length, 0)
-})
-
-
-// The activity indicator moves the title's nodes under a wrapper and back, so
-// nothing that holds a reference to one of them (an outlet, a handler bound
-// to it) is lost, and the button's enabled state is the app's, not the spinner's.
-test("a button disabled before the indicator stays disabled after it turns off", function() {
-    page("<button id=\"b\"></button>")
-    var button = new UIButton("#b")
-    button.setTitle("Save", {for: UIControlState.normal})
     button.isEnabled = false
-    button.showsActivityIndicator = true
-    assert.equal(button.isEnabled, false)
-    button.showsActivityIndicator = false
-    assert.equal(button.isEnabled, false)
     assert.equal(document.getElementById("b").hasAttribute("disabled"), true)
-    assert.equal(document.getElementById("b").style.pointerEvents, "none")
-})
-
-test("an isEnabled the app assigns while the indicator shows wins when it turns off, and the button stays disabled meanwhile", function() {
-    page("<button id=\"b\"></button><button id=\"c\"></button>")
-    var enabled = new UIButton("#b")
-    enabled.showsActivityIndicator = true
-    enabled.isEnabled = false
-    assert.equal(enabled.isEnabled, false)
-    enabled.showsActivityIndicator = false
-    assert.equal(enabled.isEnabled, false)
-    assert.equal(document.getElementById("b").hasAttribute("disabled"), true)
+    button.configuration.showsActivityIndicator = false
+    assert.equal(button.isEnabled, false)
     var disabled = new UIButton("#c")
     disabled.isEnabled = false
-    disabled.showsActivityIndicator = true
+    disabled.configuration.showsActivityIndicator = true
     disabled.isEnabled = true
-    assert.equal(disabled.isEnabled, false, "still disabled while the indicator shows")
-    assert.equal(document.getElementById("c").hasAttribute("disabled"), true)
-    disabled.showsActivityIndicator = false
     assert.equal(disabled.isEnabled, true)
     assert.equal(document.getElementById("c").hasAttribute("disabled"), false)
-    assert.equal(document.getElementById("c").style.pointerEvents, "")
-})
-
-test("a node inside the title is the same node, and still attached, after the indicator turns on and off", function() {
-    page("<button id=\"b\"><svg id=\"icon\"></svg><span id=\"label\">Save</span></button>")
-    var button = new UIButton("#b")
-    var icon = document.getElementById("icon")
-    var label = document.getElementById("label")
-    var text = label.firstChild
-    button.showsActivityIndicator = true
-    assert.equal(document.getElementById("icon"), icon)
-    assert.equal(document.getElementById("label"), label)
-    assert.ok(icon.isConnected)
-    assert.equal(label.firstChild, text)
-    button.showsActivityIndicator = false
-    assert.equal(document.getElementById("icon"), icon)
-    assert.equal(document.getElementById("label"), label)
-    assert.ok(icon.isConnected)
-    assert.ok(label.isConnected)
-    assert.equal(label.parentNode, document.getElementById("b"))
-    assert.equal(label.firstChild, text)
-})
-
-test("turning the indicator off restores the button's children by identity, not only its markup", function() {
-    page("<button id=\"b\"><svg id=\"icon\"></svg> <span>Save</span></button>")
-    var button = new UIButton("#b")
-    var element = document.getElementById("b")
-    var before = Array.from(element.childNodes)
-    button.showsActivityIndicator = true
-    assert.equal(button.$el.children().length, 2, "the wrapper and the spinner")
-    button.showsActivityIndicator = false
-    var after = Array.from(element.childNodes)
-    assert.equal(after.length, before.length)
-    after.forEach(function(node, index) { assert.equal(node, before[index]) })
-    assert.equal(button.$el.children().length, 2)
-    assert.equal(button.$el.children()[0], before[0])
-    assert.equal(element.querySelectorAll(".uibutton-activity-title, .uibutton-activity-indicator").length, 0)
-})
-
-test("a title the indicator did not change is not redrawn when it turns off", function() {
-    page("<button id=\"b\"></button>")
-    var button = new UIButton("#b")
-    var html = {documentType: NSAttributedStringDocumentType.html}
-    button.setAttributedTitle(new NSAttributedString({data: "<svg></svg><span>Save</span>", options: html}), {for: UIControlState.normal})
-    var svg = document.querySelector("#b svg")
-    var span = document.querySelector("#b span")
-    button.showsActivityIndicator = true
-    button.showsActivityIndicator = false
-    assert.equal(document.querySelector("#b svg"), svg)
-    assert.equal(document.querySelector("#b span"), span)
-    button.isHighlighted = true
-    assert.equal(document.querySelector("#b svg"), svg, "a highlight after the spin still keeps the nodes the click needs")
-    assert.equal(document.querySelector("#b span"), span)
-    button.isHighlighted = false
 })
 
 test("a title set while the indicator shows is drawn when it turns off, and the drawn cache matches the screen", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
     button.setTitle("Save", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = true
     button.setTitle("Send", {for: UIControlState.normal})
-    button.showsActivityIndicator = false
+    assert.equal(document.querySelectorAll("#b .uibutton-activity-indicator").length, 1, "the overlay stays while the title waits")
+    button.configuration.showsActivityIndicator = false
     var element = document.getElementById("b")
     assert.equal(element.textContent, "Send")
     assert.equal(element.children.length, 0)
@@ -373,11 +295,41 @@ test("a title set while the indicator shows is drawn when it turns off, and the 
     assert.equal(element.textContent, "Saved")
 })
 
-test("an empty button turns the indicator on and off without leaving a wrapper behind", function() {
+test("a node inside the title is the same node, and still attached, after the indicator turns on and off", function() {
+    page("<button id=\"b\"><svg id=\"icon\"></svg> <span id=\"label\">Save</span></button>")
+    var button = new UIButton("#b")
+    var element = document.getElementById("b")
+    var before = Array.from(element.childNodes)
+    button.configuration.showsActivityIndicator = true
+    assert.equal(document.getElementById("icon"), before[0])
+    assert.equal(document.getElementById("label").parentNode, element)
+    button.configuration.showsActivityIndicator = false
+    var after = Array.from(element.childNodes)
+    assert.equal(after.length, before.length)
+    after.forEach(function(node, index) { assert.equal(node, before[index]) })
+})
+
+test("a title the indicator did not change is not redrawn when it turns off", function() {
     page("<button id=\"b\"></button>")
     var button = new UIButton("#b")
-    button.showsActivityIndicator = true
+    var html = {documentType: NSAttributedStringDocumentType.html}
+    button.setAttributedTitle(new NSAttributedString({data: "<svg></svg><span>Save</span>", options: html}), {for: UIControlState.normal})
+    var svg = document.querySelector("#b svg")
+    var span = document.querySelector("#b span")
+    button.configuration.showsActivityIndicator = true
+    button.configuration.showsActivityIndicator = false
+    assert.equal(document.querySelector("#b svg"), svg)
+    assert.equal(document.querySelector("#b span"), span)
+    button.isHighlighted = true
+    assert.equal(document.querySelector("#b svg"), svg, "a highlight after the spin still keeps the nodes the click needs")
+    button.isHighlighted = false
+})
+
+test("an empty button turns the indicator on and off without leaving anything behind", function() {
+    page("<button id=\"b\"></button>")
+    var button = new UIButton("#b")
+    button.configuration.showsActivityIndicator = true
     assert.equal(document.querySelectorAll("#b .uibutton-activity-indicator").length, 1)
-    button.showsActivityIndicator = false
+    button.configuration.showsActivityIndicator = false
     assert.equal(document.getElementById("b").innerHTML, "")
 })

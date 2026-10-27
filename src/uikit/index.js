@@ -22,6 +22,7 @@ import { UIPickerView } from "./uipickerview.js"
 import { UIProgressView } from "./uiprogressview.js"
 import { UICollectionView, UICollectionViewCell } from "./uicollectionview.js"
 import { UIDatePicker } from "./uidatepicker.js"
+import { UIDatePickerMode } from "./uidatepickermode.js"
 import { UISearchTextField, UISearchToken } from "./uisearchtextfield.js"
 import { UIDevice } from "./uidevice.js"
 import { UIScreen } from "./uiscreen.js"
@@ -79,6 +80,7 @@ export {
      UICollectionView,
      UICollectionViewCell,
      UIDatePicker,
+     UIDatePickerMode,
      UISearchTextField,
      UISearchToken,
      UIDevice,

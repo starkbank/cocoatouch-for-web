@@ -2,9 +2,11 @@ import { UIViewController } from "./uiviewcontroller.js"
 import { UTType } from "../uniformtypeidentifiers/uttype.js"
 import { registerFile } from "../foundation/fileregistry.js"
 import { required, arrayOf, instance, Bool } from "../utils/required.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 
 
 const typesType = arrayOf(instance(UTType, "UTType"))
+const retiredDelegateNames = {documentPickerDidPickDocumentsAt: "documentPickerDidPickDocumentsAtURLs"}
 const signature = "Apple's is UIDocumentPickerViewController(forOpeningContentTypes:asCopy:); write new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})."
 
 
@@ -47,6 +49,7 @@ export class UIDocumentPickerViewController extends UIViewController {
     }
 
     set delegate(delegate) {
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDocumentPickerViewController.delegate", "1.10.0")
         this._delegate = delegate || null
     }
 
@@ -81,7 +84,7 @@ export class UIDocumentPickerViewController extends UIViewController {
             this._send("documentPickerWasCancelled", [this])
             return
         }
-        this._send("documentPickerDidPickDocumentsAt", [this, files.map(registerFile)])
+        this._send("documentPickerDidPickDocumentsAtURLs", [this, files.map(registerFile)])
     }
 
     _didCancel(input) {

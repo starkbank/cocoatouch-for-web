@@ -21,7 +21,7 @@ test("borderWidth defaults to 0 and reads the inline value only, never the style
 
 test("a width above 0 draws it with a solid style, and with a color shows a solid border", function() {
     var view = box()
-    view.layer.borderColor = new UIColor({hex: "#ff0000"})
+    view.layer.borderColor = new UIColor({hex: "#ff0000"}).cgColor
     view.layer.borderWidth = 2
     assert.equal(element().style.borderWidth, "2px")
     assert.equal(element().style.borderStyle, "solid")
@@ -41,7 +41,7 @@ test("the getter round-trips fractions and what was set, and a width in the mark
 
 test("0 removes both the inline width and the inline style, so the stylesheet's border returns", function() {
     var view = box()
-    view.layer.borderColor = new UIColor({hex: "#ff0000"})
+    view.layer.borderColor = new UIColor({hex: "#ff0000"}).cgColor
     view.layer.borderWidth = 2
     view.layer.borderWidth = 0
     assert.equal(element().style.borderWidth, "")
@@ -111,7 +111,7 @@ test("a standalone layer on a selector draws too", function() {
 
 test("borderWidth and borderColor together draw the email field's error state and clear it", function() {
     var view = box()
-    view.layer.borderColor = new UIColor({hex: "#d92d20"})
+    view.layer.borderColor = new UIColor({hex: "#d92d20"}).cgColor
     view.layer.borderWidth = 1
     assert.equal(element().getAttribute("style"), "border-color: rgb(217, 45, 32); border-width: 1px; border-style: solid;")
     view.layer.borderWidth = null

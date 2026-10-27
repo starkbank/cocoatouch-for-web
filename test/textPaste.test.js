@@ -39,7 +39,7 @@ function field(value = "") {
 // A delegate that records what it was called with and sets `result` on the item.
 function recording(result) {
     var delegate = {calls: []}
-    delegate.textPasteConfigurationSupportingTransform = function(textField, item) {
+    delegate.textPasteConfigurationSupportingTransformPasteItem = function(textField, item) {
         delegate.calls.push({textField, item})
         if (result) { result(item) }
     }
@@ -372,7 +372,7 @@ test("the event and clipboardData never reach the delegate's arguments", functio
     var textField = field()
     var delegate = recording()
     var captured = []
-    delegate.textPasteConfigurationSupportingTransform = function(sender, item) {
+    delegate.textPasteConfigurationSupportingTransformPasteItem = function(sender, item) {
         captured.push(sender, item, item.itemProvider)
     }
     textField.pasteDelegate = delegate
@@ -449,4 +449,11 @@ test("a field created in code binds the paste when it is placed, releases it on 
     assert.equal(listenerCount(textField.$el[0]), 1)
     assert.equal(pasteInto(textField.$el[0], {"text/plain": "x"}).defaultPrevented, true)
     assert.equal(delegate.calls.length, 2)
+})
+
+// textPasteConfigurationSupporting(_:transform:) is the selector textPasteConfigurationSupporting:transformPasteItem:.
+test("a paste delegate that still implements textPasteConfigurationSupportingTransform is refused with the full selector's name", function() {
+    var textField = field()
+    assert.throws(() => { textField.pasteDelegate = {textPasteConfigurationSupportingTransform() {}} }, /textPasteConfigurationSupportingTransform was renamed textPasteConfigurationSupportingTransformPasteItem in cocoatouch 1\.10\.0/)
+    assert.equal(textField.pasteDelegate, null)
 })

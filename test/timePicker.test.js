@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIDatePicker, UIControlEvent, Locale } from "../src/index.js"
+import { UIDatePicker, UIDatePickerMode, UIControlEvent, Locale } from "../src/index.js"
 
 
 // jQuery UI and ClockPicker are page scripts the framework wraps, not
@@ -204,5 +204,19 @@ test("an input the nib supplies is reused by time mode", function() {
         assert.equal(document.querySelectorAll("#given input").length, 1)
         picker.date = new Date(2020, 0, 1, 6, 0)
         assert.equal(document.getElementById("given-uidatepicker").value, "06:00")
+    })
+})
+
+test("UIDatePicker.Mode names the four modes by Apple's cases, as the strings the picker takes", function() {
+    assert.equal(UIDatePicker.Mode, UIDatePickerMode)
+    assert.deepEqual(Object.keys(UIDatePicker.Mode), ["time", "date", "dateAndTime", "yearAndMonth"])
+    assert.ok(Object.isFrozen(UIDatePicker.Mode))
+    page(markup)
+    withPlugins(function({clocks}) {
+        var picker = new UIDatePicker("#start")
+        assert.equal(picker.datePickerMode, UIDatePicker.Mode.date)
+        picker.datePickerMode = UIDatePicker.Mode.time
+        assert.equal(picker.datePickerMode, "time")
+        assert.equal(clocks.length, 1)
     })
 })

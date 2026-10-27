@@ -61,7 +61,7 @@ function recorder(overrides) {
     var calls = []
     var delegate = {
         calls: calls,
-        dropInteractionCanHandle: function(interaction, session) { calls.push("canHandle"); return true },
+        dropInteractionCanHandleSession: function(interaction, session) { calls.push("canHandle"); return true },
         dropInteractionSessionDidEnter: function() { calls.push("enter") },
         dropInteractionSessionDidUpdate: function() { calls.push("update"); return new UIDropProposal({operation: UIDropOperation.copy}) },
         dropInteractionPerformDrop: function() { calls.push("perform") },
@@ -143,7 +143,7 @@ test("a copy proposal prevents the dragover and sets dropEffect copy; forbidden 
 })
 
 test("a view the delegate cannot handle gets no callbacks and no preventDefault on any event", function() {
-    var delegate = recorder({dropInteractionCanHandle: function() { delegate.calls.push("canHandle"); return false }})
+    var delegate = recorder({dropInteractionCanHandleSession: function() { delegate.calls.push("canHandle"); return false }})
     var {zone} = setup(delegate)
     var events = ["dragenter", "dragover", "dragleave"].map((name) => { var event = dragEvent(name, [pdf]); zone.dispatchEvent(event); return event })
     var drop = dragEvent("drop", [pdf])
@@ -168,7 +168,7 @@ test("a delegate without canHandle handles everything, and without a proposal ac
 
 test("canHandle and hasItemsConforming answer from the kinds and MIME types a drag shows before the drop", function() {
     var answers = []
-    var delegate = recorder({dropInteractionCanHandle: function(interaction, session) {
+    var delegate = recorder({dropInteractionCanHandleSession: function(interaction, session) {
         answers.push([
             session.hasItemsConforming({toTypeIdentifiers: [UTType.pdf.identifier]}),
             session.hasItemsConforming({toTypeIdentifiers: [UTType.image.identifier]}),
@@ -194,7 +194,7 @@ test("canHandle and hasItemsConforming answer from the kinds and MIME types a dr
 
 test("hasItemsConforming is true when any item conforms, and the delegate filters per item", function() {
     var seen = []
-    var delegate = recorder({dropInteractionCanHandle: function(interaction, session) {
+    var delegate = recorder({dropInteractionCanHandleSession: function(interaction, session) {
         seen.push(
             session.hasItemsConforming({toTypeIdentifiers: [UTType.pdf.identifier]}),
             session.items.filter((item) => item.itemProvider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier)).length,
@@ -209,7 +209,7 @@ test("hasItemsConforming is true when any item conforms, and the delegate filter
 
 test("a session's items carry providers; before the drop a provider answers conformance but loads nothing", function() {
     var seen = []
-    var delegate = recorder({dropInteractionCanHandle: function(interaction, session) {
+    var delegate = recorder({dropInteractionCanHandleSession: function(interaction, session) {
         var item = session.items[0]
         seen.push(item instanceof UIDragItem, item.itemProvider instanceof NSItemProvider, item.itemProvider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier), item.itemProvider.hasItemConformingToTypeIdentifier(UTType.image.identifier), item.itemProvider.hasItemConformingToTypeIdentifier(UTType.item.identifier))
         item.itemProvider.loadFileRepresentation({forTypeIdentifier: UTType.pdf.identifier, completionHandler: (url, error) => seen.push(url, error instanceof Error)})
@@ -271,7 +271,7 @@ test("a dropped folder is one UTType.folder item whose URL lists its entries, ne
     var folder = directoryEntry("Docs", [fileEntry("a.pdf", [1]), directoryEntry("Sub", [fileEntry("c.pdf", [3])])])
     var listing = []
     var delegate = recorder({
-        dropInteractionCanHandle: function(interaction, session) {
+        dropInteractionCanHandleSession: function(interaction, session) {
             return session.hasItemsConforming({toTypeIdentifiers: [UTType.folder.identifier, UTType.pdf.identifier]})
         },
         dropInteractionPerformDrop: function(interaction, session) {
@@ -329,7 +329,7 @@ test("the document carries listeners only while a session lives", function() {
 test("two interactions on two views stay independent", function() {
     page("<div id=\"a\"></div><div id=\"b\"></div>")
     var first = recorder()
-    var second = recorder({dropInteractionCanHandle: function() { second.calls.push("canHandle"); return false }})
+    var second = recorder({dropInteractionCanHandleSession: function() { second.calls.push("canHandle"); return false }})
     new UIView("#a").addInteraction(new UIDropInteraction({delegate: first}))
     new UIView("#b").addInteraction(new UIDropInteraction({delegate: second}))
     document.getElementById("a").dispatchEvent(dragEvent("dragenter", [pdf]))
@@ -395,4 +395,9 @@ test("loading a provider again answers the same URL with one registry entry, and
     assert.equal(registeredCount(), before + 1)
     manager.removeItem({at: urls[2]})
     assert.equal(registeredCount(), before)
+})
+
+// dropInteraction(_:canHandle:) is the selector dropInteraction:canHandleSession:.
+test("a delegate that still implements dropInteractionCanHandle is refused with the full selector's name", function() {
+    assert.throws(() => new UIDropInteraction({delegate: {dropInteractionCanHandle() { return true }}}), /dropInteractionCanHandle was renamed dropInteractionCanHandleSession in cocoatouch 1\.10\.0/)
 })

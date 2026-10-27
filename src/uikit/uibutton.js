@@ -3,22 +3,19 @@ import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { UIControl } from "./uicontrol.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { UIButtonConfiguration } from "./uibuttonconfiguration.js"
 import { required, typed, enumeration, optional, instance } from "../utils/required.js"
 
 
 const stateType = enumeration(UIControlState, "UIControl.State")
 const colorType = instance(UIColor, "UIColor")
 const attributedType = instance(NSAttributedString, "NSAttributedString")
+const configurationType = instance(UIButtonConfiguration, "UIButton.Configuration")
 
-// The title stays in flow so the button keeps its intrinsic size, only hidden:
-// visibility drops it from sight, the tab order and the accessibility tree where
-// display:none or opacity would not both. display:contents keeps the title's
-// nodes laying out as the button's own children, as a flex button with an icon
-// and a gap needs. The spinner is out of flow: an overlay that fills the button
-// and centres the icon with flex. Font Awesome's fa-spin animates transform on
-// the icon, and a running animation overrides the icon's own transform, so the
-// icon is never positioned; only the overlay, which does not spin, is.
-const activityTitle = "<span class=\"uibutton-activity-title\" style=\"display: contents; visibility: hidden;\"></span>"
+// The spinner is out of flow: an overlay that fills the button and centres
+// the icon with flex. Font Awesome's fa-spin animates transform on the icon,
+// and a running animation overrides the icon's own transform, so the icon is
+// never positioned; only the overlay, which does not spin, is.
 const activityIndicator = "<span class=\"uibutton-activity-indicator\" style=\"position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;\"><i class=\"fas fa-circle-notch fa-spin\"></i></span>"
 
 
@@ -93,7 +90,7 @@ export class UIButton extends UIControl {
     // The element is part of what was drawn: a view re-resolves its element by
     // selector once it is disconnected, so the same title may need drawing again.
     _drawTitle() {
-        if (this._enabledBeforeActivity !== undefined) {
+        if (this._isShowingActivity) {
             this._titlePending = true
             return
         }
@@ -136,58 +133,66 @@ export class UIButton extends UIControl {
         return new UIColor({hex: this.$el.css("color")})
     }
 
-    // Apple's isEnabled is the control's own; while the activity indicator
-    // shows the button is disabled, so what the app assigns then is kept and
-    // takes effect when the indicator turns off.
-    set isEnabled(bool) {
-        if (this._enabledBeforeActivity !== undefined) {
-            this._enabledAfterActivity = bool
-            return
-        }
-        super.isEnabled = bool
+    // A button bound to a nib element has Interface Builder's default style,
+    // Plain, whose configuration is UIButton.Configuration.plain(); nil is a
+    // button without a configuration, as Apple's legacy button is.
+    /** @returns {UIButtonConfiguration|null} */
+    get configuration() {
+        if (this._configuration === undefined) { this._configuration = _adopt(UIButtonConfiguration.plain(), this) }
+        return this._configuration
     }
 
-    get isEnabled() {
-        return super.isEnabled
+    /** @param {UIButtonConfiguration|null} configuration */
+    set configuration(configuration) {
+        typed(configuration, "configuration", optional(configurationType), "UIButton.configuration", "Apple's is var configuration: UIButton.Configuration?; write button.configuration = UIButton.Configuration.plain().")
+        if (this._configuration) { this._configuration._button = null }
+        this._configuration = configuration === null ? null : _adopt(configuration._copy(), this)
+        this._configurationDidChange()
     }
 
-    // Draws a spinner over the title and disables the button until turned off.
-    // As in UIButton.Configuration, the button keeps its size meanwhile. The
-    // button becomes the spinner's containing block only when nothing already is.
-    // The title's nodes are moved under a wrapper and back, never re-created, so
-    // an outlet to one of them, and the nodes a click needs, stay the same.
-    set showsActivityIndicator(bool) {
-        if (bool) {
-            if (this._enabledBeforeActivity !== undefined) { return }
-            this._enabledBeforeActivity = this.isEnabled
-            this._enabledAfterActivity = undefined
-            this._positionedForActivity = _isStatic(this.$el.css("position"))
-            if (this._positionedForActivity) { this.$el.css("position", "relative") }
-            super.isEnabled = false
-            this._titlePending = false
-            this.$el.contents().wrapAll(activityTitle)
-            this.$el.append(activityIndicator)
-            return
-        }
-        if (this._enabledBeforeActivity === undefined) { return }
-        var title = this.$el.children(".uibutton-activity-title")
-        title.before(title.contents())
-        title.remove()
-        this.$el.children(".uibutton-activity-indicator").remove()
-        var pending = this._titlePending
-        var enabled = this._enabledAfterActivity === undefined ? this._enabledBeforeActivity : this._enabledAfterActivity
-        this._enabledBeforeActivity = undefined
-        this._enabledAfterActivity = undefined
-        this._titlePending = false
-        if (this._positionedForActivity) { this.$el.css("position", "") }
-        this._positionedForActivity = false
-        super.isEnabled = enabled
-        if (pending) { this._drawTitle() }
+    static get Configuration() {
+        return UIButtonConfiguration
     }
 
-    get showsActivityIndicator() {
-        return this._enabledBeforeActivity !== undefined
+    _configurationDidChange() {
+        var configuration = this._configuration
+        _drawActivityIndicator(this, !!configuration && configuration.showsActivityIndicator)
     }
+}
+
+
+function _adopt(configuration, button) {
+    configuration._button = button
+    return configuration
+}
+
+// The indicator is the activity-indicator attribute, for the stylesheet to
+// hide the title by (visibility, so the title keeps the button's size and
+// leaves the tab order and the accessibility tree), and the spinner overlay,
+// a direct child that fills the button. The title's nodes stay where they
+// are, so an outlet to one of them and the nodes a click needs are kept. The
+// button becomes the overlay's containing block only when nothing already is.
+// As Apple's, the indicator does not change isEnabled.
+function _drawActivityIndicator(button, shows) {
+    if (shows === !!button._isShowingActivity) { return }
+    var $el = button.$el
+    if (shows) {
+        button._isShowingActivity = true
+        button._titlePending = false
+        button._positionedForActivity = _isStatic($el.css("position"))
+        if (button._positionedForActivity) { $el.css("position", "relative") }
+        $el.attr("activity-indicator", "")
+        $el.append(activityIndicator)
+        return
+    }
+    button._isShowingActivity = false
+    $el.removeAttr("activity-indicator")
+    $el.children(".uibutton-activity-indicator").remove()
+    if (button._positionedForActivity) { $el.css("position", "") }
+    button._positionedForActivity = false
+    var pending = button._titlePending
+    button._titlePending = false
+    if (pending) { button._drawTitle() }
 }
 
 

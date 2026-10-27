@@ -2,6 +2,7 @@ import { Locale } from "../foundation/locale.js"
 import { datePickerDateFormat, datePickerRegional } from "./datepickerlocale.js"
 import { UIControl } from "./uicontrol.js"
 import { UIControlEvent } from "./uicontrolevent.js"
+import { UIDatePickerMode } from "./uidatepickermode.js"
 import { required, typed, Bool, DateType } from "../utils/required.js"
 
 
@@ -14,10 +15,14 @@ import { required, typed, Bool, DateType } from "../utils/required.js"
 // activation or inside a cross-origin frame; the field stays usable by keyboard.
 const refusals = ["NotAllowedError", "SecurityError"]
 
-const modes = ["date", "time", "dateAndTime", "yearAndMonth"]
+const modes = Object.values(UIDatePickerMode)
 
 
 export class UIDatePicker extends UIControl {
+
+    static get Mode() {
+        return UIDatePickerMode
+    }
 
     constructor(selector) {
         super(selector)

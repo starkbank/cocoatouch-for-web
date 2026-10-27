@@ -9,6 +9,7 @@ import { typed, optional } from "../utils/required.js"
 import { itemProviderForFlavours } from "../foundation/nsitemprovider.js"
 import { textPasteItemFor, resultOfTextPasteItem } from "./uitextpasteitem.js"
 import { UTType } from "../uniformtypeidentifiers/uttype.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 
 
 // The only flavours a paste hands over, as strings: a clipboard's files, and
@@ -20,6 +21,7 @@ const pasteFlavours = [
 ]
 const pasteFlavourCap = 256 * 1024
 const pasteNamespace = "paste.uitextpaste"
+const retiredPasteDelegateNames = {textPasteConfigurationSupportingTransform: "textPasteConfigurationSupportingTransformPasteItem"}
 const utf8Encoder = new TextEncoder()
 
 export class UITextField extends UIControl {
@@ -183,6 +185,7 @@ export class UITextField extends UIControl {
     // leaves it to the browser.
     /** @param {import("./uitextpasteitem.js").UITextPasteDelegate|null} pasteDelegate */
     set pasteDelegate(pasteDelegate) {
+        rejectRetiredDelegateNames(pasteDelegate, retiredPasteDelegateNames, "UITextField.pasteDelegate", "1.10.0")
         this._pasteDelegate = pasteDelegate || null
         this._bindPaste()
     }
@@ -254,11 +257,11 @@ export class UITextField extends UIControl {
 
 function _pasted(textField, e) {
     var delegate = textField._pasteDelegate
-    if (!delegate || !delegate.textPasteConfigurationSupportingTransform) { return }
+    if (!delegate || !delegate.textPasteConfigurationSupportingTransformPasteItem) { return }
     var flavours = _flavoursOf((e.originalEvent || e).clipboardData)
     if (flavours === null) { return }
     var item = textPasteItemFor({itemProvider: itemProviderForFlavours({flavours: flavours})})
-    delegate.textPasteConfigurationSupportingTransform(textField, item)
+    delegate.textPasteConfigurationSupportingTransformPasteItem(textField, item)
     var result = resultOfTextPasteItem(item)
     if (result.kind === "default") { return }
     e.preventDefault()

@@ -1,4 +1,4 @@
-import { UIColor } from "../uikit/uicolor.js"
+import { typed, optional, StringType } from "../utils/required.js"
 
 
 // A view's layer is made for it once and resolves the element through the view
@@ -24,16 +24,23 @@ export class CALayer {
         return this._view ? this._view.$el : $(this.selector)
     }
 
-    // Apple's nil is no value of the layer's own: the inline border color is
-    // removed, so the stylesheet's returns, and reads back as null.
+    // A CGColor, as Apple's is, which here is the value UIColor.cgColor gives:
+    // a color the stylesheet understands. Core Animation sits below UIKit and
+    // takes no UIColor. Apple's nil is no value of the layer's own: the inline
+    // border color is removed, so the stylesheet's returns, and reads back as
+    // null. What reads back is the element's own inline value, so a hex is the
+    // browser's normalised rgb() and a token the var() it was written as.
+    /** @param {string|null} color */
     set borderColor(color) {
-        this._$el().css("border-color", color === null ? "" : color.cgColor)
+        typed(color, "borderColor", optional(StringType), "CALayer.borderColor", "Apple's is var borderColor: CGColor?; write layer.borderColor = color.cgColor.")
+        this._$el().css("border-color", color === null ? "" : color)
     }
 
+    /** @returns {string|null} */
     get borderColor() {
         var element = this._$el()[0]
         if (!element || !element.style || element.style.borderColor === "") { return null }
-        return new UIColor({hex: element.style.borderColor})
+        return element.style.borderColor
     }
 
     // Apple's default is 0, and so is nil: the inline border-width and

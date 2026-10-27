@@ -44,7 +44,7 @@ function recorder() {
     var calls = []
     return {
         calls: calls,
-        documentPickerDidPickDocumentsAt: function(controller, urls) { calls.push(["pick", controller, urls]) },
+        documentPickerDidPickDocumentsAtURLs: function(controller, urls) { calls.push(["pick", controller, urls]) },
         documentPickerWasCancelled: function(controller) { calls.push(["cancel", controller]) },
     }
 }
@@ -247,11 +247,18 @@ test("the whole sequence of a present that ends in a pick: open, completion, del
     withPicker(function({opened}) {
         var order = []
         var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})
-        picker.delegate = {documentPickerDidPickDocumentsAt: function(controller, urls) { order.push("delegate:" + urls.length + ":attached=" + opened[0].input.isConnected) }}
+        picker.delegate = {documentPickerDidPickDocumentsAtURLs: function(controller, urls) { order.push("delegate:" + urls.length + ":attached=" + opened[0].input.isConnected) }}
         presenter().present(picker, {animated: true, completion: () => order.push("completion")})
         order.push("presented:attached=" + opened[0].input.isConnected)
         pick(opened[0].input, [file("a.pdf", [1])])
         order.push("picked:attached=" + opened[0].input.isConnected)
         assert.deepEqual(order, ["completion", "presented:attached=true", "delegate:1:attached=false", "picked:attached=false"])
     })
+})
+
+// documentPicker(_:didPickDocumentsAt:) is the selector documentPicker:didPickDocumentsAtURLs:.
+test("a delegate that still implements documentPickerDidPickDocumentsAt is refused with the full selector's name", function() {
+    var picker = new UIDocumentPickerViewController({forOpeningContentTypes: [UTType.pdf], asCopy: true})
+    assert.throws(() => { picker.delegate = {documentPickerDidPickDocumentsAt() {}} }, /documentPickerDidPickDocumentsAt was renamed documentPickerDidPickDocumentsAtURLs in cocoatouch 1\.10\.0/)
+    assert.equal(picker.delegate, null)
 })

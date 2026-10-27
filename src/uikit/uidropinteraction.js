@@ -7,9 +7,11 @@ import { UIDropSession } from "./uidropsession.js"
 import { UIDropProposal } from "./uidropproposal.js"
 import { UIDropOperation } from "./uidropoperation.js"
 import { required, optional, instance } from "../utils/required.js"
+import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 import { UIView } from "./uiview.js"
 
 
+const retiredDelegateNames = {dropInteractionCanHandle: "dropInteractionCanHandleSession"}
 const viewType = optional(instance(UIView, "UIView"))
 const signature = "Apple's is UIDropInteraction(delegate:); write new UIDropInteraction({delegate}), then view.addInteraction(interaction)."
 
@@ -17,7 +19,7 @@ const signature = "Apple's is UIDropInteraction(delegate:); write new UIDropInte
 // UIKit's UIDropInteraction over a view's element, for files dropped from the
 // system. The browser's drag events become the delegate's methods:
 //
-//   dragenter  -> dropInteractionCanHandle, then dropInteractionSessionDidEnter
+//   dragenter  -> dropInteractionCanHandleSession, then dropInteractionSessionDidEnter
 //   dragover   -> dropInteractionSessionDidUpdate; a .copy proposal allows the drop
 //   dragleave  -> dropInteractionSessionDidExit, once however many children it crossed
 //   drop       -> dropInteractionPerformDrop, then dropInteractionSessionDidEnd
@@ -46,6 +48,7 @@ export class UIDropInteraction extends NSObject {
         if (delegate === undefined || delegate === null || typeof delegate !== "object") {
             throw new TypeError(`UIDropInteraction(delegate:) requires a delegate object: ${signature}`)
         }
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIDropInteraction.delegate", "1.10.0")
         this._delegate = delegate
     }
 
@@ -163,7 +166,7 @@ export class UIDropInteraction extends NSObject {
 
     // A delegate without canHandle handles every drop; only an explicit false refuses one.
     _canHandle(session) {
-        return this._send("dropInteractionCanHandle", session) !== false
+        return this._send("dropInteractionCanHandleSession", session) !== false
     }
 
     _send(method, session) {
