@@ -2,6 +2,7 @@ import { UIView } from "./uiview.js"
 import { togglesItself } from "../utils/bind.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIControlState } from "./uicontrolstate.js"
+import { currentColorTargets } from "../utils/tint.js"
 import { required, enumeration, optional, FunctionType } from "../utils/required.js"
 
 
@@ -64,6 +65,12 @@ export class UIControl extends UIView {
         this._bindHighlight()
         if (this.superview === null) { return }
         for (var event of new Set(this._targets().map(function(pair) { return pair.event }))) { this._bindBridge(event) }
+    }
+
+    // An inline svg drawn with currentColor is a template image of the control
+    // that holds it, painted through the control's own color.
+    _templateImages() {
+        return currentColorTargets(this.$el[0])
     }
 
     _bindHighlight() {

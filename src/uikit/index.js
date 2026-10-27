@@ -19,6 +19,7 @@ import { UIColorWell } from "./uicolorwell.js"
 import { UISwitch } from "./uiswitch.js"
 import { UIImageView } from "./uiimageview.js"
 import { UIImage } from "./uiimage.js"
+import { UIImageRenderingMode } from "./uiimagerenderingmode.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIPickerView } from "./uipickerview.js"
@@ -78,6 +79,7 @@ export {
      UISwitch,
      UIImageView,
      UIImage,
+     UIImageRenderingMode,
      UIColor,
      UIControlEvent,
      UIPickerView,

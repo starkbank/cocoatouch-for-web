@@ -5,6 +5,7 @@ import { UIColor } from "./uicolor.js"
 import { UIControlState } from "./uicontrolstate.js"
 import { UIButtonConfiguration, configurationOwnedBy, configurationTitle, edgeName } from "./uibuttonconfiguration.js"
 import { imageSource } from "./uiimage.js"
+import { drawTint, templateTargets } from "../utils/tint.js"
 import { required, typed, enumeration, optional, instance } from "../utils/required.js"
 
 
@@ -57,6 +58,12 @@ export class UIButton extends UIControl {
         var title = _title(this, _drawnState(this))
         if (title === null) { return this.$el.text() }
         return title instanceof NSAttributedString ? title.string : title
+    }
+
+    // The control's own svg, if it holds one, and the picture of its image.
+    _templateImages() {
+        var picture = this._drawnImage ? this.$el.children(".uibutton-image").children()[0] : undefined
+        return super._templateImages().concat(templateTargets(this._drawnImage, picture))
     }
 
     _stateDidChange() {
@@ -249,6 +256,7 @@ function _drawImage(button, configuration) {
         $drawn.remove()
         $el.removeAttr("image-placement")
         button._drawnImage = null
+        drawTint(button)
         return
     }
     $el.attr("image-placement", placement)
@@ -261,6 +269,7 @@ function _drawImage(button, configuration) {
     isBeforeTitle ? $el.prepend($holder) : $el.append($holder)
     button._drawnImage = image
     button._drawnPlacement = placement
+    drawTint(button)
 }
 
 

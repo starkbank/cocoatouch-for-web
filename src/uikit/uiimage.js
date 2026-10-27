@@ -1,6 +1,9 @@
 import { NSObject } from "../foundation/nsobject.js"
+import { UIImageRenderingMode } from "./uiimagerenderingmode.js"
+import { typed, enumeration } from "../utils/required.js"
 
 
+const renderingModeType = enumeration(UIImageRenderingMode, "UIImage.RenderingMode")
 const dataSignature = "Apple's is the failable UIImage(data:), init?(data: Data); write new UIImage({data: bytes}) with the bytes of a PNG, JPEG, GIF or WebP image."
 
 // A multiple of three, so every chunk's base64 is whole and the chunks join
@@ -14,8 +17,14 @@ const chunkSize = 24576
 // a data: url built from them: no object URL is made, so nothing needs
 // revoking and nothing outlives the image. Apple's init?(data:) returns nil for
 // bytes that are no image, which a constructor cannot, so it throws a TypeError,
-// as UTType's initializers do. Exactly one label is taken.
+// as UTType's initializers do. Exactly one label is taken. A symbol is a
+// template image, as on Apple, and a file or bytes are automatic, which a view
+// draws as the picture it is; withRenderingMode(_:) makes the other kind.
 export class UIImage extends NSObject {
+
+    static get RenderingMode() {
+        return UIImageRenderingMode
+    }
 
     /**
      * @param {object} options
@@ -37,6 +46,24 @@ export class UIImage extends NSObject {
         this.named = named
         this.systemName = systemName
         this._dataURL = hasLabel(given, "data") ? _dataURL(data) : undefined
+        this._renderingMode = hasLabel(given, "systemName") ? UIImageRenderingMode.alwaysTemplate : UIImageRenderingMode.automatic
+    }
+
+    /** @returns {"automatic"|"alwaysOriginal"|"alwaysTemplate"} */
+    get renderingMode() {
+        return this._renderingMode
+    }
+
+    // A new image of the same picture: UIImage is immutable, so the receiver keeps its mode.
+    /**
+     * @param {"automatic"|"alwaysOriginal"|"alwaysTemplate"} renderingMode
+     * @returns {UIImage}
+     */
+    withRenderingMode(renderingMode) {
+        typed(renderingMode, "renderingMode", renderingModeType, "UIImage.withRenderingMode", "Apple's is withRenderingMode(_:); write image.withRenderingMode(UIImage.RenderingMode.alwaysTemplate).")
+        var copy = Object.assign(Object.create(Object.getPrototypeOf(this)), this)
+        copy._renderingMode = renderingMode
+        return copy
     }
 }
 
