@@ -818,7 +818,10 @@ export class UITableView extends UIScrollView {
         this._lastWidth = read.width
         this._noteEnvironment(read)
         if (read.clip.bottom - read.clip.top <= 0 && !force) { return }
-        if (read.clip.bottom - read.clip.top <= 0) { read.clip = visibleClip(this.$el[0], []) }
+        // A table whose scroller is out of the viewport has an empty clip; the viewport stands in for it for the whole pass, the reads
+        // that follow included, or the second round would find an empty area and take back the rows the first one drew.
+        var isClipEmpty = read.clip.bottom - read.clip.top <= 0
+        if (isClipEmpty) { read.clip = visibleClip(this.$el[0], []) }
         this._record(read, cells)
         var anchor = compensate ? _anchorOf(read, cells) : null
         var extension = null
@@ -828,11 +831,13 @@ export class UITableView extends UIScrollView {
             this._setWindow(range, round === 0 ? retained : null)
             cells = Array.from(this._renderedRows()).sort((a, b) => a[0] - b[0])
             read = this._read(cells)
+            if (isClipEmpty) { read.clip = visibleClip(this.$el[0], []) }
             this._record(read, cells)
             extension = this._extensionFor(read)
         }
         if (this._arrange()) {
             read = this._read(cells)
+            if (isClipEmpty) { read.clip = visibleClip(this.$el[0], []) }
             this._record(read, cells)
         }
         this._observe(read)
