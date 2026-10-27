@@ -61,31 +61,40 @@ function withStyle(css, body) {
     return Promise.resolve(body()).finally(() => style.remove())
 }
 
-test("one insertRows of 100 rows is one childList record on the tbody with 100 added nodes", {todo: "the rows tbody holds the window only; F9 rewrites this as one record per run of rows that enter the window"}, function() {
+// The rows tbody holds the window and not the list, so the rows an insertRows brings into view are what joins the page: in one write
+// per contiguous run of nodes that are not in place yet.
+function childListRecords(observer, tbody) {
+    return observer.takeRecords().filter((record) => record.type === "childList" && record.target === tbody)
+}
+
+test("one insertRows of 100 rows is one childList record on the tbody holding the rows that enter the window", function() {
     var {table, model} = tableOf(names(3))
     var tbody = document.querySelector("#table > tbody")
     var observer = new window.MutationObserver(() => {})
     observer.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true})
     model.names.push(...names(100, 3))
     table.insertRows({at: at(...Array.from({length: 100}, (unused, index) => 3 + index)), with: UITableView.RowAnimation.none})
-    var records = observer.takeRecords()
+    var records = childListRecords(observer, tbody)
     observer.disconnect()
+    var entered = ids().filter((id) => id.startsWith("cell-")).length - 3
+    assert.ok(entered > 1 && entered < 100, "only the rows near the visible area exist: " + entered)
     assert.equal(records.length, 1)
-    assert.equal(records[0].type, "childList")
-    assert.equal(records[0].target, tbody)
-    assert.equal(records[0].addedNodes.length, 100)
+    var added = Array.from(records[0].addedNodes)
+    assert.equal(added.length, entered + 1, "the rows that entered and the bottom spacer")
+    assert.deepEqual(added.slice(0, entered).map((node) => node.id), Array.from({length: entered}, (unused, index) => "cell-" + (3 + index)))
 })
 
-test("rows inserted in two separate runs land as one record per run, in order", {todo: "the rows tbody holds the window only; F9 rewrites this as one record per run of rows that enter the window"}, function() {
+test("rows inserted in two separate runs land as one record per run, in order", function() {
     var {table, model} = tableOf(names(4))
+    var tbody = document.querySelector("#table > tbody")
     var observer = new window.MutationObserver(() => {})
     observer.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true})
     model.names.splice(1, 0, "x")
     model.names.splice(4, 0, "y", "z")
     table.insertRows({at: at(1, 4, 5), with: UITableView.RowAnimation.none})
-    var records = observer.takeRecords().filter((record) => record.type === "childList")
+    var records = childListRecords(observer, tbody)
     observer.disconnect()
-    assert.deepEqual(records.map((record) => record.addedNodes.length), [2, 1])
+    assert.deepEqual(records.map((record) => record.addedNodes.length), [1, 2])
     assert.deepEqual(ids(), ["cell-0", "cell-1", "cell-2", "cell-3", "cell-4", "cell-5", "cell-6"])
     assert.deepEqual(Array.from(document.querySelectorAll("#amount")).map((element) => element.textContent), ["n0", "x", "n1", "n2", "y", "z", "n3"])
 })
