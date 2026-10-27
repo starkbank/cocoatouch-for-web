@@ -220,3 +220,15 @@ test("UIDatePicker.Mode names the four modes by Apple's cases, as the strings th
         assert.equal(clocks.length, 1)
     })
 })
+
+// The nib's input may carry the time the form opens with, value="23:59": the
+// switch from the calendar to the clock keeps it, so the field is not emptied.
+test("a time written in the nib's input stands after the switch to time mode, and date reads it", function() {
+    page("<div id=\"start\" class=\"clockpicker\"><input id=\"start-time\" value=\"23:59\"></div>")
+    withPlugins(function() {
+        var picker = new UIDatePicker("#start")
+        picker.datePickerMode = UIDatePicker.Mode.time
+        assert.equal(document.getElementById("start-time").value, "23:59")
+        assert.deepEqual([picker.date.getHours(), picker.date.getMinutes()], [23, 59])
+    })
+})
