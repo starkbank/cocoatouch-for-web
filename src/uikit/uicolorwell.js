@@ -150,10 +150,16 @@ export class UIColorWell extends UIControl {
         input.setAttribute("aria-label", this._title)
     }
 
-    // A token color is drawn by the value it resolves to; one that resolves to
-    // nothing is returned as it is and cannot be drawn.
+    // A token color is drawn by the value it resolves to; one the page does
+    // not define, which resolvedColor refuses, is kept as it is and cannot be
+    // drawn, so the input stays black rather than the well failing.
     _concrete(color) {
-        return color.resolvedColor({with: UITraitCollection.current})
+        try {
+            return color.resolvedColor({with: UITraitCollection.current})
+        } catch (error) {
+            if (!(error instanceof TypeError)) { throw error }
+            return color
+        }
     }
 
     // The change event of the input is the user's pick. It stops here, so the

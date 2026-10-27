@@ -69,13 +69,16 @@ test("a resolve reads the custom property once: one getComputedStyle call, on th
     assert.equal(three.length, 3)
 })
 
-test("a token that does not resolve returns the receiver unchanged", function() {
+// Apple's UIColor(named:) is nil for a color the catalog does not have, which a
+// constructor cannot return; the name is looked up when it is resolved, so that
+// is where a missing token stops, and a canvas is never handed var(--token).
+test("a token the root does not define throws a TypeError naming it, never a fallback colour", function() {
     reset()
     var missing = new UIColor({named: "no-such-token"})
-    assert.equal(missing.resolvedColor({with: UITraitCollection.current}), missing)
+    assert.throws(() => missing.resolvedColor({with: UITraitCollection.current}), (error) => error instanceof TypeError && /--no-such-token/.test(error.message) && /UIColor\(named:\)/.test(error.message))
     define("empty-token", "   ")
     var empty = new UIColor({named: "empty-token"})
-    assert.equal(empty.resolvedColor({with: UITraitCollection.current}), empty)
+    assert.throws(() => empty.resolvedColor({with: UITraitCollection.current}), /--empty-token/)
 })
 
 test("components, white and hex colors are concrete already and come back as they are, without reading style", function() {

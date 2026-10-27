@@ -65,8 +65,10 @@ export class UIColor extends NSObject {
     // The concrete color a named token has now, for a canvas, which cannot read
     // var(--token): a new UIColor holding the root's computed value, read once
     // per call. A color that is no token is concrete already and comes back as
-    // it is, and so does a token that resolves to nothing. Resolve at load and
-    // again when the theme changes, never in a drawing callback or per frame.
+    // it is. A token the root does not define throws: Apple's UIColor(named:)
+    // is nil for a color the catalog lacks, and handing a canvas var(--token)
+    // or a fallback would draw a colour nobody chose. Resolve at load and again
+    // when the theme changes, never in a drawing callback or per frame.
     /**
      * @param {object} options
      * @param {UITraitCollection} options.with
@@ -76,7 +78,9 @@ export class UIColor extends NSObject {
         required(traitCollection, "with", traitCollectionType, "UIColor.resolvedColor", "Apple's is resolvedColor(with:); write color.resolvedColor({with: UITraitCollection.current}).")
         if (this._token === undefined || typeof document === "undefined") { return this }
         var value = getComputedStyle(document.documentElement).getPropertyValue("--" + this._token).trim()
-        if (value === "") { return this }
+        if (value === "") {
+            throw new TypeError(`UIColor.resolvedColor(with:): the page's root defines no --${this._token}, so UIColor(named: "${this._token}") names no color; Apple's UIColor(named:) is nil for a color the catalog does not have.`)
+        }
         return new UIColor({hex: value})
     }
 }
