@@ -8,6 +8,7 @@ import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { automaticDimension, createRowHeights, offsetOf, firstRowAt, totalHeight, effectiveHeight, insert, measure, reset } from "../utils/rowheights.js"
 import { clipAncestors, visibleClip, scroller } from "../utils/scrollclip.js"
+import { createColumnWidths, reset as resetColumns, insert as insertColumns, noteSignature, skeleton, otherSignatures } from "../utils/columnwidths.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
@@ -23,6 +24,8 @@ const layoutlessViewportHeight = 768
 const maxExtensions = 3
 // Scrolls scrollToRow may correct after its first, once the rows it reached are measured.
 const maxCorrections = 2
+// A colSpan beyond this is no structure a table has; the skeleton falls back to 1.
+const maxColSpan = 1000
 // An anchor row that moved less than this on screen is not compensated.
 const anchorTolerance = 0.5
 
@@ -76,6 +79,7 @@ export class UITableView extends UIScrollView {
         this._topSpacer = null
         this._bottomSpacer = null
         this._insertion = null
+        this._columns = createColumnWidths()
     }
 
     set isHidden(bool) {
@@ -233,6 +237,7 @@ export class UITableView extends UIScrollView {
         this._selectedRows = new Set(Array.from(this._selectedRows).filter(function(row) { return row < count }))
         var previous = this._renderedRows()
         reset(this._heights, {count: count, keepEstimates: true})
+        resetColumns(this._columns)
         this._reusableCells = previous
         this._unlinkCells(Array.from(previous.values()))
         this._visible = []
@@ -270,6 +275,7 @@ export class UITableView extends UIScrollView {
             moved.set(to, cell)
         }
         insert(this._heights, inserted)
+        insertColumns(this._columns, inserted)
         this._selectedRows = new Set(Array.from(this._selectedRows, (row) => _shifted(row, inserted)))
         this._reusableCells = new Map()
         this._layoutRows({force: true, retained: moved})
@@ -298,6 +304,7 @@ export class UITableView extends UIScrollView {
             this._isReconfiguring = true
             try {
                 this._visible[row - this._first] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row}))
+                this._noteStructure(row, this._visible[row - this._first])
                 this._bindCreated()
             } finally {
                 this._isReconfiguring = false
@@ -864,6 +871,7 @@ export class UITableView extends UIScrollView {
                 }
                 var indexPath = new IndexPath({row})
                 var cell = this._dataSource.tableViewCellForRowAtIndexPath(this, indexPath)
+                this._noteStructure(row, cell)
                 this._bindCreated()
                 this._drawSelection(cell, row)
                 this._delegateCall("tableViewWillDisplayCellForRowAtIndexPath", cell, indexPath)
@@ -948,26 +956,49 @@ export class UITableView extends UIScrollView {
         for (var [key, height] of [["_topSpacer", top], ["_bottomSpacer", bottom]]) {
             var spacer = this[key]
             if (!spacer || height <= 0 || spacer._height === height) { continue }
-            spacer.style.height = height + "px"
+            spacer.style.setProperty("height", height + "px", "important")
             spacer._height = height
             changed = true
         }
         return changed
     }
 
-    // A spacer stands in for the rows it replaces: a row of one empty cell with nothing but a height, so sibling selectors keep
-    // their meaning and no column gains width. It belongs to no cell, has no id and is never bound.
+    // A spacer stands in for the rows it replaces: a row with the cells of the skeleton, the structure most rows have, and nothing
+    // else, so sibling selectors keep their meaning and the first row of a fixed layout gives the columns row 0 would. It belongs to
+    // no cell, has no id and is never bound. Its vertical box is zero, whatever the page's rules say for those cells; the horizontal
+    // box is the page's, so a column keeps its padding and its declared width.
     _spacer(key) {
-        if (!this[key]) {
-            var row = document.createElement("tr")
-            row.setAttribute("aria-hidden", "true")
-            row.style.cssText = "padding: 0; border: 0; background: transparent;"
-            var cell = document.createElement("td")
-            cell.style.cssText = "padding: 0; border: 0;"
+        var structure = _structureOf(skeleton(this._columns))
+        var spacer = this[key]
+        if (spacer && spacer._structure === structure) { return spacer }
+        if (spacer && spacer.parentNode) { spacer.parentNode.removeChild(spacer) }
+        var row = document.createElement("tr")
+        row.setAttribute("aria-hidden", "true")
+        _zeroVertical(row)
+        for (var spec of JSON.parse(structure)) {
+            var cell = document.createElement(spec[0] === "th" ? "th" : "td")
+            cell.className = spec[1]
+            cell.colSpan = spec[2]
+            _zeroVertical(cell)
+            cell.style.setProperty("height", "0", "important")
             row.appendChild(cell)
-            this[key] = row
         }
-        return this[key]
+        row._structure = structure
+        this[key] = row
+        return row
+    }
+
+    // The row's cell structure, noted for the majority the spacers copy: tag, class and colSpan of each cell, nothing else.
+    _noteStructure(row, cell) {
+        var element = cell._$el && cell._$el[0]
+        if (!element || !element.children) { return }
+        noteSignature(this._columns, row, _signatureOf(element))
+    }
+
+    // How many rows have a cell structure other than the skeleton's: the rows the spacers cannot stand in for. A hook for the tests
+    // and the browser pass.
+    _otherSignatureCount() {
+        return otherSignatures(this._columns)
     }
 
     // Nothing to render: every cell is released, the queued ones too, which is what keeps a rule such as :has(> tbody > tr) from
@@ -988,6 +1019,7 @@ export class UITableView extends UIScrollView {
         }
         this._first = 0
         this._visible = []
+        resetColumns(this._columns)
     }
 
     // The first rendered row whose bottom is below the clip's top keeps its place on screen: what the pass measured above it moves
@@ -1119,6 +1151,33 @@ function _row(indexPath) {
 
 function _indexPathOf(rowElement) {
     return new IndexPath({row: Number(rowElement.id.slice("cell-".length))})
+}
+
+// The cell structure of a row element as a signature: the tag, class and colSpan of each cell, as JSON so that nothing in a class
+// name can be taken for a separator.
+function _signatureOf(element) {
+    var cells = []
+    for (var i = 0; i < element.children.length; i++) {
+        var cell = element.children[i]
+        var colSpan = cell.colSpan
+        cells.push([cell.tagName.toLowerCase() === "th" ? "th" : "td", typeof cell.className === "string" ? cell.className : "", Number.isInteger(colSpan) && colSpan >= 1 && colSpan <= maxColSpan ? colSpan : 1])
+    }
+    return JSON.stringify(cells)
+}
+
+// What the skeleton is when no row has been noted: one cell, as the spacer was before.
+function _structureOf(signature) {
+    return signature === null ? JSON.stringify([["td", "", 1]]) : signature
+}
+
+// The vertical box of a spacer row or cell is zero and what draws outside the box is off, over any page rule.
+function _zeroVertical(element) {
+    for (var property of ["padding-top", "padding-bottom", "border-top-width", "border-bottom-width"]) {
+        element.style.setProperty(property, "0", "important")
+    }
+    element.style.setProperty("box-shadow", "none", "important")
+    element.style.setProperty("outline", "none", "important")
+    element.style.setProperty("background", "transparent", "important")
 }
 
 // The row element with that id among the body's own children. A browser's
