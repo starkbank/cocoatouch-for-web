@@ -538,7 +538,10 @@ function _dispatchKey(e) {
     })
     matching = _withoutTwins(matching, kinds)
     if (matching.length === 0) { return }
-    if (matching.some(function(binding) { return !binding.wantsPriority })) { e.preventDefault() }
+    if (matching.some(function(binding) { return !binding.wantsPriority })) {
+        e.preventDefault()
+        e._cocoaTouchKeyClaimed = true
+    }
     var chain = [], others = []
     for (var binding of matching) {
         var element = active ? _elementOf(binding.control) : null

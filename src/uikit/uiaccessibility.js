@@ -81,22 +81,50 @@ export const traitsType = arrayOf(enumeration(Object.freeze(Object.values(UIAcce
 //
 // The attributes a set drew are remembered, so the next set removes exactly
 // those that left it and no attribute that was never the traits' own.
+//
+// A role of button or link drawn on an element the browser does not focus also
+// puts it in the tab order and answers the keys a keyboard user activates that
+// role with, Return for both and Space for a button, as accessibilityActivate:
+// an element that already had a tabindex keeps the one its markup gave it.
+//
+// The activation is the key's default action, as a native button's is: it
+// waits for the keystroke to reach the document, and a key command that claims
+// the key there takes it instead, as it suppresses a native button's click.
 function drawTraits(view, $el, state) {
     var element = $el[0]
-    var wanted = desiredByTraits(view, element, state.traits)
+    var wanted = desiredByTraits(view, element, state)
     for (var name of state.drawn) {
         if (!(name in wanted)) { $el.removeAttr(name) }
     }
     for (var name of Object.keys(wanted)) { $el.attr(name, wanted[name]) }
     state.drawn = Object.keys(wanted)
+    bindActivationKeys(view, $el, state, wanted.role)
+}
+
+function bindActivationKeys(view, $el, state, role) {
+    $el.off("keydown.accessibilityActivation")
+    if (role !== "button" && role !== "link") { return }
+    $el.on("keydown.accessibilityActivation", function(event) {
+        if (event.key !== "Enter" && !(event.key === " " && role === "button")) { return }
+        var keystroke = event.originalEvent || event
+        if (event.key === " ") { event.preventDefault() }
+        setTimeout(function() {
+            if (keystroke._cocoaTouchKeyClaimed) { return }
+            if (state.traits.includes("notEnabled")) { return }
+            if (view.accessibilityActivate() === true) { return }
+            $el[0].click()
+        }, 0)
+    })
 }
 
 const selectableContainers = "[role=listbox],[role=tablist],[role=grid],[role=treegrid],[role=tree]"
 
-function desiredByTraits(view, element, traits) {
+function desiredByTraits(view, element, state) {
+    var traits = state.traits
     var wanted = {}
     var role = roleFor(element, traits)
     if (role) { wanted.role = role }
+    if ((role === "button" || role === "link") && !isFocusable(element, state)) { wanted.tabindex = "0" }
     if (traits.includes("selected")) {
         var state = selectedStateFor(element, role)
         if (state) { wanted[state] = "true" }
@@ -122,6 +150,13 @@ function selectedStateFor(element, role) {
 function isNativeButton(element) {
     if (element.tagName === "BUTTON") { return true }
     return element.tagName === "INPUT" && ["button", "submit", "reset", "image"].includes(element.type)
+}
+
+const nativelyFocusable = "button,input,select,textarea,a[href],area[href],[contenteditable]"
+
+function isFocusable(element, state) {
+    if (element.matches(nativelyFocusable)) { return true }
+    return element.hasAttribute("tabindex") && !state.drawn.includes("tabindex")
 }
 
 function isNativeLink(element) {

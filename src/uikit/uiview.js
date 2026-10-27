@@ -171,6 +171,13 @@ export class UIView extends UIResponder {
         drawAccessibility(this)
     }
 
+    // Apple's accessibilityActivate(): a view that handles its own activation
+    // overrides it and answers true; the default answers false, and a keyboard
+    // activation then taps the view, as VoiceOver does at its activation point.
+    accessibilityActivate() {
+        return false
+    }
+
     // The label assistive technology reads: aria-label, or alt on an image,
     // which is the attribute a screen reader reads for one.
     get accessibilityLabel() {

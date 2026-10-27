@@ -1,7 +1,8 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UIView, UIControl, UIButton, UIAccessibilityTraits } from "../src/index.js"
+import { UIView, UIControl, UIButton, UIAccessibilityTraits, UIViewController, IBAction, UIKeyCommand } from "../src/index.js"
+import { Bind } from "../src/utils/bind.js"
 
 
 const traits = UIAccessibilityTraits
@@ -139,7 +140,7 @@ test("selected leaves a control's isSelected and its selected class alone", func
 test("a combination draws every trait it can, and the next set removes what left it", function() {
     var view = viewOn("<div role=\"tablist\"><div id=\"subject\"></div></div>")
     view.accessibilityTraits = [traits.button, traits.selected, traits.notEnabled]
-    assert.deepEqual(attributesOf(subject()), {id: "subject", role: "button", "aria-selected": "true", "aria-disabled": "true"})
+    assert.deepEqual(attributesOf(subject()), {id: "subject", role: "button", tabindex: "0", "aria-selected": "true", "aria-disabled": "true"})
     view.accessibilityTraits = [traits.selected]
     assert.deepEqual(attributesOf(subject()), {id: "subject", "aria-selected": "true"})
     view.accessibilityTraits = [traits.header, traits.notEnabled]
@@ -206,4 +207,136 @@ test("a re-resolved element gets the traits back when the view is placed again, 
     var element = document.querySelector(".made")
     assert.equal(element.getAttribute("role"), "link")
     assert.equal(element.getAttribute("aria-disabled"), "true")
+})
+
+function press(key) {
+    var event = new window.KeyboardEvent("keydown", {key: key, bubbles: true, cancelable: true})
+    subject().dispatchEvent(event)
+    return event
+}
+
+function settled() {
+    return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function counted(view) {
+    var taps = {count: 0}
+    view.$el.on("click", function() { taps.count += 1 })
+    return taps
+}
+
+test("the button and link traits put an element that is not focusable in the tab order, and leaving them takes it out", function() {
+    var view = viewOn("<div id=\"subject\"></div>")
+    for (var trait of [traits.button, traits.link]) {
+        view.accessibilityTraits = [trait]
+        assert.equal(subject().getAttribute("tabindex"), "0", trait)
+        view.accessibilityTraits = traits.none
+        assert.equal(subject().hasAttribute("tabindex"), false, trait)
+    }
+    view.accessibilityTraits = [traits.header]
+    assert.equal(subject().hasAttribute("tabindex"), false)
+})
+
+test("an element that is already focusable keeps its own tab order", function() {
+    for (var markup of ["<button id=\"subject\"></button>", "<a id=\"subject\" href=\"/x\"></a>", "<div id=\"subject\" tabindex=\"-1\"></div>"]) {
+        var view = viewOn(markup)
+        var before = subject().getAttribute("tabindex")
+        view.accessibilityTraits = [traits.button, traits.link]
+        assert.equal(subject().getAttribute("tabindex"), before, markup)
+        view.accessibilityTraits = traits.none
+        assert.equal(subject().getAttribute("tabindex"), before, markup)
+    }
+})
+
+test("Return taps a view with the button or link trait and Space taps only the button, without scrolling", async function() {
+    var view = viewOn("<div id=\"subject\"></div>")
+    var taps = counted(view)
+    view.accessibilityTraits = [traits.button]
+    press("Enter")
+    assert.equal(press(" ").defaultPrevented, true)
+    await settled()
+    assert.equal(taps.count, 2)
+    view.accessibilityTraits = [traits.link]
+    press("Enter")
+    assert.equal(press(" ").defaultPrevented, false)
+    await settled()
+    assert.equal(taps.count, 3)
+    view.accessibilityTraits = traits.none
+    press("Enter")
+    await settled()
+    assert.equal(taps.count, 3)
+})
+
+test("a key command the page binds to Return takes the key, so the focused view is not tapped, as a native button is not", async function() {
+    var fired = []
+    class Page extends UIViewController {
+        submit() { fired.push("submit") }
+    }
+    IBAction(UIKeyCommand.inputReturn)(Page.prototype, "submit", {})
+    var controller = new Page()
+    Bind.ibAction(controller)
+    try {
+        var view = viewOn("<div id=\"subject\"></div>")
+        var taps = counted(view)
+        view.accessibilityTraits = [traits.button]
+        press("Enter")
+        await settled()
+        assert.deepEqual(fired, ["submit"])
+        assert.equal(taps.count, 0)
+    } finally {
+        controller._dispose()
+    }
+})
+
+test("accessibilityActivate answering true handles the activation, so no tap is sent", async function() {
+    class Activated extends UIView {
+        activations = 0
+        accessibilityActivate() {
+            this.activations += 1
+            return true
+        }
+    }
+    page("<div id=\"subject\"></div>")
+    var view = new Activated("#subject")
+    var taps = counted(view)
+    view.accessibilityTraits = [traits.button]
+    press("Enter")
+    await settled()
+    assert.equal(view.activations, 1)
+    assert.equal(taps.count, 0)
+    assert.equal(new UIView("#subject").accessibilityActivate(), false)
+})
+
+test("a view with the notEnabled trait is not activated from the keyboard", async function() {
+    var view = viewOn("<div id=\"subject\"></div>")
+    var taps = counted(view)
+    view.accessibilityTraits = [traits.button, traits.notEnabled]
+    press("Enter")
+    press(" ")
+    await settled()
+    assert.equal(taps.count, 0)
+})
+
+test("a native button is left to the browser's own keyboard", async function() {
+    var view = viewOn("<button id=\"subject\"></button>")
+    var taps = counted(view)
+    view.accessibilityTraits = [traits.button]
+    press("Enter")
+    await settled()
+    assert.equal(taps.count, 0)
+})
+
+test("Return on a UIButton drawn on a div with the link trait sends its touchUpInside actions, and not while it is disabled", async function() {
+    page("<div id=\"subject\"></div>")
+    var button = new UIButton("#subject")
+    var sent = []
+    button.addTarget(null, {action: function() { sent.push("tapped") }, for: UIControl.Event.touchUpInside})
+    button.accessibilityTraits = [traits.link]
+    press("Enter")
+    await settled()
+    assert.deepEqual(sent, ["tapped"])
+    button.isEnabled = false
+    press("Enter")
+    await settled()
+    assert.deepEqual(sent, ["tapped"])
 })
