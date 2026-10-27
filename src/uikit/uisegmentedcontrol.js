@@ -1,9 +1,14 @@
 import { UIControl } from "./uicontrol.js"
+import { UIControlEvent } from "./uicontrolevent.js"
 import { setText } from "../utils/text.js"
 
 
 // The element's children are the segments; the selected one carries "active".
 export class UISegmentedControl extends UIControl {
+
+    static get _interfaceBuilderEvent() {
+        return UIControlEvent.valueChanged
+    }
 
     static get noSegment() {
         return -1

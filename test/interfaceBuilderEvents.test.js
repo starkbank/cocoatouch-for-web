@@ -1,7 +1,7 @@
 import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { IBAction, IBOutlet, UIView, UIControl, UIButton, UISwitch, UITextField, UIDatePicker, UIColorWell, UIControlEvent } from "../src/index.js"
+import { IBAction, IBOutlet, UIView, UIControl, UIButton, UISwitch, UITextField, UIDatePicker, UIColorWell, UISegmentedControl, UIControlEvent } from "../src/index.js"
 
 
 // A view placed with addSubview whose nib is `nib` and whose one action,
@@ -56,6 +56,14 @@ test("an action dragged from a date picker or a color well runs on Value Changed
         delete $.fn.datepicker
     }
     assert.equal(UIColorWell._interfaceBuilderEvent, UIControlEvent.valueChanged)
+})
+
+test("an action dragged from a segmented control runs on Value Changed, and a tap on a segment is not one", function() {
+    var card = place({nib: "<div id=\"card\"><div id=\"tabs\"><a id=\"one\">One</a><a id=\"two\">Two</a></div></div>", selector: "#tabs", cls: UISegmentedControl, outlet: true})
+    document.getElementById("two").click()
+    assert.equal(card.calls.length, 0)
+    card.control.sendActions({for: UIControlEvent.valueChanged})
+    assert.deepEqual(card.calls, [[card.control]])
 })
 
 test("an action dragged from a button or a plain control runs on Touch Up Inside, and cancels the click", function() {
