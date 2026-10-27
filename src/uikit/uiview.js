@@ -10,7 +10,15 @@ import { keyWindowKey } from "../utils/documentkeys.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
 import { accessibilityStateOf, drawAccessibility, expandedStatusType, traitsType } from "./uiaccessibility.js"
-import { required, typed, optional, StringType, Int } from "../utils/required.js"
+import { tintSourceOf, propagateTint, inheritTint } from "../utils/tint.js"
+import { required, typed, optional, instance, StringType, Int } from "../utils/required.js"
+
+
+const colorType = optional(instance(UIColor, "UIColor"))
+
+// What a view with no tint on its chain reads: the page's design token, which
+// the stylesheet already draws icons with, so reading it writes nothing.
+const rootTintColor = new UIColor({named: "action-or-selection-color"})
 
 
 export class UIView extends UIResponder {
@@ -339,16 +347,33 @@ export class UIView extends UIResponder {
         setTimeout(() => $el.css("transition", ""), _animation.duration + _animation.delay)
     }
 
-    // The accent for selection and emphasis; defaults to the page's design token.
+    // The accent of the view and of every view below it that sets none of its
+    // own, as Apple's. A template image is drawn in it only once some view on
+    // its chain has set one: see utils/tint.js. Nil takes the view's own tint
+    // away, and it inherits again.
+    /** @param {UIColor|null} color */
     set tintColor(color) {
+        typed(color, "tintColor", colorType, "UIView.tintColor", "Apple's is var tintColor: UIColor!; write view.tintColor = new UIColor({named: \"action-or-selection-color\"}), or null to inherit the superview's.")
         this._tintColor = color
+        propagateTint(this)
     }
 
+    /** @returns {UIColor} */
     get tintColor() {
-        if (this._tintColor) { return this._tintColor }
-        var element = this.$el[0]
-        var token = element ? getComputedStyle(element).getPropertyValue("--action-or-selection-color").trim() : ""
-        return {hex: token || "#0070E0"}
+        var source = tintSourceOf(this)
+        return source === null ? rootTintColor : source._tintColor
+    }
+
+    // Sent to the view and to each subview that inherits its tint, after the
+    // tint changed. A subclass redraws what it draws with the tint here.
+    tintColorDidChange() {
+
+    }
+
+    // The elements this view draws as template images, which the tint paints.
+    // Only an image is one; a container or a label never is.
+    _templateImages() {
+        return []
     }
 
     // Each recognizer listens under its own namespace, so adding one never
@@ -579,6 +604,7 @@ export class UIView extends UIResponder {
         view._superview = this
         view.next = this
         this.subviews.push(view)
+        inheritTint(view)
     }
 
     _dispose() {
