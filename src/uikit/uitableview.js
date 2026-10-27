@@ -6,8 +6,9 @@ import { Bind } from "../utils/bind.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
+import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
-import { required, enumeration, optional, Bool, Int, IndexPathType } from "../utils/required.js"
+import { required, enumeration, optional, arrayOf, Bool, Int, IndexPathType } from "../utils/required.js"
 
 
 const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
@@ -21,6 +22,10 @@ export class UITableView extends UIScrollView {
 
     static get ScrollPosition() {
         return UITableViewScrollPosition
+    }
+
+    static get RowAnimation() {
+        return UITableViewRowAnimation
     }
 
     constructor(selector) {
@@ -167,6 +172,93 @@ export class UITableView extends UIScrollView {
         this._bindRows()
     }
 
+    // insertRows(at:with:): the data source already counts the new rows. The
+    // rows already drawn keep their elements and cells and move down past the
+    // new ones, the data source is asked for the new rows alone, and each run
+    // of consecutive new rows is built off the page and put in with one write,
+    // so a page of appended rows costs one insertion. The animation is
+    // recorded and not drawn.
+    /**
+     * @param {object} options
+     * @param {IndexPath[]} options.at
+     * @param {"fade"|"right"|"left"|"top"|"bottom"|"none"|"middle"|"automatic"} options.with
+     */
+    insertRows({at, with: animation} = {}) {
+        var signature = "Apple's is insertRows(at:with:); write insertRows({at: [indexPath], with: UITableView.RowAnimation.none})."
+        required(at, "at", indexPathsType, "UITableView.insertRows", signature)
+        required(animation, "with", rowAnimationType, "UITableView.insertRows", signature)
+        if (this._dataSource === null || at.length === 0) { return }
+        var inserted = Array.from(new Set(at.map(_row))).sort(function(a, b) { return a - b })
+        var cells = this._cells.slice()
+        for (var row of inserted) { cells.splice(row, 0, null) }
+        this._renumberRows(cells)
+        this._selectedRows = this._selectedRows.map(function(selected) { return cells.indexOf(this._cells[selected]) }, this)
+        this._cells = cells
+        for (var run of _runs(inserted)) { this._insertRun(run) }
+        this._bindRows()
+    }
+
+    // reconfigureRows(at:): the data source is asked for those rows again and
+    // a cell dequeued for one of them is the cell already there, handed back
+    // without prepareForReuse(), as Apple's reconfigure does.
+    /**
+     * @param {object} options
+     * @param {IndexPath[]} options.at
+     */
+    reconfigureRows({at} = {}) {
+        required(at, "at", indexPathsType, "UITableView.reconfigureRows", "Apple's is reconfigureRows(at:); write reconfigureRows({at: [indexPath]}).")
+        if (this._dataSource === null) { return }
+        for (var indexPath of at) {
+            var row = _row(indexPath)
+            var existing = this._cells[row]
+            if (!existing) { continue }
+            this._reusableCells = []
+            this._reusableCells[row] = existing
+            this._reconfiguring = true
+            try {
+                this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row: row}))
+            } finally {
+                this._reconfiguring = false
+            }
+            if (this._cells[row] !== existing) { existing._dispose() }
+            this._reusableCells = []
+        }
+        this._bindRows()
+    }
+
+    // The drawn rows take the ids of their new positions, highest first, so no
+    // two rows ever share an id while they move.
+    _renumberRows(cells) {
+        for (var row = cells.length - 1; row >= 0; row--) {
+            var cell = cells[row]
+            if (!cell) { continue }
+            cell.$el.first().attr("id", "cell-" + row)
+            cell.selector = this.selector + " #cell-" + row
+        }
+    }
+
+    // A run of consecutive new rows: each is dequeued into a detached holder,
+    // bound and awoken there, then the run goes in before the row that follows
+    // it, or at the end, in one write.
+    _insertRun(rows) {
+        var holder = $("<tbody></tbody>")
+        this._insertionHolder = holder
+        try {
+            for (var row of rows) {
+                this._cells[row] = this._dataSource.tableViewCellForRowAtIndexPath(this, new IndexPath({row: row}))
+            }
+        } finally {
+            this._insertionHolder = null
+        }
+        var next = this._cells[rows[rows.length - 1] + 1]
+        var elements = holder.children()
+        if (next) {
+            next.$el.first().before(elements)
+            return
+        }
+        this._body().append(elements)
+    }
+
     // Hands back the cell already bound to that row for the identifier, after
     // prepareForReuse(); otherwise reuses the row element when it exists,
     // creates it from the registered cell's nib when not, and binds the cell
@@ -183,19 +275,20 @@ export class UITableView extends UIScrollView {
         var reusable = this._reusableCells[row]
         if (reusable && reusable.reuseIdentifier === withIdentifier && reusable.constructor === cellClass) {
             this._reusableCells[row] = null
-            reusable.prepareForReuse()
-            this._link(reusable)
+            if (!this._reconfiguring) { reusable.prepareForReuse() }
+            if (this.subviews.indexOf(reusable) === -1) { this._link(reusable) }
             return reusable
         }
         var id = "cell-" + row
-        var element = this._body().find("> #" + id)
+        var holder = this._insertionHolder
+        var element = holder ? $() : this._body().find("> #" + id)
         if (reusable && reusable.constructor.nib !== cellClass.nib) {
             element = this._replaceRow(reusable, {cellClass, id, row})
         }
         if (element.length === 0) {
             element = $(cellClass.nib || "<tr></tr>").first()
             element.attr("id", id)
-            this._body().append(element)
+            ;(holder || this._body()).append(element)
         }
         var cell = Bind.construct(cellClass, this.selector + " #" + id, element, indexPath)
         cell.reuseIdentifier = withIdentifier
@@ -376,6 +469,19 @@ function _row(indexPath) {
 // A row is an IndexPath or, as the framework has always accepted, a bare row number.
 const rowType = Object.freeze({kind: "row", name: "IndexPath"})
 const scrollPositionType = enumeration(UITableViewScrollPosition, "UITableView.ScrollPosition")
+const rowAnimationType = enumeration(UITableViewRowAnimation, "UITableView.RowAnimation")
+const indexPathsType = arrayOf(IndexPathType)
+
+// The sorted rows as runs of consecutive rows: [2, 3, 7] is [[2, 3], [7]].
+function _runs(rows) {
+    var runs = []
+    for (var row of rows) {
+        var last = runs[runs.length - 1]
+        if (last && last[last.length - 1] === row - 1) { last.push(row); continue }
+        runs.push([row])
+    }
+    return runs
+}
 
 var _blocks = {top: "start", middle: "center", bottom: "end"}
 
