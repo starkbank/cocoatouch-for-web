@@ -44,6 +44,7 @@ import { UINavigationBar } from "./uinavigationbar.js"
 import { UINavigationItem } from "./uinavigationitem.js"
 import { UIPasteboard } from "./uipasteboard.js"
 import { UIApplication } from "./uiapplication.js"
+import { UIWindow } from "./uiwindow.js"
 import { UIToolTipInteraction } from "./uitooltipinteraction.js"
 import { UIDocumentPickerViewController } from "./uidocumentpickerviewcontroller.js"
 import { UIDropInteraction } from "./uidropinteraction.js"
@@ -106,6 +107,7 @@ export {
      UINavigationItem,
      UIPasteboard,
      UIApplication,
+     UIWindow,
      UIToolTipInteraction,
     UIDocumentPickerViewController,
     UIDropInteraction,

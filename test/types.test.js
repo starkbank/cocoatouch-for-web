@@ -101,7 +101,7 @@ test("every labelled member names its labels and marks optionality", function() 
         ["UIPickerView", "numberOfRows", ["inComponent"], []], ["UIPickerView", "selectRow", ["inComponent", "animated"], []], ["UIPickerView", "selectedRow", ["inComponent"], []],
         ["UITableView", "setEditing", ["animated"], []], ["UITableView", "numberOfRows", ["inSection"], []], ["UITableView", "selectRow", ["at", "animated", "scrollPosition"], []], ["UITableView", "deselectRow", ["at", "animated"], []],
         ["UIDatePicker", "setDate", ["animated"], []], ["UIScrollView", "setContentOffset", ["animated"], []], ["UIProgressView", "setProgress", ["animated"], []], ["UISwitch", "setOn", ["animated"], []],
-        ["UIView", "insertSubview", ["at"], []], ["UIColor", "resolvedColor", ["with"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
+        ["UIView", "insertSubview", [], ["at", "belowSubview"]], ["UIColor", "resolvedColor", ["with"], []], ["UISearchTextField", "insertToken", ["at"], []], ["UICollectionView", "register", ["forCellWithReuseIdentifier"], []],
         ["UIApplication", "open", [], ["options", "completionHandler"]], ["PDFDocument", "page", ["at"], []], ["PDFDocument", "index", ["for"], []], ["PDFView", "go", ["to"], []], ["PDFView", "setCurrentSelection", ["animate"], []],
     ]
     var all = declarations()

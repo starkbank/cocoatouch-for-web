@@ -1,6 +1,7 @@
 import { UIResponder } from "./uiresponder.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { resolvedNavigableURL } from "../utils/navigableurl.js"
+import { keyWindow } from "../utils/keywindow.js"
 import { typed, optional, URLType, FunctionType } from "../utils/required.js"
 
 
@@ -49,6 +50,13 @@ export class UIApplication extends UIResponder {
         _shared = new UIApplication()
         _observeVisibility(_shared)
         return _shared
+    }
+
+    // The page's one window, which holds the root controller's view. Apple
+    // deprecates keyWindow for scenes, which a page does not have.
+    /** @returns {import("./uiwindow.js").UIWindow} */
+    get keyWindow() {
+        return keyWindow()
     }
 
     // Read-only, as Apple's: only the page's visibility moves it.

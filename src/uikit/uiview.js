@@ -5,10 +5,11 @@ import { CGAffineTransform } from "../coregraphics/cgaffinetransform.js"
 import { CGRect } from "../coregraphics/cgrect.js"
 import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
+import { keyWindow } from "../utils/keywindow.js"
 import { NSUserActivity, NSUserActivityTypeBrowsingWeb } from "../foundation/nsuseractivity.js"
 import { currentTraitCollection } from "./uitraitcollection.js"
 import { accessibilityStateOf, drawAccessibility, expandedStatusType, traitsType } from "./uiaccessibility.js"
-import { required, typed, optional, StringType, Int } from "../utils/required.js"
+import { required, typed, optional, instance, StringType, Int } from "../utils/required.js"
 
 
 export class UIView extends UIResponder {
@@ -196,6 +197,14 @@ export class UIView extends UIResponder {
 
     get superview() {
         return this._superview || null
+    }
+
+    // The page's window while the view's element is in the page, and nil
+    // once it has left it or before it joins.
+    get window() {
+        var element = this.$el[0]
+        if (!element || element.isConnected !== true) { return null }
+        return keyWindow()
     }
 
     get subviews() {
@@ -395,13 +404,27 @@ export class UIView extends UIResponder {
         this._attach(view, {})
     }
 
+    // insertSubview(_:at:) and insertSubview(_:belowSubview:), Apple's two
+    // overloads, one label each: exactly one of them is given. belowSubview
+    // places the view's element right before the sibling's, the order a page
+    // stacks siblings in, so the view is drawn below it.
     /**
      * @param {UIView} view
      * @param {object} options
-     * @param {number} options.at
+     * @param {number} [options.at]
+     * @param {UIView} [options.belowSubview]
      */
-    insertSubview(view, {at} = {}) {
-        required(at, "at", Int, "UIView.insertSubview", "Apple's is insertSubview(_:at:); write insertSubview(view, {at: index}).")
+    insertSubview(view, {at, belowSubview} = {}) {
+        var signature = "Apple's are insertSubview(_:at:) and insertSubview(_:belowSubview:); write insertSubview(view, {at: index}) or insertSubview(view, {belowSubview: sibling})."
+        if (at !== undefined && belowSubview !== undefined) {
+            throw new TypeError(`UIView.insertSubview takes at or belowSubview, not both: ${signature}`)
+        }
+        if (belowSubview !== undefined) {
+            required(belowSubview, "belowSubview", viewType, "UIView.insertSubview", signature)
+            this._attach(view, {below: belowSubview})
+            return
+        }
+        required(at, "at", Int, "UIView.insertSubview", signature)
         this._attach(view, {at})
     }
 
@@ -410,14 +433,17 @@ export class UIView extends UIResponder {
     // hook's trigger but not their interleaving. awakeFromNib follows the
     // insertion, unlike UIKit, so a body may measure or style the element;
     // layoutSubviews comes last, once there is an element to lay out.
-    _attach(view, {at}) {
+    _attach(view, {at, below}) {
         view.willMove({toSuperview: this})
         var $viewEl = _elementFor(view, this)
         var siblings = this.$el.children()
-        if (at !== undefined && at < siblings.length) {
+        if (below) {
+            below.$el.first().before($viewEl)
+        }
+        if (!below && at !== undefined && at < siblings.length) {
             siblings.eq(at).before($viewEl)
         }
-        if (at === undefined || at >= siblings.length) {
+        if (!below && (at === undefined || at >= siblings.length)) {
             this.$el.append($viewEl)
         }
         view._$el = $viewEl
@@ -547,6 +573,9 @@ export class UIView extends UIResponder {
     }
 
 }
+
+
+const viewType = instance(UIView, "UIView")
 
 
 // What a browser draws an element as when no stylesheet says otherwise.

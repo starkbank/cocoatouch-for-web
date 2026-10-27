@@ -284,6 +284,10 @@ export class UIViewController extends UIResponder {
 // it first, so nothing it observes on window or document survives the swap.
 var _rootViewController = null
 
+export function rootViewController() {
+    return _rootViewController
+}
+
 // A window resize is a size transition for the root controller and its
 // children, and then a layout pass over their view trees, outlets included.
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
