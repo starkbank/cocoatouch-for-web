@@ -75,6 +75,7 @@ export class UITableView extends UIScrollView {
         this._frame = null
         this._topSpacer = null
         this._bottomSpacer = null
+        this._insertion = null
     }
 
     set isHidden(bool) {
@@ -349,7 +350,7 @@ export class UITableView extends UIScrollView {
         if (element.length === 0) {
             element = $(cellClass.nib || "<tr></tr>").first()
             element.attr("id", id)
-            this._body().append(element)
+            if (this._insertion) { this._insertion.appendChild(element[0]) } else { this._body().append(element) }
         }
         var cell = Bind.construct(cellClass, this.selector + " #" + id, element, indexPath)
         cell.reuseIdentifier = withIdentifier
@@ -674,11 +675,11 @@ export class UITableView extends UIScrollView {
         return null
     }
 
-    // Place first, so the app's prepareForReuse runs on a connected row of the table; renumber through the cell's own element; link;
-    // then prepare. Where the row sits among the others is settled when the pass ends.
+    // The cell is configured where it waits, in the queue's tbody, which is in the document, so the app's prepareForReuse runs on a
+    // connected row; renumber through the cell's own element; link; then prepare. It joins the rows when the pass ends, together with
+    // the rest of its run, so the rows tbody is written once per run and not once per cell.
     _reuseQueued(cell, {row, indexPath}) {
         var element = cell._$el[0]
-        this._body()[0].appendChild(element)
         this._renumber(cell, element.id, "cell-" + row)
         cell._indexPath = indexPath
         this._link(cell)
@@ -853,17 +854,23 @@ export class UITableView extends UIScrollView {
             this._retire(cell, row)
         }
         var next = []
-        for (var row = range.a; row < range.b; row++) {
-            if (rendered.has(row)) {
-                next.push(rendered.get(row))
-                continue
+        // A row that has no element yet is built into a fragment, and _arrange moves each run of new rows into the page with one write.
+        this._insertion = typeof document.createDocumentFragment === "function" ? document.createDocumentFragment() : null
+        try {
+            for (var row = range.a; row < range.b; row++) {
+                if (rendered.has(row)) {
+                    next.push(rendered.get(row))
+                    continue
+                }
+                var indexPath = new IndexPath({row})
+                var cell = this._dataSource.tableViewCellForRowAtIndexPath(this, indexPath)
+                this._bindCreated()
+                this._drawSelection(cell, row)
+                this._delegateCall("tableViewWillDisplayCellForRowAtIndexPath", cell, indexPath)
+                next.push(cell)
             }
-            var indexPath = new IndexPath({row})
-            var cell = this._dataSource.tableViewCellForRowAtIndexPath(this, indexPath)
-            this._bindCreated()
-            this._drawSelection(cell, row)
-            this._delegateCall("tableViewWillDisplayCellForRowAtIndexPath", cell, indexPath)
-            next.push(cell)
+        } finally {
+            this._insertion = null
         }
         this._finishReload()
         this._first = range.a
@@ -908,15 +915,32 @@ export class UITableView extends UIScrollView {
             }
         }
         var cursor = body.firstElementChild
+        var run = []
         for (var node of desired) {
-            if (node === cursor) {
-                cursor = cursor.nextElementSibling
+            if (node !== cursor) {
+                run.push(node)
                 continue
             }
-            body.insertBefore(node, cursor)
-            changed = true
+            if (run.length > 0) { this._insertRun(body, run, cursor) }
+            changed = changed || run.length > 0
+            run = []
+            cursor = cursor.nextElementSibling
         }
+        if (run.length > 0) { this._insertRun(body, run, cursor) }
+        changed = changed || run.length > 0
         return this._sizeSpacers(top, bottom) || changed
+    }
+
+    // The nodes of one run go in front of `anchor` in one write, so the observers of the page see one record per run. A document
+    // without createDocumentFragment, the lifecycle tests' stand-in, takes them one by one.
+    _insertRun(body, nodes, anchor) {
+        if (nodes.length === 1 || typeof document.createDocumentFragment !== "function") {
+            for (var node of nodes) { body.insertBefore(node, anchor) }
+            return
+        }
+        var fragment = document.createDocumentFragment()
+        for (var member of nodes) { fragment.appendChild(member) }
+        body.insertBefore(fragment, anchor)
     }
 
     _sizeSpacers(top, bottom) {

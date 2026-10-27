@@ -166,7 +166,7 @@ test("10. a queue holds at most the largest window, and the cell that would exce
     })
 })
 
-test("10b. reading the outlet of a queued cell changes its own node and leaves the row that took its id alone, and dequeue places, renumbers, then prepares", function() {
+test("10b. reading the outlet of a queued cell changes its own node and leaves the row that took its id alone, and dequeue renumbers where the cell waits, then prepares", function() {
     var order = []
     class Spy extends Row {
         prepareForReuse() {
@@ -202,7 +202,9 @@ test("10b. reading the outlet of a queued cell changes its own node and leaves t
         model.count = 10
         table.reloadData()
         assert.ok(order.length > 0)
-        assert.ok(order.every((entry) => /^cell-\d+$/.test(entry.id) && entry.parent && entry.connected), JSON.stringify(order))
+        assert.ok(order.every((entry) => /^cell-\d+$/.test(entry.id) && entry.connected), JSON.stringify(order))
+        assert.ok(order.filter((entry) => Number(entry.id.slice(5)) < 3).every((entry) => entry.parent), "a cell handed back to its row is in the rows")
+        assert.ok(order.filter((entry) => Number(entry.id.slice(5)) >= 3).every((entry) => !entry.parent), "a cell from the queue is prepared where it waits and joins the rows with its run: " + JSON.stringify(order))
         var reused = table.visibleCells.find((cell) => cell === x)
         assert.ok(reused, "the queued cell served a row again")
         assert.equal(reused.optionsView.$el[0].style.display, "none", "prepareForReuse hid the outlet on the cell's own node")
@@ -331,7 +333,8 @@ test("a reload never has two rows with one id: the row's previous cell of anothe
         }
         counters.constructed = 0
         table.reloadData()
-        assert.deepEqual(seen, [0, 1, 2, 3].map((row) => [row, 1]))
+        assert.deepEqual(seen, [[0, 1], [1, 1], [2, 0], [3, 0]], "a cell taken from the queue is renumbered in the page; a new row is built beside it and joins when the pass ends")
+        for (var row of [0, 1, 2, 3]) { assert.equal(document.querySelectorAll("tr[id=\"cell-" + row + "\"]").length, 1, "row " + row + " is in the page once") }
         assert.equal(table.cellForRow({at: 0}).constructor, Row)
         assert.equal(table.cellForRow({at: 3}).constructor, Other)
         assert.equal(counters.constructed, 0, "rows 0 and 1 took the queued Row cells; the Other cells were handed back or are plain")
