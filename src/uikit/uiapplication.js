@@ -14,12 +14,13 @@ const State = Object.freeze({active: 0, inactive: 1, background: 2})
 // app's life: a hidden page is `.background` and posts
 // didEnterBackgroundNotification; becoming visible again posts
 // willEnterForegroundNotification while the state is still `.inactive`, then
-// the state is `.active`, as on Apple, where the app is not yet active while
-// that notification is delivered. A browser has no inactive phase of its own,
-// so `.inactive` exists only during that post. A page that loads hidden starts
-// in `.background`. One visibilitychange listener on the document does it, made
-// the first time `shared` is read and kept for the page's life, as the app's
-// is. didBecomeActive, willResignActive, didFinishLaunching, UIScene and the
+// the state is `.active` and didBecomeActiveNotification follows, in Apple's
+// order, where the app is not yet active while the first is delivered. A
+// browser has no inactive phase of its own, so `.inactive` exists only during
+// that post. A page that loads hidden starts in `.background`. One
+// visibilitychange listener on the document does it, made the first time
+// `shared` is read and kept for the page's life, as the app's is. The launch's
+// didBecomeActive, willResignActive, didFinishLaunching, UIScene and the
 // application delegate's callbacks are not published: nothing the page can
 // observe says when they would happen, and a notification posted without that
 // would be a lie.
@@ -37,6 +38,10 @@ export class UIApplication extends UIResponder {
 
     static get willEnterForegroundNotification() {
         return "UIApplicationWillEnterForegroundNotification"
+    }
+
+    static get didBecomeActiveNotification() {
+        return "UIApplicationDidBecomeActiveNotification"
     }
 
     static get shared() {
@@ -104,4 +109,5 @@ function _visibilityChanged(application) {
     application._applicationState = State.inactive
     NotificationCenter.default.post({name: UIApplication.willEnterForegroundNotification, object: application})
     application._applicationState = State.active
+    NotificationCenter.default.post({name: UIApplication.didBecomeActiveNotification, object: application})
 }

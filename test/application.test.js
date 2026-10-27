@@ -152,6 +152,23 @@ test("the notification names are Apple's raw strings", async function() {
     var Application = await freshApplication("visible")
     assert.equal(Application.didEnterBackgroundNotification, "UIApplicationDidEnterBackgroundNotification")
     assert.equal(Application.willEnterForegroundNotification, "UIApplicationWillEnterForegroundNotification")
+    assert.equal(Application.didBecomeActiveNotification, "UIApplicationDidBecomeActiveNotification")
+})
+
+test("showing the page posts didBecomeActive after willEnterForeground, with the application already active", async function() {
+    var Application = await freshApplication("visible")
+    var app = Application.shared
+    setVisibility("hidden")
+    var order = []
+    var foreground = observing(Application, Application.willEnterForegroundNotification, () => order.push(["willEnterForeground", app.applicationState]))
+    var active = observing(Application, Application.didBecomeActiveNotification, () => order.push(["didBecomeActive", app.applicationState]))
+    setVisibility("visible")
+    setVisibility("visible")
+    assert.deepEqual(order, [["willEnterForeground", Application.State.inactive], ["didBecomeActive", Application.State.active]])
+    assert.equal(active[0].object, app)
+    assert.equal(active[0].userInfo, null)
+    foreground.stop()
+    active.stop()
 })
 
 test("hiding the page posts didEnterBackground once, from the shared application, which is already in the background", async function() {
@@ -225,7 +242,7 @@ test("the state follows a full hide and show cycle more than once", async functi
     var app = Application.shared
     var names = []
     var observer = {}
-    for (var name of [Application.didEnterBackgroundNotification, Application.willEnterForegroundNotification]) {
+    for (var name of [Application.didEnterBackgroundNotification, Application.willEnterForegroundNotification, Application.didBecomeActiveNotification]) {
         NotificationCenter.default.addObserver(observer, {name, object: app, selector: (notification) => names.push(notification.name.replace("UIApplication", "").replace("Notification", ""))})
     }
     for (var round = 0; round < 3; round++) {
@@ -233,6 +250,6 @@ test("the state follows a full hide and show cycle more than once", async functi
         setVisibility("visible")
     }
     NotificationCenter.default.removeObserver(observer)
-    assert.deepEqual(names, ["DidEnterBackground", "WillEnterForeground", "DidEnterBackground", "WillEnterForeground", "DidEnterBackground", "WillEnterForeground"])
+    assert.deepEqual(names, ["DidEnterBackground", "WillEnterForeground", "DidBecomeActive", "DidEnterBackground", "WillEnterForeground", "DidBecomeActive", "DidEnterBackground", "WillEnterForeground", "DidBecomeActive"])
     assert.equal(app.applicationState, Application.State.active)
 })
