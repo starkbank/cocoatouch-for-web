@@ -60,14 +60,16 @@ test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
     assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
-test("addTarget calls the action with the target and the control", function() {
+// Swift's `@objc func tapped(_ sender:)`: the action runs on its target with
+// the control as its one argument.
+test("addTarget runs the action on the target with the control as its only argument", function() {
     var button = new UIButton("#b")
     var seen = null
     var target = {}
-    button.addTarget(target, {action: function(t, control) { seen = {t: t, control: control} }, for: UIControlEvent.touchUpInside})
+    button.addTarget(target, {action: function(...args) { seen = {self: this, args: args} }, for: UIControlEvent.touchUpInside})
     button.sendActions({for: UIControlEvent.touchUpInside})
-    assert.equal(seen.t, target)
-    assert.equal(seen.control, button)
+    assert.equal(seen.self, target)
+    assert.deepEqual(seen.args, [button])
 })
 
 test("a tap gesture recognizer runs its action on the target with itself as argument", function() {
@@ -356,12 +358,12 @@ test("UIDatePicker.addTarget runs the action on the target with the picker as th
         var picker = new UIDatePicker("#when")
         var seen = []
         var target = {name: "form"}
-        var action = function(t, sender) { seen.push({self: this, t: t, sender: sender}) }
+        var action = function(...args) { seen.push({self: this, args: args, sender: args[0]}) }
         picker.addTarget(target, {action: action, for: UIControlEvent.valueChanged})
         options.onSelect("01/02/2026")
         assert.equal(seen.length, 1)
         assert.equal(seen[0].self, target)
-        assert.equal(seen[0].t, target)
+        assert.equal(seen[0].args.length, 1)
         assert.equal(seen[0].sender, picker)
         picker.removeTarget(target, {action: action, for: UIControlEvent.valueChanged})
         options.onSelect("01/03/2026")

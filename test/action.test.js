@@ -13,10 +13,10 @@ test("two targets added to one control both fire, in order, and each action runs
     var button = new UIButton("#send")
     var log = []
     var first = {name: "first"}, second = {name: "second"}
-    button.addTarget(first, {action: function(target, control) { log.push([this.name, target.name, control]) }, for: UIControlEvent.touchUpInside})
+    button.addTarget(first, {action: function(...args) { log.push([this.name, ...args]) }, for: UIControlEvent.touchUpInside})
     button.addTarget(second, {action: function() { log.push([this.name]) }, for: UIControlEvent.touchUpInside})
     button.sendActions({for: UIControlEvent.touchUpInside})
-    assert.deepEqual(log, [["first", "first", button], ["second"]])
+    assert.deepEqual(log, [["first", button], ["second"]])
 })
 
 test("removeTarget with an action removes that pair only; without one it removes all of the target's for the event", function() {

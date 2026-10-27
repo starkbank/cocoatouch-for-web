@@ -2,16 +2,7 @@ import { UIView } from "./uiview.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIControlState } from "./uicontrolstate.js"
 import { required, enumeration, optional, FunctionType } from "../utils/required.js"
-
-
-const events = {
-    [UIControlEvent.valueChanged]: "change",
-    [UIControlEvent.touchUpInside]: "click",
-    [UIControlEvent.editingChanged]: "input",
-    [UIControlEvent.editingDidBegin]: "focus",
-    [UIControlEvent.editingDidEnd]: "blur",
-    [UIControlEvent.touchDown]: "mousedown",
-}
+import { controlEventNames as events } from "../utils/controlevents.js"
 
 
 var _pairCount = 0
@@ -27,6 +18,13 @@ export class UIControl extends UIView {
 
     static get State() {
         return UIControlState
+    }
+
+    // The event Interface Builder connects an action to when it is dragged
+    // from a control of this class: Touch Up Inside for a button and a plain
+    // control, Value Changed or Editing Did End for the classes that override it.
+    static get _interfaceBuilderEvent() {
+        return UIControlEvent.touchUpInside
     }
 
     // A control is highlighted while the pointer is down on it, as a touch
@@ -112,7 +110,9 @@ export class UIControl extends UIView {
     // namespace, which is also what removeTarget takes off. The event stops
     // at the control, as it did, but other handlers on the same element still
     // run, so stopPropagation rather than stopImmediatePropagation; the
-    // test stand-in's event has only the latter, hence the guard.
+    // test stand-in's event has only the latter, hence the guard. The action
+    // runs on its target with the control as its one argument, Swift's
+    // `@objc func tapped(_ sender:)`.
     /**
      * @param {object} target
      * @param {object} options
@@ -128,7 +128,7 @@ export class UIControl extends UIView {
         pair.handler = (e) => {
             if (e.stopPropagation) { e.stopPropagation() }
             if (!control.isEnabled && !control._isSendingActions) { return }
-            return action.call(target, target, control, e)
+            return action.call(target, control)
         }
         this._targets().push(pair)
         this._bindTarget(pair)

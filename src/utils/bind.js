@@ -6,6 +6,8 @@ import { UIDevice } from "../uikit/uidevice.js"
 import { outletIndexFor, outletElement } from "./outletindex.js"
 import { outletElementClass } from "../uikit/iboutlet.js"
 import { ownElement, ownerOf } from "./elementowner.js"
+import { controlEventNames } from "./controlevents.js"
+import { UIControlEvent } from "../uikit/uicontrolevent.js"
 
 
 export class Bind {
@@ -81,7 +83,10 @@ export class Bind {
     // since a row element outlives the cell bound to it on the previous reload.
     // A matched element without an id is given one, as an outlet is, so the
     // sender's selector resolves again when its node is replaced. A restored
-    // page binds its senders the way ibOutletRestore binds an outlet.
+    // page binds its senders the way ibOutletRestore binds an outlet. The
+    // action listens for the event Interface Builder connects for the sender's
+    // class, Value Changed for a switch, Editing Did End for a text field, Touch
+    // Up Inside for the rest, and runs with the sender as its one argument.
     static ibAction(control, {isRestoring = false} = {}) {
         if (!control) { return }
         var actions = control["ibactions"] || []
@@ -94,32 +99,22 @@ export class Bind {
                 continue
             }
             var unnamed = 0
+            var eventName = controlEventNames[_interfaceBuilderEvent(action.cls)]
             outletElement({selector: action.selector, $parent, index}).each(function() {
                 var $target = $(this)
                 if (!$target.attr("id")) {
                     $target.attr("id", _dashed(control.identifier, action.method) + "-" + (++unnamed))
                 }
-                // Lent the element it was matched on, as an outlet is: the
-                // sender's own selector is a descendant one, which $el would
-                // otherwise answer with a query over the whole document.
-                // A sender is the one creator that is only a second connection to
-                // an element: when a view already owns it, the sender is built to
-                // be handed to the handler and nothing else.
-                var owner = ownerOf($target[0])
-                _rejectNibOverOwnedElement(owner, action)
-                var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
-                sender._$el = $target
-                if (!owner) {
-                    _awakeSender(sender, {isRestoring})
-                }
-                $target.off("click.ibaction").on("click.ibaction", (e) => {
+                var sender = _sender(control, action, $target, {isRestoring})
+                var namespaced = eventName + ".ibaction"
+                $target.off(namespaced).on(namespaced, (e) => {
                     var method = action.method
                     if (!control[method]) { return }
                     // A checkbox or radio toggles itself on a click, and the action
                     // then reads the new state; cancelling the click would undo it.
                     // Anchors and buttons keep the cancel, which is what stops an
                     // app action from navigating or submitting a form.
-                    if (!_togglesItself(e.target)) { e.preventDefault() }
+                    if (eventName === "click" && !_togglesItself(e.target)) { e.preventDefault() }
                     if (_isDisabledControl(sender, $target[0])) { return }
                     control[method](sender)
                 })
@@ -284,6 +279,30 @@ function _appear(responder, {isRestoring}) {
     }
     responder.viewWillAppear(false)
     responder.viewDidAppear(false)
+}
+
+
+// The sender is the view that owns the element, as Apple's sender is the
+// control itself: an outlet and its action hand over one object. An element
+// nobody owns yet gets a sender bound like an outlet, lent the element it was
+// matched on, since its own selector is a descendant one that $el would
+// otherwise answer with a query over the whole document; one owned by a view
+// of another class gets a sender built to be handed to the handler and
+// nothing else.
+function _sender(control, action, $target, {isRestoring}) {
+    var owner = ownerOf($target[0])
+    if (owner && action.cls && owner instanceof action.cls) { return owner }
+    _rejectNibOverOwnedElement(owner, action)
+    var sender = Bind.construct(action.cls, `${control.selector} #${$target.attr("id")}`, $target)
+    sender._$el = $target
+    if (!owner) {
+        _awakeSender(sender, {isRestoring})
+    }
+    return sender
+}
+
+function _interfaceBuilderEvent(cls) {
+    return (cls && cls._interfaceBuilderEvent) || UIControlEvent.touchUpInside
 }
 
 

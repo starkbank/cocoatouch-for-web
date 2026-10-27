@@ -1,4 +1,5 @@
 import { UIControl } from "./uicontrol.js"
+import { UIControlEvent } from "./uicontrolevent.js"
 import { setText, setMarkup } from "../utils/text.js"
 import { NSAttributedString } from "../foundation/nsattributedstring.js"
 import { NSRange } from "../foundation/nsrange.js"
@@ -25,6 +26,10 @@ const retiredPasteDelegateNames = {textPasteConfigurationSupportingTransform: "t
 const utf8Encoder = new TextEncoder()
 
 export class UITextField extends UIControl {
+
+    static get _interfaceBuilderEvent() {
+        return UIControlEvent.editingDidEnd
+    }
 
     get _tagName() {
         if (!this.__tagName) {

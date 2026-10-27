@@ -22,7 +22,7 @@ function pick(value) {
 
 function counting(colorWell) {
     var calls = []
-    colorWell.addTarget({}, {action(target, sender) { calls.push(sender.selectedColor && sender.selectedColor.cgColor) }, for: UIControlEvent.valueChanged})
+    colorWell.addTarget({}, {action(sender) { calls.push(sender.selectedColor && sender.selectedColor.cgColor) }, for: UIControlEvent.valueChanged})
     return calls
 }
 

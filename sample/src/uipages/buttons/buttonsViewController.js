@@ -49,11 +49,11 @@ export class ButtonsViewController extends UIViewController {
 
     // addTarget calls the action as a plain function with the target first,
     // so the controller is read from that argument rather than from `this`.
-    enabledSwitchChanged(target, sender) {
+    enabledSwitchChanged(sender) {
         var isOn = sender.isOn
-        target.targetButton.isEnabled = isOn
-        target.targetButton.setTitle(isOn ? "Tap me" : "Disabled", {for: UIControl.State.normal})
-        target.targetButton.alpha = isOn ? 1 : 0.5
+        this.targetButton.isEnabled = isOn
+        this.targetButton.setTitle(isOn ? "Tap me" : "Disabled", {for: UIControl.State.normal})
+        this.targetButton.alpha = isOn ? 1 : 0.5
     }
 
     setCount(count) {

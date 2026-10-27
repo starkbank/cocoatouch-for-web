@@ -20,6 +20,10 @@ const modes = Object.values(UIDatePickerMode)
 
 export class UIDatePicker extends UIControl {
 
+    static get _interfaceBuilderEvent() {
+        return UIControlEvent.valueChanged
+    }
+
     static get Mode() {
         return UIDatePickerMode
     }

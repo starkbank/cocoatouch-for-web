@@ -119,7 +119,7 @@ test("valueChanged is sent once when the clock closes with a value, changed or n
         picker.datePickerMode = "time"
         var seen = []
         var target = {}
-        picker.addTarget(target, {action: function(t, sender) { seen.push(sender) }, for: UIControlEvent.valueChanged})
+        picker.addTarget(target, {action: function(sender) { seen.push(sender) }, for: UIControlEvent.valueChanged})
         picker.$input.trigger("focus")
         assert.equal(seen.length, 0)
         clocks[0].done("10:30")

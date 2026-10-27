@@ -154,7 +154,7 @@ export class UINavigationController extends UIViewController {
     // The framework's own load step, kept out of viewDidLoad so a subclass can
     // override that hook without having to call super.
     _viewDidLoad() {
-        this.navigationBar.backButton.addTarget(this, {action: (nav) => nav.popViewController({animated: true}), for: UIControlEvent.touchUpInside})
+        this.navigationBar.backButton.addTarget(this, {action: () => this.popViewController({animated: true}), for: UIControlEvent.touchUpInside})
         this.navigationBar.isHidden = this._isNavigationBarHidden
         _replaceDepth(this._entries.length - 1)
         NotificationCenter.default.addObserver(this, {name: "popstate", object: window, selector: (event) => this._historyDidPop(event)})

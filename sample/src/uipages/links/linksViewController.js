@@ -134,6 +134,6 @@ function _browsing(url) {
     return activity
 }
 
-function _linkTapped(target, sender) {
-    target.linkTapped(sender)
+function _linkTapped(sender) {
+    this.linkTapped(sender)
 }

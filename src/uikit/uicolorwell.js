@@ -1,4 +1,5 @@
 import { UIControl } from "./uicontrol.js"
+import { UIControlEvent } from "./uicontrolevent.js"
 import { UIColor } from "./uicolor.js"
 import { UITraitCollection } from "./uitraitcollection.js"
 import { colorComponents, isSixDigitHex, sixDigitHex } from "../utils/colorcomponents.js"
@@ -21,6 +22,10 @@ const blank = "#000000"
 // and setting selectedColor from code sends nothing, as on Apple. A disabled
 // well disables the input and ignores a pick that gets through.
 export class UIColorWell extends UIControl {
+
+    static get _interfaceBuilderEvent() {
+        return UIControlEvent.valueChanged
+    }
 
     init() {
         super.init()

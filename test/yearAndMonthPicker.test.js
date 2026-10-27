@@ -35,7 +35,7 @@ test("in yearAndMonth mode date is the first of the picked month, local, and one
         var picker = new UIDatePicker("#expiry")
         picker.datePickerMode = "yearAndMonth"
         var seen = []
-        picker.addTarget({}, {action: function(target, sender) { seen.push(sender.date) }, for: UIControlEvent.valueChanged})
+        picker.addTarget({}, {action: function(sender) { seen.push(sender.date) }, for: UIControlEvent.valueChanged})
         pickMonth(options, "2026", "5")
         assert.equal(seen.length, 1)
         assert.deepEqual([seen[0].getFullYear(), seen[0].getMonth(), seen[0].getDate(), seen[0].getHours()], [2026, 5, 1, 0])

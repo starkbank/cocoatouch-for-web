@@ -58,12 +58,12 @@ export class TextFieldsViewController extends UIViewController {
     }
 
     // addTarget actions receive (target, sender); see the Buttons page.
-    showPasswordChanged(target, sender) {
-        target.passwordField.isSecureTextEntry = !sender.isOn
+    showPasswordChanged(sender) {
+        this.passwordField.isSecureTextEntry = !sender.isOn
     }
 
-    lockNameChanged(target, sender) {
-        target.nameField.isUserInteractionEnabled = !sender.isOn
+    lockNameChanged(sender) {
+        this.nameField.isUserInteractionEnabled = !sender.isOn
     }
 
     updateForm() {
