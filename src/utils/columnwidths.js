@@ -14,6 +14,9 @@
 const blockSize = 64
 // A width the page cannot have: a measured value above it is a layout that went wrong, never a column.
 const maxWidth = 100000
+// A replayed span is never wider than this, and a cell never has more spans than maxSpans.
+const maxSpanWidth = 10000
+const maxSpans = 1024
 
 export function createColumnWidths() {
     return {
@@ -280,4 +283,31 @@ function _shiftedTo(old, inserted) {
         if (position <= row) { row += 1 }
     }
     return row
+}
+
+// The widths of the spans a spacer's cell holds so that its min-content is `min` and its max-content `max`, both with the cell's own
+// padding and border already taken out: every span is at most `min`, one is exactly `min`, and they add up to `max`, so k = ceil(max /
+// min) of them, the last the remainder. Past maxSpans the spans are ceil(max / maxSpans) wide instead, which raises the min-content
+// to that width `w` (the true min is `minTrue`): that case is reported through `ceiled`. A column with no min-content has no span.
+export function replaySpans(min, max) {
+    var smallest = finiteWidth(min)
+    var widest = Math.max(finiteWidth(max), smallest)
+    if (smallest <= 0) { return {widths: [], k: 0, ceiled: false, w: 0, minTrue: 0} }
+    var k = Math.ceil(widest / smallest)
+    var width = smallest
+    var count = k
+    var ceiled = k > maxSpans
+    if (ceiled) {
+        width = Math.ceil(widest / maxSpans)
+        count = Math.ceil(widest / width)
+    }
+    width = Math.min(width, maxSpanWidth)
+    var widths = []
+    var left = widest
+    for (var i = 0; i < count; i++) {
+        var span = Math.min(width, left)
+        widths.push(span)
+        left -= span
+    }
+    return {widths: widths, k: k, ceiled: ceiled, w: width, minTrue: smallest}
 }

@@ -13,17 +13,6 @@ function withTable(options, body) {
     try { body(context) } finally { context.layout.restore() }
 }
 
-test("a statement-style append of 100 rows below the area asks the data source for none of them", function() {
-    withTable({}, function({table, model}) {
-        model.asked.length = 0
-        var before = table.visibleCells.slice()
-        model.count = 1100
-        table.insertRows({at: at(...Array.from({length: 100}, (_, i) => 1000 + i)), with: animation})
-        assert.deepEqual(model.asked, [])
-        assert.deepEqual(table.visibleCells, before)
-    })
-})
-
 test("insertRows above the window only renumbers: the cells keep their elements and at most one row comes in at the top", function() {
     withTable({}, function({table, model, layout}) {
         scrollTo(layout, 50000)

@@ -25,17 +25,18 @@ test("1. only the rows in the clip and one clip either side exist, and the botto
     })
 })
 
-test("2. cost does not grow with the rows: the same cells serve a full scroll of 1000 or of 10000 rows", function() {
+test("2. cost does not grow with the rows: the cells built stay within a window and the measuring pool for 1000 and for 10000 rows", function() {
     var constructed = []
     for (var count of [1000, 10000]) {
         withTable({count}, function({layout, model}) {
             var settled = counters.constructed
             model.asked.length = 0
+            model.measured.length = 0
             counters.prepared = 0
             for (var y = 0; y < count * 95; y += 450) { scrollTo(layout, y) }
             constructed.push(counters.constructed)
             assert.ok(counters.constructed <= settled + 1, "scrolling built " + (counters.constructed - settled) + " more cells")
-            assert.equal(counters.prepared, model.asked.length - (counters.constructed - settled), "one prepareForReuse per reuse")
+            assert.equal(counters.prepared, model.asked.length + model.measured.length - (counters.constructed - settled), "one prepareForReuse per reuse, for the rows displayed and for the rows measured")
         })
     }
     assert.equal(constructed[0], constructed[1])
@@ -125,43 +126,40 @@ test("10. a reload asks only the area's rows and hands each row its own cell bac
     withTable({}, function({table, model}) {
         var before = table.visibleCells.slice()
         model.asked.length = 0
+        model.measured.length = 0
         counters.prepared = 0
         counters.constructed = 0
         table.reloadData()
         assert.deepEqual(model.asked, renderedRows())
         assert.ok(model.asked.length <= 18)
         assert.deepEqual(table.visibleCells, before.slice(0, model.asked.length))
-        assert.equal(counters.prepared, model.asked.length)
+        assert.equal(counters.prepared, model.asked.length + model.measured.length, "each row displayed or measured is prepared once")
         assert.equal(counters.constructed, 0)
     })
 })
 
-test("10. the queue stays within the largest window after reloads from 1000 rows to 10 and back", function() {
+test("10. the queue stays within the measuring pool after reloads from 1000 rows to 10 and back", function() {
     withTable({}, function({table, model}) {
         var largest = 0
         for (var step = 0; step < 6; step++) {
             model.count = step % 2 === 0 ? 10 : 1000
             table.reloadData()
             largest = Math.max(largest, table.visibleCells.length)
-            assert.ok(document.querySelectorAll("tr[id^=reusable-]").length <= 38)
+            assert.ok(document.querySelectorAll("tr[id^=reusable-]").length <= 100)
         }
         assert.equal(document.querySelectorAll("tr[id^=cell-]").length, table.visibleCells.length)
     })
 })
 
-test("10. a queue holds at most the largest window, and the cell that would exceed it is disposed while still connected", function() {
-    withTable({count: 10, estimatedRowHeight: 95}, function({table, model}) {
-        model.count = 0
-        table.reloadData()
-        model.count = 10
-        table.reloadData()
-        table._maxWindow = 3
+test("10. a queue holds at most the largest window or the measuring pool, and the oldest cell that would exceed it is disposed while still connected", function() {
+    withTable({count: 150, estimatedRowHeight: 95}, function({table, model}) {
+        assert.equal(document.querySelectorAll("tr[id^=reusable-]").length, 100, "the rows measured at the reload fill the pool")
         counters.disposed.length = 0
         model.count = 2
         table.reloadData()
         var queued = document.querySelectorAll("tr[id^=reusable-]").length
-        assert.ok(queued <= 3, "queued " + queued)
-        assert.equal(counters.disposed.length, 8 - queued)
+        assert.equal(queued, 100, "queued " + queued)
+        assert.equal(counters.disposed.length, 16, "the rows 2 to 17 left, and each pushed the oldest waiting cell out")
         assert.ok(counters.disposed.every((entry) => entry.connected))
     })
 })
@@ -229,7 +227,7 @@ test("10c. an empty table has an empty queue: no tbody > tr, no row class, outle
         counters.constructed = 0
         model.count = 300
         table.reloadData()
-        assert.equal(counters.constructed, table.visibleCells.length)
+        assert.equal(counters.constructed, table.visibleCells.length + 100, "one window, and the pool the other rows are measured in")
         assert.deepEqual(renderedRows(), Array.from({length: table.visibleCells.length}, (_, row) => row))
     })
 })

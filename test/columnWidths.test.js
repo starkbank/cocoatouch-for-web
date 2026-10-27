@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { createColumnWidths, finiteWidth, reset, need, noteSignature, record, invalidate, insert, skeleton, otherSignatures, aggregate, pending, pendingCount, settle } from "../src/utils/columnwidths.js"
+import { createColumnWidths, finiteWidth, replaySpans, reset, need, noteSignature, record, invalidate, insert, skeleton, otherSignatures, aggregate, pending, pendingCount, settle } from "../src/utils/columnwidths.js"
 
 
 const sig = "td||1,td||1"
@@ -201,4 +201,30 @@ test("the aggregate is updated in O(columns) by a record and rebuilt only when a
     assert.deepEqual(aggregate(widths, {from: 0, to: 0}).max, [198])
     assert.equal(widths.stats.blockRebuilds, 1)
     assert.equal(widths.stats.fullRebuilds, 0)
+})
+
+test("replaySpans: every span is at most the min, one is exactly the min, and they add up to the max", function() {
+    var plan = replaySpans(40, 900)
+    assert.equal(plan.widths.length, 23)
+    assert.ok(plan.widths.every((width) => width <= 40))
+    assert.ok(plan.widths.includes(40))
+    assert.equal(plan.widths.reduce((total, width) => total + width, 0), 900)
+    assert.equal(plan.k, 23)
+    assert.equal(plan.ceiled, false)
+    assert.deepEqual(replaySpans(0, 50).widths, [])
+    assert.deepEqual(replaySpans(NaN, 50).widths, [])
+    assert.deepEqual(replaySpans(30, 10).widths, [30], "a max under the min is the min")
+})
+
+test("replaySpans past 1024 spans widens them to ceil(max / 1024) and reports it", function() {
+    var plan = replaySpans(1, 9000)
+    assert.equal(plan.k, 9000)
+    assert.equal(plan.ceiled, true)
+    assert.equal(plan.widths.length, 1000)
+    assert.ok(plan.widths.every((width) => width === 9))
+    assert.equal(plan.widths.reduce((total, width) => total + width, 0), 9000)
+    var uneven = replaySpans(1, 9001)
+    assert.ok(uneven.widths.length <= 1024)
+    assert.equal(uneven.widths.reduce((total, width) => total + width, 0), 9001)
+    assert.equal(Math.max(...uneven.widths), 9)
 })

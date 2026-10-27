@@ -28,6 +28,7 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
     var restores = []
     var anchored = null
 
+    var rawComputed = win.getComputedStyle.bind(win)
     var writes = new win.MutationObserver(function() {})
     writes.observe(doc, {subtree: true, childList: true, attributes: true, characterData: true})
 
@@ -117,7 +118,45 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         return {top: tables.get(table).top + sumRows(before), left: 0, width: tables.get(table).width, height: heightOfRow(row)}
     }
 
+    // The horizontal model: what a cell asks of its column comes from its data-min and data-max, or from the inline-block spans a
+    // spacer's replay puts in it (their widths add up to its max-content, the widest is its min-content).
+    function intrinsicOf(cell) {
+        var min = cell.getAttribute("data-min")
+        var max = cell.getAttribute("data-max")
+        if (min !== null || max !== null) { return {min: Number(min || 0), max: Number(max || 0)} }
+        var widths = Array.from(cell.querySelectorAll("span")).map(function(span) { return parseFloat(span.style.width) || 0 })
+        return {min: widths.length ? Math.max.apply(null, widths) : 0, max: widths.reduce(function(sum, width) { return sum + width }, 0)}
+    }
+
+    // The border box is the content plus the cell's own horizontal padding and border, read unlogged from the style the page gives it.
+    // A computed style costs a pass over every rule of the page, so a cell's extras are kept for its tag and class while the page's
+    // style elements are as they were.
+    var extrasCache = new Map()
+
+    function extrasOf(cell) {
+        var epoch = Array.from(doc.querySelectorAll("style")).map(function(style) { return style.textContent.length }).join(",")
+        var key = cell.tagName + "|" + cell.className + "|" + epoch
+        if (extrasCache.has(key)) { return extrasCache.get(key) }
+        var style = rawComputed(cell)
+        var total = 0
+        for (var property of ["padding-left", "padding-right", "border-left-width", "border-right-width"]) { total += parseFloat(style.getPropertyValue(property)) || 0 }
+        extrasCache.set(key, total)
+        return total
+    }
+
+    // A cell sized by a width keyword on an inline-block, as the measuring box does, is as wide as that keyword says.
+    function measuringWidth(cell) {
+        var keyword = cell.style.getPropertyValue("width")
+        if (cell.style.getPropertyValue("display") !== "inline-block") { return null }
+        if (keyword === "max-content") { return intrinsicOf(cell).max + extrasOf(cell) }
+        if (keyword === "min-content") { return intrinsicOf(cell).min + extrasOf(cell) }
+        return null
+    }
+
     function rectOfCell(cell) {
+        // a measured cell is laid out on its own, so its row's place among the others is not needed
+        var measured = measuringWidth(cell)
+        if (measured !== null) { return {top: 0, left: 0, width: measured, height: 0} }
         var row = rectOfRow(cell.parentNode)
         var width = row.width / cell.parentNode.children.length
         return {top: row.top, left: width * Array.from(cell.parentNode.children).indexOf(cell), width: width, height: row.height}
@@ -316,6 +355,23 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
             for (var callback of callbacks) { callback(callbacks.length) }
             deliverResizes()
             return callbacks.length
+        },
+
+        // The width each column of a table has at layout: the widest max-content and min-content of the single-span cells that are
+        // laid out, rendered rows and spacers alike. A pure read of the model, not logged.
+        columnWidths: function(table) {
+            var columns = {min: [], max: []}
+            for (var row of rowsOf(table)) {
+                if (isHidden(row)) { continue }
+                Array.from(row.children).forEach(function(cell, index) {
+                    if (cell.colSpan > 1) { return }
+                    var intrinsic = intrinsicOf(cell)
+                    var extras = extrasOf(cell)
+                    columns.min[index] = Math.max(columns.min[index] || 0, intrinsic.min + extras)
+                    columns.max[index] = Math.max(columns.max[index] || 0, intrinsic.max + extras)
+                })
+            }
+            return columns
         },
 
         readWriteLog: function() {
