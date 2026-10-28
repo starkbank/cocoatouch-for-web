@@ -2,6 +2,7 @@ import "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { IBOutlet, UILabel, UIView, UITableViewCell, UITableViewRowAnimation } from "../src/index.js"
+import { offsetOf, totalHeight } from "../src/utils/rowheights.js"
 import { counters, setup, rowsBody, renderedIds, renderedRows, spacers, scrollTo, at } from "./tableReuseHelpers.js"
 
 
@@ -293,16 +294,15 @@ test("9. a change of innerWidth measures every row again; a width-only report do
     })
 })
 
-test("10. a change of the aggregate keeps the row heights as estimates and schedules exactly one pass", function() {
+test("10. a change of the aggregate drops the row heights and the means, and schedules exactly one pass", function() {
     var data = (row) => row === 500 ? [[10, 900], [20, 40], [0, 15]] : [[10, 30], [20, 40], [0, 15]]
     withTable({count: 600, widthsOf: widths}, function({table, model, layout}) {
         settle(layout)
-        var generation = table._heights.generation
         assert.equal(table._heights.heights[3], 95)
         model.widthsOf = data
         table.reconfigureRows({at: at(500)})
-        assert.equal(table._heights.heights[3], 95, "the heights were kept")
-        assert.ok(table._heights.generation > generation, "as estimates, until the rows are drawn again")
+        assert.ok(Number.isNaN(table._heights.heights[3]), "the heights were reset")
+        assert.equal(table._heights.estimates.size, 0, "and the means measured under the old columns")
         assert.equal(layout.flushFrames(), 1, "one pass")
         assert.equal(layout.flushFrames(), 0)
         assert.equal(layout.columnWidths(tableElement()).max[0], 900)
@@ -391,6 +391,38 @@ test("10. spans that change the columns are not compensated twice under native s
             assert.ok(Math.abs(element.getBoundingClientRect().top - topBefore) < 0.5)
         } finally {
             spy.restore()
+        }
+    })
+})
+
+// The page's own layout changing under rows already measured, as a web font that finishes loading after the first rows were drawn in
+// the fallback font: every row is 197 px until the columns change and 125 px from then on, drawn or not.
+test("10. rows measured before the columns changed are not kept: the table is as tall as its rows, and appended pages move no row", function() {
+    var height = 197
+    withTable({count: 100, heightOf: () => height}, function({table, model, layout}) {
+        scrollTo(layout, 3000)
+        settle(layout)
+        assert.ok(renderedRows()[0] > 5 && table._heights.heights[0] === 197, "rows measured in the old layout have left the window")
+        height = 125
+        for (var element of document.querySelectorAll("tr[id^=cell-]")) { element.setAttribute("data-height", "125") }
+        model.widthsOf = (row) => row === 99 ? [[10, 900], [20, 40], [0, 15]] : widths(row)
+        table.reconfigureRows({at: at(99)})
+        settle(layout)
+        scrollTo(layout, 100 + totalHeight(table._heights) - 900)
+        settle(layout)
+        assert.equal(totalHeight(table._heights), 100 * 125, "page 1 is as tall as its rows")
+        for (var page = 2; page <= 3; page++) {
+            var anchor = renderedRows().find((row) => rectOf(row).bottom > 0)
+            var offsetBefore = offsetOf(table._heights, anchor)
+            var topBefore = rectOf(anchor).top
+            model.count += 100
+            table.reloadData()
+            settle(layout)
+            assert.equal(offsetOf(table._heights, anchor), offsetBefore, "page " + page + ": no row above the anchor moved in the model")
+            assert.ok(renderedRows().includes(anchor) && Math.abs(rectOf(anchor).top - topBefore) < 1, "page " + page + ": the anchor moved from " + topBefore + " to " + rectOf(anchor).top)
+            assert.equal(totalHeight(table._heights), model.count * 125, "page " + page + " is as tall as its rows")
+            scrollTo(layout, 100 + totalHeight(table._heights) - 900)
+            settle(layout)
         }
     })
 })

@@ -1423,7 +1423,8 @@ export class UITableView extends UIScrollView {
     // as wide as the narrowest content, and one pixel tall because a box with no height adds no scrollable overflow; a spacer of
     // less than one pixel is left without, since the span would grow the row. A cell the spacer hides holds no spans. The spans are
     // rewritten only when what they say changes. Spans that move a column can reflow the rendered rows above the anchor, which the next
-    // pass would read as where the user already is, so the anchor is held here, as a pass holds it.
+    // pass would read as where the user already is, so the anchor is held here, as a pass holds it. New columns are a new layout: every row can
+    // have reflowed, the ones not drawn included, so what was measured under the old columns, heights and means, is dropped as a width change drops it.
     _replay() {
         var spacers = [this._topSpacer, this._bottomSpacer].filter((spacer) => spacer && spacer.parentNode)
         if (spacers.length === 0 || this._mode === null) { return }
@@ -1447,7 +1448,7 @@ export class UITableView extends UIScrollView {
         if (!isNewAggregate) { return }
         this._aggregateKey = key
         if (anchor) { this._compensate(anchor, this._read(cells), cells) }
-        keep(this._heights, {count: this._heights.count})
+        reset(this._heights, {count: this._heights.count, keepEstimates: false})
         this._schedule()
     }
 

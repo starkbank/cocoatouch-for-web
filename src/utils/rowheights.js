@@ -123,8 +123,9 @@ export function measure(heights, row, height, identifier) {
     heights.dirtyFrom = 0
 }
 
-// reloadData drops what was measured because the rows are new data, and keeps the estimates so page 2 starts from page 1's cells;
-// a width change drops both because responsive layouts change every height.
+// A change of the layout, the table's width or its columns, drops what was measured and the estimates, because responsive layouts
+// change every height; a new data source, or fewer rows than before (keep's way back to this), drops what was measured and keeps the
+// estimates.
 export function reset(heights, {count, keepEstimates = false}) {
     heights.count = count
     heights.heights = new Array(count).fill(NaN)
