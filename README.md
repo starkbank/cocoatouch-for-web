@@ -53,6 +53,7 @@ The same goes for `import "Foundation"`, `import "CoreGraphics"`, `import "CoreA
 Requirements:
 
 - jQuery 3 available as the global `$` before the bundle runs.
+- For `UIDatePicker` only: jQuery UI 1.13.3, its js and its css, which every mode needs because the picker builds a calendar when it is created, and for `UIDatePicker.Mode.time` the ClockPicker 0.0.7 jQuery plugin's js and css.
 - Babel with `@babel/plugin-proposal-decorators` in `legacy` mode and `@babel/plugin-proposal-class-properties`, for `@IBOutlet` and `@IBAction` in your own classes. The framework itself is plain ES2022, except the PDFKit entry, which imports a `.css` file and writes `new Worker(new URL(...))`.
 - For PDFKit only, besides what §PDF asks of the server and of a stylus rule: webpack 5, for the `new Worker(new URL(...))` worker chunk, and a CSS rule able to handle a `.css` imported from `node_modules` (the sample uses `style-loader` plus `css-loader`).
 - A `<cocoatouch></cocoatouch>` element in the page. Controllers present into it.
@@ -408,7 +409,7 @@ The content types become the input's `accept` (extension and MIME type for each;
 
 ## Breaking changes
 
-1.9.0 brings the controls, drag and drop, files and the application lifecycle to Apple's names and behaviour. A name that was renamed is refused where it is assigned, with a `TypeError` that names the replacement and the version, so a dead hook never goes quiet. The 1.6.0 renames (`pickerViewTitleForRow`, `pickerViewDidSelectRow`, `tableViewCommitEditingStyleForRowAt`, `numberOfItemsInSection`, `collectionViewDidSelectItemAt`) are still refused, quoting 1.6.0.
+1.9.0 brings the controls, drag and drop, files, the application lifecycle and table cell reuse to Apple's names and behaviour. A name that was renamed is refused where it is assigned, with a `TypeError` that names the replacement and the version, so a dead hook never goes quiet. The 1.6.0 renames (`pickerViewTitleForRow`, `pickerViewDidSelectRow`, `tableViewCommitEditingStyleForRowAt`, `numberOfItemsInSection`, `collectionViewDidSelectItemAt`) are still refused, quoting 1.6.0. `UITraitCollection.userInterfaceStyle` with `UIUserInterfaceStyle`, and an explicit control event as a third argument of `@IBAction`, were added and removed again while 1.9.0 was developed, so no published version has them and nothing below replaces them: an action connects to its class's Interface Builder event, and the interface style's route is described under `UITraitCollection.current`.
 
 | Was | Is |
 |---|---|
@@ -434,19 +435,24 @@ The content types become the input's `accept` (extension and MIME type for each;
 | `RunLoop.Mode.default` and `.common` were `"default"` and `"common"` | Apple's raw values `"kCFRunLoopDefaultMode"` and `"kCFRunLoopCommonModes"` |
 | `public.content` conformed to `public.data`, so `UTType.spreadsheet` conformed to `public.data` and `public.item` | `public.content` is a root, as Apple's: `UTType.spreadsheet` is content and no data; the Word and Excel documents name `public.data` themselves, and every picker `accept` is unchanged |
 | `CADisplayLink.duration` was the last measured frame | the smallest of the last 12 frame deltas |
+| `tableView.dequeueReusableCell({withIdentifier})` ran without `for` or with a bare row number, and an identifier nothing was registered for gave a plain `UITableViewCell` over `<tr></tr>` | `withIdentifier` (a `String`) and `for` (an `IndexPath`) are required, and a missing or mistyped one throws a `TypeError` naming `dequeueReusableCell(withIdentifier:for:)`. An identifier never registered names a cell class with a `.xib`, which is dequeued over its nib, and one that names no such class throws UIKit's error, `unable to dequeue a cell with identifier X - must register a nib or a class for the identifier or connect a prototype cell in a storyboard` |
+| `collectionView.dequeueReusableCell({withReuseIdentifier, for})` always answered a plain `UICollectionViewCell`, even for a class passed to `register`, and an identifier never registered gave an empty item | a class registered with `register(cellClass, {forCellWithReuseIdentifier})` is instantiated over the item's element, its outlets bound before `awakeFromNib`, and `reloadData` hands the same cell back after `prepareForReuse()`. Both labels are required (`TypeError`). An identifier registered with neither a class nor a nib names a cell class with a `.xib`, and one that names none throws UIKit's `could not dequeue a view of kind: UICollectionElementKindCell with identifier X - …` |
+| every row of a `UITableView` had a cell and an element: `tableViewCellForRowAtIndexPath` ran once per row on each reload, `cellForRow({at})` answered any row, and find-in-page, print and screen readers saw every row | only the rows in or near the visible area have a cell and an element (Table views, Reuse). `cellForRow({at})` is `null` for the others and `visibleCells` is those cells. The data source is also asked for rows nobody sees, to measure the columns, so `tableViewCellForRowAtIndexPath` must only dequeue and configure. Find-in-page, print and screen readers see only the drawn rows |
 
 Behaviour that now follows Apple, with no name to change:
 
 - A refused drop, a drop whose proposal was `.forbidden` or `.cancel`, and a delegate that gives no proposal (Apple's default is `.cancel`) are swallowed: the browser does not open the file and `performDrop` does not run. A delegate that accepts files answers `.copy` or `.move` from `dropInteractionSessionDidUpdate`.
 - In nested drop views only the innermost accepting interaction performs the drop, once.
 - A text field's paste runs the transform, then asks `textFieldShouldChangeCharactersInRangeReplacementString`, and `false` cancels the insertion.
-- A table delegate receives `scrollViewDidScroll`, and a tap in single selection selects the row, sending `didDeselect` to the previous row and then `didSelect`.
+- A table delegate receives `scrollViewDidScroll`, and a tap in single selection selects the row, sending `didDeselect` to the previous row and then `didSelect`; with `allowsMultipleSelection` a tap toggles the row, and a click on a `UIControl` in a cell runs the control's action and selects no row.
 - `.spreadsheet`, `.archive` and `.folder` in a document picker no longer allow every file.
 - `UIDatePicker.valueChanged` is sent only when the date changed, and not at all while the picker is disabled; changing `datePickerMode` keeps the date.
 - `textField.delegate = null` stops its delegate calls instead of throwing, and the range of a deletion with a caret is what the key removes (the grapheme cluster, word or line), not an empty range at the caret.
 - `UISearchTextField` sends `editingDidBegin` and `editingDidEnd` when its input gains and loses the focus, so its Interface Builder default (`editingDidEnd`) fires; focusing a field that already has the focus, or blurring one that doesn't, sends nothing.
 - A button copied from another's configuration keeps its title, and `title({for})` on a nib button reads its markup's text.
 - A scroll view's delegate set before the view is placed is observed once it is.
+- A disabled `UIControl` runs no action on a click, `element.click()` or the keyboard; `sendActions(for:)` still runs them, as Apple's does.
+- `isHidden = false` over a stylesheet that still hides the element gives it the display its tag has by nature (a `tr` is `table-row`, a `td` `table-cell`, a `li` `list-item`, a `span` `inline`, an `input` `inline-block`, else `block`), where it always wrote `block`.
 
 ## Limits
 
@@ -487,18 +493,20 @@ What this package leaves out or does differently on purpose, in one place (each 
 
 | Foundation | UIKit | Other |
 |---|---|---|
-| NSObject | UIResponder, UIView, UIViewController | CALayer, CAGradientLayer, CAEmitterLayer, CAEmitterCell, CMTime, CGPoint, CGSize, CGRect, CGAffineTransform |
-| NotificationCenter, NSNotification, NSString | UIControl, UIButton, UIColorWell, UILabel, UITextField, UITextPasteItem, UITextView, UISearchTextField | AVPlayer, AVPlayerViewController |
-| | UIImageView, UIImage, UIColor, UIControlEvent | |
+| NSObject | UIResponder, UIView, UIViewController | CALayer, CAGradientLayer, CAEmitterLayer, CAEmitterCell, CAEmitterLayerEmitterShape, CMTime, CGPoint, CGSize, CGRect, CGAffineTransform |
+| NotificationCenter, NSNotification, NSString | UIControl, UIButton, UIColorWell, UILabel, UITextField, UITextContentType, UITextPasteItem, UITextView, UISearchTextField | AVPlayer, AVPlayerViewController |
+| | UIImageView, UIImage, UIImageRenderingMode, UIColor, UIControlEvent, UIControlState, NSDirectionalRectEdge | |
 | | UIScrollView, UITableView, UITableViewCell, UITableViewScrollPosition, UITableViewRowAnimation, UITableViewCellEditingStyle | |
 | | UIPickerView, UISegmentedControl, UISwitch | |
 | | UIProgressView, UIActivityIndicatorView | |
-| DispatchGroup, IndexPath, Locale, NSRange, NSNotFound, RunLoop | UIDevice, UIDatePicker, UICollectionView | AVPlayerItem, AVURLAsset, AVPlayerLayer, CADisplayLink |
+| DispatchGroup, IndexPath, Locale, NSRange, NSNotFound, RunLoop | UIDevice, UIDatePicker, UICollectionView, UICollectionViewCell | AVPlayerItem, AVURLAsset, AVPlayerLayer, CADisplayLink |
 | NSAttributedString, NSAttributedStringDocumentType | | |
-| | UITraitCollection, UIUserInterfaceSizeClass, UIUserInterfaceIdiom | |
+| | UITraitCollection, UIUserInterfaceSizeClass, UIUserInterfaceIdiom, UIAccessibility, UIAccessibilityTraits | |
 | | UINavigationController, UINavigationBar, UINavigationItem | |
-| | UIPasteboard, UIApplication, UIWindow, UIToolTipInteraction | |
+| | UIPasteboard, UIApplication, UIWindow, UIScreen, UIToolTipInteraction | |
+| | UIGestureRecognizer, UITapGestureRecognizer, UIHoverGestureRecognizer | |
 | NSUserActivity, NSUserActivityTypeBrowsingWeb | IBOutlet, IBAction, IBInspectable, UIKeyCommand, UIKeyModifierFlags | |
+| FileManager, FileAttributeKey, NSItemProvider | UIDocumentPickerViewController, UIDropInteraction, UIDropSession, UIDragItem, UIDropProposal, UIDropOperation | UTType |
 | | | PDFView, PDFDocument, PDFPage, PDFSelection, PDFDisplayMode, PDFDisplayDirection, PDFDocumentFoundSelectionKey |
 
 ## Sample
