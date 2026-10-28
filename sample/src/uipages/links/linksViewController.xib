@@ -2,7 +2,7 @@
 
 <main class="page">
     <h1>Links, symbols and scrolling</h1>
-    <p class="lead">What 1.4.0 added: NSUserActivity as a link, UIImage(systemName:), UIScrollView offsets, and key commands that yield to a focused text input.</p>
+    <p class="lead">What 1.4.0 and 1.9.0 added: NSUserActivity as a link, UIImage(systemName:), UIScrollView offsets, key commands that yield to a focused text input, UIPasteboard and UIApplication.open.</p>
 
     <section class="demo">
         <h2>userActivity</h2>
@@ -39,5 +39,17 @@
         <p>Press <kbd>/</kbd> anywhere on the page to focus the field. Inside the field, <kbd>/</kbd> is just a character: a bare key command never fires while a text input is first responder, as on iOS. <kbd>⌘J</kbd> carries a modifier and fires either way.</p>
         <label class="field"><span>Search</span><input id="links-search" type="text"></label>
         <p id="links-keys-output" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>UIPasteboard and UIApplication.open</h2>
+        <p><code>UIPasteboard.general.string</code> copies for the user to paste elsewhere, and <code>hasStrings</code> tells the page it wrote one; a page cannot read the system clipboard, so the getter answers only what it wrote. <code>UIApplication.shared.open</code> opens an http(s), mailto: or tel: address in a new tab, and <code>canOpenURL</code> says which addresses it would act on, so an <code>itms-apps:</code> address, which Apple's own app store opens, is no.</p>
+        <div class="row">
+            <button id="links-copy" class="button button-secondary">Copy the repository address</button>
+            <button id="links-open" class="button button-secondary">Open the repository</button>
+        </div>
+        <p id="links-pasteboard-output" class="output"></p>
+        <p id="links-open-output" class="output"></p>
+        <p id="links-can-open" class="output"></p>
     </section>
 </main>

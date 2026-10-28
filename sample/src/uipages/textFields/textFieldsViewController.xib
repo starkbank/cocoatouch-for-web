@@ -28,6 +28,16 @@
     </section>
 
     <section class="demo">
+        <h2>UITextView</h2>
+        <p>With <code>isScrollEnabled = false</code> a <code>UITextView</code> takes the height of its text, as Apple's does, and <code>textViewDidChange</code> runs after each edit and after the view has its new height.</p>
+        <label class="field">
+            <span>Message</span>
+            <textarea id="text-fields-message" class="text-fields-message" rows="1"></textarea>
+        </label>
+        <p id="text-fields-message-count" class="text-fields-muted"></p>
+    </section>
+
+    <section class="demo">
         <h2>isSecureTextEntry and isUserInteractionEnabled</h2>
         <p>The switches flip the password's visibility and lock the name field above.</p>
         <label class="field">

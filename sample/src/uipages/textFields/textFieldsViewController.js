@@ -15,6 +15,8 @@ export class TextFieldsViewController extends UIViewController {
     @IBOutlet("#text-fields-show-password", UISwitch) showPasswordSwitch
     @IBOutlet("#text-fields-lock-name", UISwitch) lockNameSwitch
     @IBOutlet("#text-fields-editing", UILabel) editingLabel
+    @IBOutlet("#text-fields-message", UITextView) messageView
+    @IBOutlet("#text-fields-message-count", UILabel) messageCountLabel
 
     viewDidLoad() {
         this.nameField.placeholder = "Ada Lovelace"
@@ -26,6 +28,10 @@ export class TextFieldsViewController extends UIViewController {
         this.notesField.delegate = this
         this.showPasswordSwitch.addTarget(this, {action: this.showPasswordChanged, for: UIControlEvent.valueChanged})
         this.lockNameSwitch.addTarget(this, {action: this.lockNameChanged, for: UIControlEvent.valueChanged})
+        this.messageView.isScrollEnabled = false
+        this.messageView.delegate = this
+        this.messageView.text = "A text view grows with its text.\nType a few more lines."
+        this.updateMessageCount()
         this.updateForm()
     }
 
@@ -49,6 +55,12 @@ export class TextFieldsViewController extends UIViewController {
         this.submitTapped()
     }
 
+    // UITextViewDelegate
+
+    textViewDidChange(textView) {
+        this.updateMessageCount()
+    }
+
     @IBAction("#text-fields-submit", UIButton) submitTapped() {
         if (!this.isFormFilled()) {
             this.previewLabel.text = "Fill in name and email first."
@@ -69,9 +81,12 @@ export class TextFieldsViewController extends UIViewController {
     updateForm() {
         var isFilled = this.isFormFilled()
         this.submitButton.isEnabled = isFilled
-        this.submitButton.isEnabled = isFilled
         this.submitButton.alpha = isFilled ? 1 : 0.5
         this.notesCountLabel.text = `${this.notesField.text.length} characters`
+    }
+
+    updateMessageCount() {
+        this.messageCountLabel.text = `${this.messageView.text.length} characters`
     }
 
     isFormFilled() {

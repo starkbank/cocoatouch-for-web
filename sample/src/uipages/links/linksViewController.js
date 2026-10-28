@@ -15,6 +15,8 @@ const symbols = ["fa-solid fa-credit-card", "fa-solid fa-building-columns", "fa-
 
 const rowCount = 40
 
+const repositoryUrl = "https://github.com/starkbank/cocoatouch-for-web"
+
 // A named image is a file; the sample ships none, so this one is inline.
 const logoUrl = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><rect width="36" height="36" rx="8" fill="#0070e0"/><text x="18" y="24" font-family="Helvetica, Arial" font-size="16" font-weight="700" text-anchor="middle" fill="#fff">CT</text></svg>')
 
@@ -31,6 +33,9 @@ export class LinksViewController extends UIViewController {
     @IBOutlet("#links-scroll-output", UILabel) scrollOutputLabel
     @IBOutlet("#links-search", UITextField) searchField
     @IBOutlet("#links-keys-output", UILabel) keysOutputLabel
+    @IBOutlet("#links-pasteboard-output", UILabel) pasteboardOutputLabel
+    @IBOutlet("#links-open-output", UILabel) openOutputLabel
+    @IBOutlet("#links-can-open", UILabel) canOpenLabel
 
     symbolIndex = 0
     slashCount = 0
@@ -44,6 +49,7 @@ export class LinksViewController extends UIViewController {
         this.searchField.placeholder = "Press / anywhere to focus me"
         this.updateScrollOutput()
         this.updateKeysOutput()
+        this.showCanOpen()
     }
 
     // A link is an anchor whose user activity is browsing a page: the
@@ -124,6 +130,24 @@ export class LinksViewController extends UIViewController {
 
     updateKeysOutput() {
         this.keysOutputLabel.text = `"/" focused the field ${this.slashCount}× · ⌘J fired ${this.commandCount}×`
+    }
+
+    // Both run inside a tap: a browser refuses a clipboard write or a new tab otherwise.
+    @IBAction("#links-copy", UIButton) copyTapped() {
+        UIPasteboard.general.string = repositoryUrl
+        this.pasteboardOutputLabel.text = `hasStrings ${UIPasteboard.general.hasStrings} · string ${UIPasteboard.general.string}`
+    }
+
+    @IBAction("#links-open", UIButton) openTapped() {
+        UIApplication.shared.open(repositoryUrl, {completionHandler: (success) => {
+            this.openOutputLabel.text = `open(url) answered ${success}`
+        }})
+    }
+
+    showCanOpen() {
+        const mail = UIApplication.shared.canOpenURL("mailto:ada@example.com")
+        const store = UIApplication.shared.canOpenURL("itms-apps://apps.apple.com")
+        this.canOpenLabel.text = `canOpenURL("mailto:ada@example.com") ${mail} · canOpenURL("itms-apps://apps.apple.com") ${store}`
     }
 }
 
