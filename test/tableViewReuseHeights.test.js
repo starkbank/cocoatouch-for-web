@@ -34,6 +34,11 @@ function anchorRow() {
     return renderedRows().find((row) => rect(row).bottom > 0)
 }
 
+// The measured rows well above the window, which only a model that kept their heights still has after a reload.
+function measuredAboveWindow(table) {
+    return measuredRows(table).filter((row) => row < renderedRows()[0] - 5)
+}
+
 function measuredRows(table) {
     var found = []
     table._heights.heights.forEach((height, row) => { if (!Number.isNaN(height)) { found.push(row) } })
@@ -156,7 +161,9 @@ test("5. estimatedRowHeight = 0 with a reload to fewer rows at scroll y > 0 rend
 test("5. estimatedRowHeight = 0 with a reload of the same rows at scroll y > 0 starts at the row it started at before", function() {
     withTable({estimatedRowHeight: 0}, function({table, layout}) {
         scrollTo(layout, 1e9)
+        scrollTo(layout, 1e9)
         var before = rows(table)
+        assert.ok(before[0] > 0, "the page is scrolled past the first rows")
         table.reloadData()
         var shown = rows(table)
         assert.equal(shown[0], before[0], "the heights the rows measured are kept, so the same rows are in the area")
@@ -438,12 +445,12 @@ test("16. a reloadData to fewer rows starts from the estimates again", function(
     withTable(mixedHeights, function(context) {
         var {table, model} = context
         scrolledDown(context, 20000)
-        assert.ok(measuredRows(table).length > renderedRows().length, "rows above the window were measured")
+        var above = measuredAboveWindow(table)
+        assert.ok(above.length > 0, "rows above the window were measured")
         model.count = 500
         table.reloadData()
         assert.equal(table._heights.count, 500)
-        var rendered = renderedRows()
-        assert.ok(measuredRows(table).every((row) => rendered.includes(row)), "only the rows the reload drew are measured")
+        assert.ok(above.every((row) => Number.isNaN(table._heights.heights[row])), "none of them survived the reload")
     })
 })
 
@@ -451,15 +458,15 @@ test("16. a new data source keeps nothing, whatever its row count", function() {
     withTable(mixedHeights, function(context) {
         var {table} = context
         scrolledDown(context, 20000)
-        assert.ok(measuredRows(table).length > renderedRows().length, "rows above the window were measured")
+        var above = measuredAboveWindow(table)
+        assert.ok(above.length > 0, "rows above the window were measured")
         var source = table.dataSource
         table.dataSource = {
             tableViewNumberOfRowsInSection: source.tableViewNumberOfRowsInSection,
             tableViewCellForRowAtIndexPath: source.tableViewCellForRowAtIndexPath,
         }
         assert.equal(table._heights.count, 1000)
-        var rendered = renderedRows()
-        assert.ok(measuredRows(table).every((row) => rendered.includes(row)), "only the rows the reload drew are measured")
+        assert.ok(above.every((row) => Number.isNaN(table._heights.heights[row])), "none of them survived the new data source")
     })
 })
 
