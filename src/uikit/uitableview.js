@@ -1187,10 +1187,13 @@ export class UITableView extends UIScrollView {
     // signatures.
     _noteRowBox(read) {
         if (read.tops === null || this._mode === null || typeof getComputedStyle !== "function") { return }
-        var row = this._skeletonRow(skeleton(this._columns))
+        var known = skeleton(this._columns)
+        var key = known === null ? null : known + "|" + this._innerWidth + "|" + this._mode
+        if (key !== null && this._rowBoxFor === key) { return }
+        var row = this._skeletonRow(known)
         if (row === null) { return }
         var signature = _signatureOf(row)
-        var key = signature + "|" + this._innerWidth + "|" + this._mode
+        key = signature + "|" + this._innerWidth + "|" + this._mode
         if (this._rowBoxFor === key) { return }
         var box = _readRowBox(row, signature)
         var flipped = box.mode !== this._rowBox.mode
@@ -1204,13 +1207,17 @@ export class UITableView extends UIScrollView {
         this._rowBoxFor = key
     }
 
-    // The first rendered row whose cells have the structure the spacers copy; with none noted, the first rendered row.
+    // The first rendered row whose cells have the structure the spacers copy, and none of them hidden by the row's own inline display,
+    // which is that row's state and not the page's; failing that the first with the structure. With none noted, the first rendered row.
     _skeletonRow(signature) {
+        var fallback = null
         for (var cell of this._visible) {
             var element = cell._$el && cell._$el[0]
-            if (element && element.children && (signature === null || _signatureOf(element) === signature)) { return element }
+            if (!element || !element.children || (signature !== null && _signatureOf(element) !== signature)) { continue }
+            if (!Array.from(element.children).some((child) => child.style.getPropertyValue("display") === "none")) { return element }
+            if (fallback === null) { fallback = element }
         }
-        return null
+        return fallback
     }
 
     // The pass has placed the window: the rows that wait to be measured are asked for, the first chunk now so a page of up to

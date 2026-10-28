@@ -199,6 +199,9 @@ test("5. the row box is read once per structure, innerWidth and table layout, in
             table._dirtyAndSchedule()
             settle(layout)
             assert.deepEqual(calls, ["read", "read"], "one read for the new layout")
+            table.reloadData()
+            settle(layout)
+            assert.deepEqual(calls, ["read", "read", "read"], "one read batch for a reload, which starts the columns over")
         } finally {
             globalThis.getComputedStyle = original
         }
@@ -220,5 +223,21 @@ test("6. dispose and a reload to no rows clear what was read of the rows", funct
         table._dispose()
         assert.equal(table._rowBox.mode, "table")
         assert.equal(table._rowBoxFor, null)
+    })
+})
+
+test("7. after the first read, ten scroll passes do not look for a skeleton row", function() {
+    withBoxTable({}, function({table, layout}) {
+        var original = table._skeletonRow
+        var searches = 0
+        table._skeletonRow = function() {
+            searches++
+            return original.apply(this, arguments)
+        }
+        for (var step = 0; step < 10; step++) {
+            scrollTo(layout, 20000 + step * 2000)
+            settle(layout)
+        }
+        assert.equal(searches, 0)
     })
 })
