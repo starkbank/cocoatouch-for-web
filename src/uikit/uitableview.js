@@ -6,7 +6,7 @@ import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { Bind } from "../utils/bind.js"
 import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { ownElement, ownerOf } from "../utils/elementowner.js"
-import { automaticDimension, createRowHeights, offsetOf, firstRowAt, totalHeight, effectiveHeight, insert, measure, reset } from "../utils/rowheights.js"
+import { automaticDimension, createRowHeights, offsetOf, firstRowAt, totalHeight, effectiveHeight, insert, measure, reset, keep } from "../utils/rowheights.js"
 import { clipAncestors, visibleClip, scroller } from "../utils/scrollclip.js"
 import { createColumnWidths, reset as resetColumns, insert as insertColumns, noteSignature, skeleton, otherSignatures, need, record, invalidate, pending, pendingCount, settle, aggregate, replaySpans, finiteWidth } from "../utils/columnwidths.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
@@ -111,6 +111,8 @@ export class UITableView extends UIScrollView {
     }
 
     set dataSource(dataSource) {
+        // another data source is other rows, so what was measured for the old one is not kept
+        if (dataSource !== this._dataSource) { reset(this._heights, {count: this._heights.count, keepEstimates: true}) }
         this._dataSource = dataSource
         this.reloadData()
     }
@@ -135,8 +137,9 @@ export class UITableView extends UIScrollView {
         return this._delegate
     }
 
-    // The height an unmeasured row is given before it is displayed: UITableView.automaticDimension, the default, estimates from the
-    // cells already measured; a number is the estimate of every row the delegate does not answer for.
+    // The height a row is given before it is displayed: UITableView.automaticDimension, the default, estimates from the cells already
+    // measured; a number is the estimate of every row the delegate does not answer for and that was not measured, before or since a
+    // reload.
     /** @param {number} height */
     set estimatedRowHeight(height) {
         typed(height, "estimatedRowHeight", Float, "UITableView.estimatedRowHeight", "Apple's is var estimatedRowHeight: CGFloat; write tableView.estimatedRowHeight = UITableView.automaticDimension.")
@@ -249,14 +252,16 @@ export class UITableView extends UIScrollView {
     }
 
     // The data source is asked for the rows of the area only. The cell displayed at a row before the reload is handed back to it
-    // by dequeue; the cells the reload does not hand back go to the reuse queue, and when no row is left they are all released.
+    // by dequeue; the cells the reload does not hand back go to the reuse queue, and when no row is left they are all released. The
+    // rows keep the height they measured as their estimate while the table has no fewer rows, as an app's cache of heights by index
+    // path does, so a page appended does not move the rows above it; every row that is drawn is measured again.
     reloadData() {
         this._assertNotUpdating("reloadData")
         if (this._dataSource === null) { return }
         var count = this.numberOfRows({inSection: 0})
         this._selectedRows = new Set(Array.from(this._selectedRows).filter(function(row) { return row < count }))
         var previous = this._renderedRows()
-        reset(this._heights, {count: count, keepEstimates: true})
+        keep(this._heights, {count: count})
         this._resetColumns({keepFloor: true})
         this._reusableCells = previous
         this._unlinkCells(Array.from(previous.values()))
@@ -1415,13 +1420,17 @@ export class UITableView extends UIScrollView {
     // narrowest content. Under fixed layout content cannot change a column, but it can reach beyond it, so the cell holds one span
     // as wide as the narrowest content, and one pixel tall because a box with no height adds no scrollable overflow; a spacer of
     // less than one pixel is left without, since the span would grow the row. A cell the spacer hides holds no spans. The spans are
-    // rewritten only when what they say changes.
+    // rewritten only when what they say changes. Spans that move a column can reflow the rendered rows above the anchor, which the next
+    // pass would read as where the user already is, so the anchor is held here, as a pass holds it.
     _replay() {
         var spacers = [this._topSpacer, this._bottomSpacer].filter((spacer) => spacer && spacer.parentNode)
         if (spacers.length === 0 || this._mode === null) { return }
         var fixed = this._mode === "fixed"
         var known = aggregate(this._columns, {from: this._first, to: this._first + this._visible.length})
         var key = known.max.concat(known.min).every((width) => !width) ? "" : JSON.stringify([fixed ? known.min : known.max, known.min])
+        var isNewAggregate = key !== this._aggregateKey
+        var cells = isNewAggregate ? Array.from(this._renderedRows()) : []
+        var anchor = cells.length > 0 ? _anchorOf(this._read(cells), cells) : null
         var extras = null
         for (var spacer of spacers) {
             var spacerKey = key + "|" + fixed + "|" + (spacer._height >= 1) + "|" + spacer._structure
@@ -1433,9 +1442,10 @@ export class UITableView extends UIScrollView {
             spacer._spanned = written.some((entry) => entry.k > 0)
             this._noteReplay(written)
         }
-        if (key === this._aggregateKey) { return }
+        if (!isNewAggregate) { return }
         this._aggregateKey = key
-        reset(this._heights, {count: this._heights.count, keepEstimates: false})
+        if (anchor) { this._compensate(anchor, this._read(cells), cells) }
+        keep(this._heights, {count: this._heights.count})
         this._schedule()
     }
 

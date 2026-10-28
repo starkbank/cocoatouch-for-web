@@ -9,6 +9,8 @@ export const defaultEstimate = 44
 //
 // heights[row]       measured height, NaN while unmeasured
 // identifiers[row]   the reuse identifier last measured for the row, undefined until then
+// generation         bumped by keep: a height measured in an earlier generation is the row's estimate until it is measured again
+// measuredIn[row]    the generation the row was measured in, -1 for none
 // estimates          Map(identifier -> {sum, count}) of the positive heights measured under that identifier
 // dominantIdentifier the identifier with most measurements (the earlier one on a tie), undefined with none
 // offsets            offsets[row] is the top of the row and offsets[count] the total; valid for rows 0...dirtyFrom
@@ -20,6 +22,8 @@ export function createRowHeights({count, estimatedRowHeight = automaticDimension
         estimatedHeightForRow: estimatedHeightForRow,
         heights: new Array(count).fill(NaN),
         identifiers: new Array(count).fill(undefined),
+        generation: 0,
+        measuredIn: new Array(count).fill(-1),
         estimates: new Map(),
         dominantIdentifier: undefined,
         offsets: [0],
@@ -27,13 +31,16 @@ export function createRowHeights({count, estimatedRowHeight = automaticDimension
     }
 }
 
-// First match wins: measured, the delegate's estimate, an explicit estimatedRowHeight, the mean of the row's identifier, the mean of
-// the dominant identifier, 44. A delegate answer below zero (automaticDimension) is no answer.
+// First match wins: measured in this generation, the delegate's estimate, measured in an earlier one (kept by a reload), an explicit
+// estimatedRowHeight, the mean of the row's identifier, the mean of the dominant identifier, 44. A delegate answer below zero
+// (automaticDimension) is no answer.
 export function effectiveHeight(heights, row) {
     var measuredHeight = heights.heights[row]
-    if (!Number.isNaN(measuredHeight)) { return measuredHeight }
+    var isMeasured = !Number.isNaN(measuredHeight)
+    if (isMeasured && heights.measuredIn[row] === heights.generation) { return measuredHeight }
     var delegateHeight = heights.estimatedHeightForRow ? heights.estimatedHeightForRow(row) : undefined
     if (typeof delegateHeight === "number" && delegateHeight >= 0) { return delegateHeight }
+    if (isMeasured) { return measuredHeight }
     if (heights.estimatedRowHeight >= 0) { return heights.estimatedRowHeight }
     return _meanEstimate(heights, heights.identifiers[row])
 }
@@ -81,21 +88,25 @@ export function insert(heights, rows) {
     var count = heights.count + rows.length
     var merged = new Array(count)
     var mergedIdentifiers = new Array(count)
+    var mergedGenerations = new Array(count)
     var inserted = new Set(rows)
     var source = 0
     for (var row = 0; row < count; row++) {
         if (inserted.has(row)) {
             merged[row] = NaN
             mergedIdentifiers[row] = undefined
+            mergedGenerations[row] = -1
             continue
         }
         merged[row] = heights.heights[source]
         mergedIdentifiers[row] = heights.identifiers[source]
+        mergedGenerations[row] = heights.measuredIn[source]
         source++
     }
     heights.count = count
     heights.heights = merged
     heights.identifiers = mergedIdentifiers
+    heights.measuredIn = mergedGenerations
     heights.dirtyFrom = Math.min(heights.dirtyFrom, rows[0])
 }
 
@@ -105,6 +116,7 @@ export function measure(heights, row, height, identifier) {
     var before = _estimateSignature(heights, previous, identifier)
     _forget(heights, row)
     heights.identifiers[row] = identifier
+    heights.measuredIn[row] = heights.generation
     _remember(heights, row, height)
     heights.dirtyFrom = Math.min(heights.dirtyFrom, row)
     if (heights.estimatedRowHeight >= 0 || before === _estimateSignature(heights, previous, identifier)) { return }
@@ -117,10 +129,31 @@ export function reset(heights, {count, keepEstimates = false}) {
     heights.count = count
     heights.heights = new Array(count).fill(NaN)
     heights.identifiers = new Array(count).fill(undefined)
+    heights.measuredIn = new Array(count).fill(-1)
     heights.dirtyFrom = 0
     if (keepEstimates) { return }
     heights.estimates = new Map()
     heights.dominantIdentifier = undefined
+}
+
+// reloadData asks every row again, so a height measured before it is only the row's estimate until the row is drawn, and below the
+// delegate's own. It is kept while the table has no fewer rows, a page appended or an empty last page, as an app's index-path cache
+// assumes; fewer rows is other data, a filter or a cleared list, and starts over as reset does. Only the new rows are written, so the
+// offsets above the old end stay valid, unless a delegate answers for the rows that are not measured since the reload.
+export function keep(heights, {count}) {
+    var previous = heights.count
+    if (count < previous) {
+        reset(heights, {count: count, keepEstimates: true})
+        return
+    }
+    for (var row = previous; row < count; row++) {
+        heights.heights.push(NaN)
+        heights.identifiers.push(undefined)
+        heights.measuredIn.push(-1)
+    }
+    heights.count = count
+    heights.generation += 1
+    heights.dirtyFrom = heights.estimatedHeightForRow ? 0 : Math.min(heights.dirtyFrom, previous)
 }
 
 // The smallest index in [low, high] whose offset satisfies isPast, which must hold at `high` and, the offsets never decreasing, from
