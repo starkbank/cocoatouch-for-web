@@ -8,6 +8,8 @@
 //   - an element, or any ancestor, with display: none or [hidden] has no size, and neither do the rows in it;
 //   - layout.box(element, {top, height}) gives an element a box of its own, layout.scroller(...) makes that box scroll its content, and
 //     any other container takes the rect of the tables inside it, as a block of auto height does;
+//   - a row whose computed display is not table-row (flex, grid, block) is a box, not a table row: the cells it holds are not columns,
+//     and the row is one column of the table, the anonymous cell the browser wraps every such row in, as wide as it asks to be;
 //   - the document scrolls by window.scrollY, which scrollTo and scrollBy clamp to the page, and rects are read in client coordinates.
 // Scroll events and ResizeObserver reports are queued and delivered by layout.flushFrames(), in the order a browser's frame has them:
 // scroll events, animation-frame callbacks, resize reports. Every read of layout and every mutation of the document is logged so a
@@ -112,6 +114,8 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
     }
 
     function rectOfRow(row) {
+        var measured = measuringWidth(row)
+        if (measured !== null) { return {top: 0, left: 0, width: measured, height: 0} }
         var table = row.closest("table")
         if (!table || !tables.has(table)) { return {top: 0, left: 0, width: 0, height: heightOfRow(row)} }
         var before = rowsOf(table).filter(function(other) { return precedes(other, row) })
@@ -144,13 +148,21 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         return total
     }
 
-    // A cell sized by a width keyword on an inline-block, as the measuring box does, is as wide as that keyword says.
-    function measuringWidth(cell) {
-        var keyword = cell.style.getPropertyValue("width")
-        if (cell.style.getPropertyValue("display") !== "inline-block") { return null }
-        if (keyword === "max-content") { return intrinsicOf(cell).max + extrasOf(cell) }
-        if (keyword === "min-content") { return intrinsicOf(cell).min + extrasOf(cell) }
+    // A cell sized by a width keyword on an inline-block, as the measuring box does, is as wide as that keyword says; so is a row that
+    // keeps its own display and is sized by the keyword, which asks for what the row itself says in data-min and data-max.
+    function measuringWidth(element) {
+        var keyword = element.style.getPropertyValue("width")
+        var display = element.style.getPropertyValue("display")
+        if (element.tagName.toLowerCase() === "tr" ? display !== "" : display !== "inline-block") { return null }
+        if (keyword === "max-content") { return intrinsicOf(element).max + extrasOf(element) }
+        if (keyword === "min-content") { return intrinsicOf(element).min + extrasOf(element) }
         return null
+    }
+
+    // A row is a table row under these displays; under any other it is a box, and the browser wraps it, with the boxes beside it, in
+    // one anonymous row and cell.
+    function isBoxRow(row) {
+        return !["table-row", "contents", "none", ""].includes(rawComputed(row).getPropertyValue("display"))
     }
 
     function rectOfCell(cell) {
@@ -158,6 +170,7 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         var measured = measuringWidth(cell)
         if (measured !== null) { return {top: 0, left: 0, width: measured, height: 0} }
         var row = rectOfRow(cell.parentNode)
+        if (isBoxRow(cell.parentNode)) { return {top: row.top, left: 0, width: row.width, height: row.height} }
         var width = row.width / cell.parentNode.children.length
         return {top: row.top, left: width * Array.from(cell.parentNode.children).indexOf(cell), width: width, height: row.height}
     }
@@ -363,6 +376,13 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
             var columns = {min: [], max: []}
             for (var row of rowsOf(table)) {
                 if (isHidden(row)) { continue }
+                if (isBoxRow(row)) {
+                    var own = intrinsicOf(row)
+                    var ownExtras = extrasOf(row)
+                    columns.min[0] = Math.max(columns.min[0] || 0, own.min + ownExtras)
+                    columns.max[0] = Math.max(columns.max[0] || 0, own.max + ownExtras)
+                    continue
+                }
                 Array.from(row.children).forEach(function(cell, index) {
                     if (cell.colSpan > 1) { return }
                     var intrinsic = intrinsicOf(cell)

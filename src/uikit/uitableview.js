@@ -95,6 +95,8 @@ export class UITableView extends UIScrollView {
         this._onFonts = null
         this._readyGeneration = -1
         this._replayReport = new Map()
+        this._rowBox = tableRowBox
+        this._rowBoxFor = null
     }
 
     set isHidden(bool) {
@@ -835,6 +837,7 @@ export class UITableView extends UIScrollView {
             this._record(read, cells)
             extension = this._extensionFor(read)
         }
+        this._noteRowBox(read)
         if (this._arrange()) {
             read = this._read(cells)
             if (isClipEmpty) { read.clip = visibleClip(this.$el[0], []) }
@@ -1028,18 +1031,28 @@ export class UITableView extends UIScrollView {
         return changed
     }
 
-    // A spacer stands in for the rows it replaces: a row with the cells of the skeleton, the structure most rows have, and nothing
-    // else, so sibling selectors keep their meaning and the first row of a fixed layout gives the columns row 0 would. It belongs to
-    // no cell, has no id and is never bound. Its vertical box is zero, whatever the page's rules say for those cells; the horizontal
-    // box is the page's, so a column keeps its padding and its declared width.
+    // A spacer stands in for the rows it replaces and generates the box the page gives them. When the rows are table rows it is a row
+    // with the cells of the skeleton, the structure most rows have, and nothing else, so sibling selectors keep their meaning and the
+    // first row of a fixed layout gives the columns row 0 would. When the page lays its rows out as flex, grid or block, they share
+    // one anonymous row and cell, and the spacer is a block with no cells that joins them. It belongs to no cell, has no id and is
+    // never bound. Its vertical box is zero, whatever the page's rules say for those cells; the horizontal box is the page's, so a
+    // column keeps its padding and its declared width.
     _spacer(key) {
         var structure = _structureOf(skeleton(this._columns))
+        var box = this._rowBox.mode === "box" || this._rowBox.signature === structure ? this._rowBox : tableRowBox
+        var identity = box.mode === "box" ? box.key : structure + "|" + box.key
         var spacer = this[key]
-        if (spacer && spacer._structure === structure) { return spacer }
+        if (spacer && spacer._structure === identity) { return spacer }
         if (spacer && spacer.parentNode) { spacer.parentNode.removeChild(spacer) }
         var row = document.createElement("tr")
         row.setAttribute("aria-hidden", "true")
         _zeroVertical(row)
+        row._structure = identity
+        this[key] = row
+        if (box.mode === "box") {
+            row.style.setProperty("display", "block", "important")
+            return row
+        }
         for (var spec of JSON.parse(structure)) {
             var cell = document.createElement(spec[0] === "th" ? "th" : "td")
             cell.className = spec[1]
@@ -1048,8 +1061,6 @@ export class UITableView extends UIScrollView {
             cell.style.setProperty("height", "0", "important")
             row.appendChild(cell)
         }
-        row._structure = structure
-        this[key] = row
         return row
     }
 
@@ -1088,6 +1099,8 @@ export class UITableView extends UIScrollView {
         this._cancelMeasuring()
         this._resetColumns({keepFloor: false})
         this._unwatchFonts()
+        this._rowBox = tableRowBox
+        this._rowBoxFor = null
     }
 
     // The first rendered row whose bottom is below the clip's top keeps its place on screen: what the pass measured above it moves
@@ -1159,6 +1172,39 @@ export class UITableView extends UIScrollView {
         this._needAll = true
     }
 
+    // What the page makes of a row, read from the first rendered row that has the skeleton's structure, or the first rendered row
+    // while a reset has left no skeleton: a table row, or a box (flex, grid, block) that the browser wraps, with its neighbours, in one
+    // anonymous row and cell. The spacers and the measuring follow it. It is read once per structure, window width and table layout,
+    // so a scroll pass reads nothing; with no row rendered the table keeps what it has. When the answer flips between a table row
+    // and a box the records change shape, so they start over, and the rendered rows are noted again because a reset forgets the
+    // signatures.
+    _noteRowBox(read) {
+        if (read.tops === null || this._mode === null || typeof getComputedStyle !== "function") { return }
+        var row = this._skeletonRow(skeleton(this._columns))
+        if (row === null) { return }
+        var signature = _signatureOf(row)
+        var key = signature + "|" + this._innerWidth + "|" + this._mode
+        if (this._rowBoxFor === key) { return }
+        var box = _readRowBox(row, signature)
+        var flipped = box.mode !== this._rowBox.mode
+        this._rowBoxFor = key
+        this._rowBox = box
+        if (!flipped) { return }
+        this._resetColumns({keepFloor: false})
+        this._needAll = true
+        this._forgetReplay()
+        for (var [index, cell] of this._renderedRows()) { this._noteStructure(index, cell) }
+    }
+
+    // The first rendered row whose cells have the structure the spacers copy; with none noted, the first rendered row.
+    _skeletonRow(signature) {
+        for (var cell of this._visible) {
+            var element = cell._$el && cell._$el[0]
+            if (element && element.children && (signature === null || _signatureOf(element) === signature)) { return element }
+        }
+        return null
+    }
+
     // The pass has placed the window: the rows that wait to be measured are asked for, the first chunk now so a page of up to
     // measuringBatch rows is exact before the next paint, and the replay in the spacers follows what is known.
     _settleColumns() {
@@ -1217,15 +1263,23 @@ export class UITableView extends UIScrollView {
 
     // The queue's tbody becomes a box with no size and no paint whose rows and cells size themselves to their content, and the
     // widths are read from it: the cells' border boxes at max-content, then at min-content. Collapsed borders are counted by the
-    // table at half, and the replay adds the cell's own padding and border back, so what is read here is the border box.
+    // table at half, and the replay adds the cell's own padding and border back, so what is read here is the border box. Rows the page
+    // lays out as boxes keep their display and are measured as one column, the row's own border box, which is what the anonymous cell
+    // they share asks of the table.
     _readWidths(elements, fixed) {
         var reads = new Map()
         var tbody = this._queueBody
+        var isBox = this._rowBox.mode === "box"
         resolvePendingUnhides()
         var written = []
         try {
             for (var [property, value] of measuringBox) { _write(tbody, property, value, written) }
             for (var element of elements) {
+                if (isBox) {
+                    _write(element, "min-width", "0", written)
+                    _write(element, "max-width", "none", written)
+                    continue
+                }
                 _write(element, "display", "block", written)
                 for (var cell of Array.from(element.children)) {
                     _write(cell, "display", "inline-block", written)
@@ -1236,15 +1290,15 @@ export class UITableView extends UIScrollView {
             var max = new Map()
             if (!fixed) {
                 for (element of elements) {
-                    for (cell of Array.from(element.children)) { _write(cell, "width", "max-content", written) }
+                    for (cell of _measuredOf(element, isBox)) { _write(cell, "width", "max-content", written) }
                 }
-                for (element of elements) { max.set(element, Array.from(element.children).map((cell) => finiteWidth(cell.getBoundingClientRect().width))) }
+                for (element of elements) { max.set(element, _measuredOf(element, isBox).map((cell) => finiteWidth(cell.getBoundingClientRect().width))) }
             }
             for (element of elements) {
-                for (cell of Array.from(element.children)) { _write(cell, "width", "min-content", written) }
+                for (cell of _measuredOf(element, isBox)) { _write(cell, "width", "min-content", written) }
             }
             for (element of elements) {
-                var min = Array.from(element.children).map((cell) => finiteWidth(cell.getBoundingClientRect().width))
+                var min = _measuredOf(element, isBox).map((cell) => finiteWidth(cell.getBoundingClientRect().width))
                 reads.set(element, {min: min, max: max.get(element) || min})
             }
         } finally {
@@ -1462,6 +1516,8 @@ export class UITableView extends UIScrollView {
         this._cancelMeasuring()
         this._resetColumns({keepFloor: false})
         this._unwatchFonts()
+        this._rowBox = tableRowBox
+        this._rowBoxFor = null
         NotificationCenter.default.removeObserver(this._scrollObserver)
         this._discardQueues()
         super._dispose()
@@ -1505,9 +1561,26 @@ function _unwrite(entry) {
     if (!entry.hadStyle && entry.element.getAttribute("style") === "") { entry.element.removeAttribute("style") }
 }
 
+// What a table has until it has read its rows: table rows, and so spacers that are rows with cells.
+const tableRowBox = Object.freeze({mode: "table", signature: null, key: "table"})
+
+// The displays under which a row is a table row, or generates no box that could stand in for the rows of a table.
+const tableRowDisplays = new Set(["table-row", "contents", "none", ""])
+
+// The boxes whose width is read: a row that is a box is one, and so is each cell of a table row.
+function _measuredOf(element, isBox) {
+    return isBox ? [element] : Array.from(element.children)
+}
+
+function _readRowBox(row, signature) {
+    var display = getComputedStyle(row).getPropertyValue("display")
+    if (tableRowDisplays.has(display)) { return Object.freeze({mode: "table", signature: signature, key: "table"}) }
+    return Object.freeze({mode: "box", signature: signature, key: "box"})
+}
+
 // The cell's own horizontal padding and border, which the browser adds around the spans.
 function _cellExtras(spacer) {
-    var extras = []
+    var extras = spacer.children.length === 0 ? [0] : []
     for (var cell of Array.from(spacer.children)) {
         var style = getComputedStyle(cell)
         var total = 0
@@ -1519,8 +1592,9 @@ function _cellExtras(spacer) {
 
 function _writeReplay(spacer, known, extras, {fixed, tall}) {
     var report = []
-    for (var index = 0; index < spacer.children.length; index++) {
-        var cell = spacer.children[index]
+    var cells = spacer.children.length === 0 ? [spacer] : Array.from(spacer.children)
+    for (var index = 0; index < cells.length; index++) {
+        var cell = cells[index]
         while (cell.firstChild) { cell.removeChild(cell.firstChild) }
         if (fixed && !tall) { continue }
         var min = Math.max(0, (known.min[index] || 0) - (extras[index] || 0))
