@@ -76,6 +76,7 @@ export class UITableView extends UIScrollView {
         this._isReconfiguring = false
         this._isLaying = false
         this._scrollObserver = {}
+        this._windowObserver = {}
         this._clipAncestors = null
         this._isObserving = false
         this._resizeObserver = null
@@ -88,6 +89,7 @@ export class UITableView extends UIScrollView {
         this._measuring = false
         this._measured = []
         this._measureFrame = null
+        this._resizeFrame = null
         this._isMeasured = false
         this._lastWidth = 0
         this._mode = null
@@ -1171,9 +1173,10 @@ export class UITableView extends UIScrollView {
         if (pendingCount(this._columns) === 0) { settle(this._columns) }
     }
 
-    // What a pass reads about the page that changes what a cell asks of its column: the window's width, which media queries answer to,
-    // and whether the table is laid out fixed, where content cannot change a column. A switch from auto to fixed only rewrites the
-    // replay, because the records hold both widths; any other change starts a new generation with no floor.
+    // What a pass reads about the page that changes what a cell asks of its column and how tall a row is: the window's width, which
+    // media queries answer to, and whether the table is laid out fixed, where content cannot change a column. A change of either
+    // starts the columns over with no floor and drops the row heights, as a width report does, and looks again for the ancestors that
+    // clip, whose overflow media queries can change.
     _noteEnvironment(read) {
         var element = this.$el[0]
         if (!element || read.tops === null || typeof getComputedStyle !== "function") { return }
@@ -1183,13 +1186,11 @@ export class UITableView extends UIScrollView {
         var innerChanged = this._innerWidth !== null && inner !== this._innerWidth
         this._mode = mode
         this._innerWidth = inner
-        if (modeChanged && mode === "fixed") {
-            this._forgetReplay()
-            return
-        }
         if (!modeChanged && !innerChanged) { return }
         this._resetColumns({keepFloor: false})
         this._needAll = true
+        reset(this._heights, {count: this._heights.count, keepEstimates: false})
+        this._observeScrollers()
     }
 
     // What the page makes of a row, read from the first rendered row that has the skeleton's structure, or the first rendered row
@@ -1483,6 +1484,9 @@ export class UITableView extends UIScrollView {
         if (this._isObserving || read.tops === null) { return }
         this._isObserving = true
         this._observeScrollers()
+        if (typeof window === "object" && window) {
+            NotificationCenter.default.addObserver(this._windowObserver, {name: "resize", object: window, selector: () => this._windowResized()})
+        }
         if (typeof ResizeObserver !== "function") { return }
         this._observedWidth = read.width > 0 ? null : 0
         this._resizeObserver = new ResizeObserver((entries) => this._widthReported(entries))
@@ -1519,6 +1523,19 @@ export class UITableView extends UIScrollView {
         reset(this._heights, {count: this._heights.count, keepEstimates: false})
         this._observeScrollers()
         this._schedule()
+    }
+
+    // A table whose spacers hold it at its width gets no width report when the window's width changes what media queries make of its
+    // cells, so the window's resize is compared with the width the last pass saw. The event comes before the animation frame of its
+    // rendering update, and the width report delivered in that update asks for the frame after, so the pass is asked for from that
+    // frame too: a resize that changes both widths is one pass.
+    _windowResized() {
+        if (this._innerWidth === null || this._resizeFrame !== null || window.innerWidth === this._innerWidth) { return }
+        if (this._isDetached() || typeof requestAnimationFrame !== "function") { return }
+        this._resizeFrame = requestAnimationFrame(() => {
+            this._resizeFrame = null
+            this._schedule()
+        })
     }
 
     // One read for the clip and where the rows begin, and a pass only when the clip extended by half an overscan has left the
@@ -1563,12 +1580,15 @@ export class UITableView extends UIScrollView {
         this._resizeObserver = null
         if (this._frame !== null && typeof cancelAnimationFrame === "function") { cancelAnimationFrame(this._frame) }
         this._frame = null
+        if (this._resizeFrame !== null && typeof cancelAnimationFrame === "function") { cancelAnimationFrame(this._resizeFrame) }
+        this._resizeFrame = null
         this._cancelMeasuring()
         this._resetColumns({keepFloor: false})
         this._unwatchFonts()
         this._rowBox = tableRowBox
         this._rowBoxFor = null
         NotificationCenter.default.removeObserver(this._scrollObserver)
+        NotificationCenter.default.removeObserver(this._windowObserver)
         this._discardQueues()
         super._dispose()
     }

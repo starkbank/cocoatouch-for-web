@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import { IBOutlet, UILabel, UIView, UITableViewCell, UITableViewRowAnimation } from "../src/index.js"
 import { offsetOf, totalHeight } from "../src/utils/rowheights.js"
 import { counters, setup, rowsBody, renderedIds, renderedRows, spacers, scrollTo, at } from "./tableReuseHelpers.js"
+import { effectiveHeight } from "../src/utils/rowheights.js"
 
 
 var animation = UITableViewRowAnimation.none
@@ -233,7 +234,7 @@ test("7. under table-layout fixed a chunk reads once, asks each row once, and re
     })
 })
 
-test("7. a spacer under 1 px gets no span, and crossing between fixed and auto follows the A1 rules", function() {
+test("7. a spacer under 1 px gets no span, and a crossing between fixed and auto, in either direction, measures again", function() {
     withTable({count: 400}, function({table, model, layout}) {
         tableElement().style.setProperty("table-layout", "fixed")
         table._dirtyAndSchedule()
@@ -259,8 +260,8 @@ test("7. a spacer under 1 px gets no span, and crossing between fixed and auto f
         tableElement().style.setProperty("table-layout", "fixed")
         table._dirtyAndSchedule()
         settle(layout)
-        assert.equal(table._columns.generation, generation, "auto to fixed keeps the records")
-        assert.deepEqual(model.measured, [], "and measures nothing")
+        assert.equal(table._columns.generation, generation + 1, "auto to fixed starts a new generation")
+        assert.ok(model.measured.length > 0, "and measures again")
         assert.equal(spansOf(rowsBody().lastElementChild, 0).length, 1)
     })
 })
@@ -788,6 +789,8 @@ test("FS12. every animation frame a table asks for has run or been cancelled onc
             model.count = 500
             table.reloadData()
             table.estimatedRowHeight = 70
+            window.innerWidth = 760
+            window.dispatchEvent(new window.Event("resize"))
             table._dispose()
             layout.flushFrames()
             assert.ok(requested.size > 0, "the table asked for frames")
@@ -905,4 +908,77 @@ test("a reload from 6 rows to 5, every row rendered, asks the data source for no
 
 test("a reload from 1000 rows to 5 asks the data source for no row past the new count, and no column takes a width from one", function() {
     reloadToFive(1000)
+})
+
+// A pass counted without changing what it does.
+function countPasses(table) {
+    var counted = {passes: 0}
+    var runPass = table._runPass
+    table._runPass = function() {
+        counted.passes++
+        return runPass.apply(this, arguments)
+    }
+    return counted
+}
+
+function resizeWindow(width) {
+    window.innerWidth = width
+    window.dispatchEvent(new window.Event("resize"))
+}
+
+test("C1. a window resize that leaves the table's width as it was lays the table out for the new window, and drops the heights of the rows that are not drawn", function() {
+    var height = 95
+    withTable({count: 300, heightOf: () => height}, function({table, model, layout}) {
+        settle(layout)
+        assert.equal(effectiveHeight(table._heights, 5), 95, "row 5 is measured at the nib's height")
+        scrollTo(layout, 100 + 95 * 200)
+        settle(layout)
+        assert.ok(!renderedRows().includes(5), "row 5 is not drawn")
+        height = 140
+        table.reconfigureRows({at: at(...renderedRows())})
+        var generation = table._columns.generation
+        model.measured.length = 0
+        resizeWindow(760)
+        settle(layout)
+        assert.equal(table._columns.generation, generation + 1, "the columns start over")
+        assert.ok(model.measured.length > 200, "and every row is measured again")
+        assert.equal(effectiveHeight(table._heights, 5), 140, "the height row 5 had is gone, and the mean of what is drawn answers for it")
+    })
+})
+
+test("C2. a window resize that leaves innerWidth as it was runs no pass and asks for no frame", function() {
+    withTable({count: 300}, function({table, layout}) {
+        settle(layout)
+        var counted = countPasses(table)
+        window.dispatchEvent(new window.Event("resize"))
+        assert.equal(table._resizeFrame, null)
+        settle(layout)
+        assert.equal(counted.passes, 0)
+    })
+})
+
+test("C3. a resize that changes the window's width and the table's runs one pass, a frame after both are known", function() {
+    withTable({count: 300}, function({table, layout}) {
+        settle(layout)
+        var counted = countPasses(table)
+        resizeWindow(760)
+        layout.resize(tableElement(), {width: 700})
+        layout.flushFrames()
+        assert.equal(counted.passes, 0, "the frame of the resize and the width report only ask for the pass")
+        layout.flushFrames()
+        assert.equal(counted.passes, 1)
+    })
+})
+
+test("C4. a disposed table has no resize frame left and listens to the window no more", function() {
+    withTable({count: 300}, function({table, layout}) {
+        settle(layout)
+        var counted = countPasses(table)
+        resizeWindow(760)
+        table._dispose()
+        settle(layout)
+        assert.equal(counted.passes, 0, "the frame the resize asked for was cancelled")
+        resizeWindow(800)
+        assert.equal(table._resizeFrame, null, "the observer is gone")
+    })
 })
