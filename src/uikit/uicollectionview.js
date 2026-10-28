@@ -4,6 +4,8 @@ import { IndexPath } from "../foundation/indexpath.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
 import { Bind } from "../utils/bind.js"
 import { ownElement } from "../utils/elementowner.js"
+import { required, StringType, IndexPathType } from "../utils/required.js"
+import { nibClassNamed } from "../utils/nibclasses.js"
 
 
 const retiredDataSourceNames = {numberOfItemsInSection: "collectionViewNumberOfItemsInSection"}
@@ -15,8 +17,8 @@ export class UICollectionView extends UIScrollView {
     constructor(selector) {
         super(selector)
         this._dataSource = null
-        this._registeredNibs = {}
-        this._registeredClasses = {}
+        this._registeredNibs = new Map()
+        this._registeredClasses = new Map()
         this._cells = {}
         this._reusableCells = {}
     }
@@ -51,13 +53,13 @@ export class UICollectionView extends UIScrollView {
      */
     register(cellClassOrNib, {forCellWithReuseIdentifier} = {forCellWithReuseIdentifier: undefined}) {
         if (forCellWithReuseIdentifier === undefined) {
-            delete this._registeredClasses[cellClassOrNib.identifier]
-            this._registeredNibs[cellClassOrNib.identifier] = cellClassOrNib.nib
+            this._registeredClasses.delete(cellClassOrNib.identifier)
+            this._registeredNibs.set(cellClassOrNib.identifier, cellClassOrNib.nib)
             return
         }
-        delete this._registeredClasses[forCellWithReuseIdentifier]
-        if (typeof cellClassOrNib === "function") { this._registeredClasses[forCellWithReuseIdentifier] = cellClassOrNib }
-        this._registeredNibs[forCellWithReuseIdentifier] = typeof cellClassOrNib === "string" ? cellClassOrNib : cellClassOrNib.nib
+        this._registeredClasses.delete(forCellWithReuseIdentifier)
+        if (typeof cellClassOrNib === "function") { this._registeredClasses.set(forCellWithReuseIdentifier, cellClassOrNib) }
+        this._registeredNibs.set(forCellWithReuseIdentifier, typeof cellClassOrNib === "string" ? cellClassOrNib : cellClassOrNib.nib)
     }
 
     reloadData() {
@@ -80,18 +82,28 @@ export class UICollectionView extends UIScrollView {
     // A registered class is instantiated over that element; the cell the
     // previous reload held for the same item, of the same identifier and class,
     // is handed back with its element and bindings after prepareForReuse().
+    // An identifier registered with neither a class nor a nib is the name of the
+    // cell class whose .xib carries it, as on iOS the prototype cell of a
+    // storyboard is found by its identifier, and one that names no cell class is
+    // refused with Apple's error.
     /**
      * @param {object} options
      * @param {string} options.withReuseIdentifier
      * @param {IndexPath} options.for
      */
     dequeueReusableCell({withReuseIdentifier, for: indexPath}) {
-        var cellClass = this._registeredClasses[withReuseIdentifier]
+        var signature = "Apple's is dequeueReusableCell(withReuseIdentifier:for:); write dequeueReusableCell({withReuseIdentifier: \"cell\", for: indexPath})."
+        required(withReuseIdentifier, "withReuseIdentifier", StringType, "UICollectionView.dequeueReusableCell", signature)
+        required(indexPath, "for", IndexPathType, "UICollectionView.dequeueReusableCell", signature)
+        var cellClass = this._registeredClasses.get(withReuseIdentifier)
+        if (!cellClass && !this._registeredNibs.has(withReuseIdentifier)) {
+            cellClass = _namedItemClass(this._registeredClasses, this._registeredNibs, withReuseIdentifier)
+        }
         if (cellClass) { return this._dequeueInstance(cellClass, withReuseIdentifier, indexPath) }
         this._discardHeld(_cellId(indexPath))
         var element = this.$el.find("> #" + _cellId(indexPath))
         if (element.length > 0 && element.html() === "") {
-            element.html(this._registeredNibs[withReuseIdentifier] || "")
+            element.html(this._registeredNibs.get(withReuseIdentifier) || "")
         }
         return new UICollectionViewCell(withReuseIdentifier, indexPath)
     }
@@ -173,7 +185,7 @@ export class UICollectionView extends UIScrollView {
             var item = this._dataSource.collectionViewCellForItemAtIndexPath(this, indexPath)
             this._discardHeld(_cellId(indexPath))
             var element = this.$el.find("> #" + _cellId(indexPath))
-            if (item && element.html() === "") { element.html(this._registeredNibs[item.reuseIdentifier] || "") }
+            if (item && element.html() === "") { element.html(this._registeredNibs.get(item.reuseIdentifier) || "") }
         }
     }
 
@@ -192,6 +204,19 @@ export class UICollectionView extends UIScrollView {
 
 function _cellId(indexPath) {
     return "cell-section-" + indexPath.section + "-row-" + indexPath.row
+}
+
+
+// The name is the literal the loader wrote beside the nib, never constructor.name, which a minifier rewrites. The answer is kept as
+// register() keeps a class, so a miss costs one lookup per identifier.
+function _namedItemClass(registeredClasses, registeredNibs, identifier) {
+    var cellClass = nibClassNamed(identifier)
+    if (cellClass === null || !(cellClass.prototype instanceof UICollectionViewCell)) {
+        throw new Error(`could not dequeue a view of kind: UICollectionElementKindCell with identifier ${identifier} - must register a nib or a class for the identifier or connect a prototype cell in a storyboard`)
+    }
+    registeredClasses.set(identifier, cellClass)
+    registeredNibs.set(identifier, cellClass.nib)
+    return cellClass
 }
 
 
