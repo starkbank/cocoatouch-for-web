@@ -148,12 +148,13 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         return total
     }
 
-    // A cell sized by a width keyword on an inline-block, as the measuring box does, is as wide as that keyword says; so is a row that
-    // keeps its own display and is sized by the keyword, which asks for what the row itself says in data-min and data-max.
+    // A cell sized by a width keyword, as the measuring box does, is as wide as that keyword says, whatever display it was given or
+    // kept; so is a row that keeps its own display and is sized by the keyword, which asks for what the row itself says in data-min
+    // and data-max.
     function measuringWidth(element) {
         var keyword = element.style.getPropertyValue("width")
         var display = element.style.getPropertyValue("display")
-        if (element.tagName.toLowerCase() === "tr" ? display !== "" : display !== "inline-block") { return null }
+        if (element.tagName.toLowerCase() === "tr" ? display !== "" : display === "none") { return null }
         if (keyword === "max-content") { return intrinsicOf(element).max + extrasOf(element) }
         if (keyword === "min-content") { return intrinsicOf(element).min + extrasOf(element) }
         return null

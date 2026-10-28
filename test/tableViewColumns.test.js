@@ -1,11 +1,17 @@
 import "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
-import { UITableViewRowAnimation } from "../src/index.js"
+import { IBOutlet, UILabel, UIView, UITableViewCell, UITableViewRowAnimation } from "../src/index.js"
 import { counters, setup, rowsBody, renderedIds, renderedRows, spacers, scrollTo, at } from "./tableReuseHelpers.js"
 
 
 var animation = UITableViewRowAnimation.none
+
+// Three cells of which the second is a view of its own, so a row can hide it the way a page does.
+class Switchable extends UITableViewCell {}
+Switchable.nib = "<tr data-height=\"95\"><td id=\"title\"></td><td id=\"second\"></td><td id=\"third\"></td></tr>"
+IBOutlet("#title", UILabel)(Switchable.prototype, "titleLabel", {})
+IBOutlet("#second", UIView)(Switchable.prototype, "secondView", {})
 
 // What each row's three cells ask of their columns, as the fake layout reads them from data-min and data-max. Column 1 is wide
 // when it can be (max well over twice its min), column 2 never asks for a min.
@@ -667,5 +673,63 @@ test("FS12. every animation frame a table asks for has run or been cancelled onc
             globalThis.requestAnimationFrame = request
             globalThis.cancelAnimationFrame = cancel
         }
+    })
+})
+
+test("a cell one row hides through isHidden records 0 for its column, and no other row does", function() {
+    withTable({widthsOf: widths}, function({table, model, layout}) {
+        table.register(Switchable, {forCellReuseIdentifier: "row"})
+        model.onAsk = (row, cell) => { cell.secondView.isHidden = row === 7 }
+        table.reloadData()
+        scrollTo(layout, 40000)
+        settle(layout)
+        var records = table._columns.records
+        assert.deepEqual([records[7].min[1], records[7].max[1]], [0, 0], "the hidden cell asks nothing of its column")
+        assert.deepEqual([records[7].min[0], records[7].max[0]], [10 + (7 % 5), 30 + (7 % 7) * 5], "its neighbours still do")
+        for (var row of [6, 8, 9, 20]) {
+            assert.deepEqual([records[row].min[1], records[row].max[1]], [20, 40 + (row % 11) * 10], "row " + row)
+        }
+    })
+})
+
+test("a row whose structure is not the skeleton's is measured without reading what the rendered rows have, and every cell is written as before", function() {
+    withTable({widthsOf: widths}, function({table, layout}) {
+        settle(layout)
+        var real = table._rowBox
+        var lookups = 0
+        table._rowBox = {mode: real.mode, signature: real.signature, key: real.key, get cells() { lookups++; return real.cells }}
+        var queue = table._queueElement()
+        var other = document.createElement("tr")
+        other.innerHTML = "<td></td><td></td><td></td><td></td>"
+        queue.appendChild(other)
+        var observer = new window.MutationObserver(function() {})
+        observer.observe(other, {subtree: true, attributes: true, attributeFilter: ["style"], attributeOldValue: true})
+        var records = []
+        try {
+            table._readWidths([other], false)
+            records = observer.takeRecords()
+        } finally {
+            observer.disconnect()
+        }
+        var written = new Map()
+        for (var record of records) {
+            if (!written.has(record.target)) { written.set(record.target, new Set()) }
+            ;(record.oldValue || "").split(";").map((declaration) => declaration.split(":")[0].trim()).filter((name) => name !== "").forEach((name) => written.get(record.target).add(name))
+        }
+        for (var [target, names] of written) {
+            ;(target.getAttribute("style") || "").split(";").map((declaration) => declaration.split(":")[0].trim()).filter((name) => name !== "").forEach((name) => names.add(name))
+        }
+        assert.deepEqual(Array.from(written.get(other)).sort(), ["display"], "the row is a block while it is measured")
+        for (var cell of Array.from(other.children)) {
+            assert.deepEqual(Array.from(written.get(cell)).sort(), ["display", "max-width", "min-width", "width"], "every cell is an inline-block with its width keywords")
+        }
+        other.remove()
+        assert.equal(lookups, 0, "no lookup of the rendered row's cells")
+        assert.equal(other.querySelectorAll("[style]").length, 0)
+        var skeletonLike = document.querySelector("tr[id^=cell-]").cloneNode(true)
+        assert.deepEqual(table._slotsOf(skeletonLike).map((slot) => slot.display), ["table-cell", "table-cell", "table-cell"])
+        assert.equal(lookups, 1, "a row of the skeleton's structure is looked up")
+        assert.deepEqual(table._slotsOf(other).map((slot) => slot.display), ["table-cell", "table-cell", "table-cell", "table-cell"])
+        assert.equal(lookups, 1, "and one of another structure is not")
     })
 })

@@ -30,6 +30,8 @@ const maxColSpan = 1000
 const measuringBatch = 100
 // An anchor row that moved less than this on screen is not compensated.
 const anchorTolerance = 0.5
+// A padding or border width of the page's is copied into a spacer's cell only when it is a plain px number no wider than this.
+const maxBoxWidth = 10000
 
 
 // Rows are <tr id="cell-<row>"> children of the table's tbody, but only the rows in or near the visible area exist: a cell that
@@ -1033,10 +1035,11 @@ export class UITableView extends UIScrollView {
 
     // A spacer stands in for the rows it replaces and generates the box the page gives them. When the rows are table rows it is a row
     // with the cells of the skeleton, the structure most rows have, and nothing else, so sibling selectors keep their meaning and the
-    // first row of a fixed layout gives the columns row 0 would. When the page lays its rows out as flex, grid or block, they share
-    // one anonymous row and cell, and the spacer is a block with no cells that joins them. It belongs to no cell, has no id and is
-    // never bound. Its vertical box is zero, whatever the page's rules say for those cells; the horizontal box is the page's, so a
-    // column keeps its padding and its declared width.
+    // first row of a fixed layout gives the columns row 0 would; each cell has the display and the horizontal padding and border of
+    // the rendered skeleton row's cell, so a column the page hides is not a column here and one keeps the padding an id rule gives
+    // it. When the page lays its rows out as flex, grid or block, they share one anonymous row and cell, and the spacer is a block
+    // with no cells that joins them. It belongs to no cell, has no id and is never bound. Its vertical box is zero, whatever the
+    // page's rules say for those cells.
     _spacer(key) {
         var structure = _structureOf(skeleton(this._columns))
         var box = this._rowBox.mode === "box" || this._rowBox.signature === structure ? this._rowBox : tableRowBox
@@ -1053,12 +1056,14 @@ export class UITableView extends UIScrollView {
             row.style.setProperty("display", "block", "important")
             return row
         }
-        for (var spec of JSON.parse(structure)) {
-            var cell = document.createElement(spec[0] === "th" ? "th" : "td")
-            cell.className = spec[1]
-            cell.colSpan = spec[2]
+        var specs = JSON.parse(structure)
+        for (var index = 0; index < specs.length; index++) {
+            var cell = document.createElement(specs[index][0] === "th" ? "th" : "td")
+            cell.className = specs[index][1]
+            cell.colSpan = specs[index][2]
             _zeroVertical(cell)
             cell.style.setProperty("height", "0", "important")
+            _mirrorBox(cell, box.cells && box.cells[index])
             row.appendChild(cell)
         }
         return row
@@ -1135,6 +1140,7 @@ export class UITableView extends UIScrollView {
         }
         resetColumns(this._columns, {floor})
         this._isMeasured = false
+        this._rowBoxFor = null
         this._cancelMeasuring()
     }
 
@@ -1174,8 +1180,9 @@ export class UITableView extends UIScrollView {
 
     // What the page makes of a row, read from the first rendered row that has the skeleton's structure, or the first rendered row
     // while a reset has left no skeleton: a table row, or a box (flex, grid, block) that the browser wraps, with its neighbours, in one
-    // anonymous row and cell. The spacers and the measuring follow it. It is read once per structure, window width and table layout,
-    // so a scroll pass reads nothing; with no row rendered the table keeps what it has. When the answer flips between a table row
+    // anonymous row and cell. The spacers and the measuring follow it. It is read once per structure, window width and table layout, and
+    // again after the columns start over (a reload, a web font), so a scroll pass reads nothing; with no row rendered the table
+    // keeps what it has. When the answer flips between a table row
     // and a box the records change shape, so they start over, and the rendered rows are noted again because a reset forgets the
     // signatures.
     _noteRowBox(read) {
@@ -1187,13 +1194,14 @@ export class UITableView extends UIScrollView {
         if (this._rowBoxFor === key) { return }
         var box = _readRowBox(row, signature)
         var flipped = box.mode !== this._rowBox.mode
-        this._rowBoxFor = key
         this._rowBox = box
-        if (!flipped) { return }
-        this._resetColumns({keepFloor: false})
-        this._needAll = true
-        this._forgetReplay()
-        for (var [index, cell] of this._renderedRows()) { this._noteStructure(index, cell) }
+        if (flipped) {
+            this._resetColumns({keepFloor: false})
+            this._needAll = true
+            this._forgetReplay()
+            for (var [index, cell] of this._renderedRows()) { this._noteStructure(index, cell) }
+        }
+        this._rowBoxFor = key
     }
 
     // The first rendered row whose cells have the structure the spacers copy; with none noted, the first rendered row.
@@ -1263,48 +1271,62 @@ export class UITableView extends UIScrollView {
 
     // The queue's tbody becomes a box with no size and no paint whose rows and cells size themselves to their content, and the
     // widths are read from it: the cells' border boxes at max-content, then at min-content. Collapsed borders are counted by the
-    // table at half, and the replay adds the cell's own padding and border back, so what is read here is the border box. Rows the page
-    // lays out as boxes keep their display and are measured as one column, the row's own border box, which is what the anonymous cell
-    // they share asks of the table.
+    // table at half, and the replay adds the cell's own padding and border back, so what is read here is the border box. A cell the
+    // page hides, or that is hidden in its row, asks nothing of its column and is not written; a cell the page lays out as a box keeps
+    // its display. Rows the page lays out as boxes keep their display too and are measured as one column, the row's own border box,
+    // which is what the anonymous cell they share asks of the table.
     _readWidths(elements, fixed) {
         var reads = new Map()
         var tbody = this._queueBody
         var isBox = this._rowBox.mode === "box"
         resolvePendingUnhides()
+        var slots = new Map()
+        for (var element of elements) { slots.set(element, isBox ? [{node: element, display: "block"}] : this._slotsOf(element)) }
         var written = []
         try {
             for (var [property, value] of measuringBox) { _write(tbody, property, value, written) }
-            for (var element of elements) {
-                if (isBox) {
-                    _write(element, "min-width", "0", written)
-                    _write(element, "max-width", "none", written)
-                    continue
-                }
-                _write(element, "display", "block", written)
-                for (var cell of Array.from(element.children)) {
-                    _write(cell, "display", "inline-block", written)
-                    _write(cell, "min-width", "0", written)
-                    _write(cell, "max-width", "none", written)
+            for (element of elements) {
+                if (!isBox) { _write(element, "display", "block", written) }
+                for (var slot of slots.get(element)) {
+                    if (slot.display === "none") { continue }
+                    if (slot.display === "table-cell") { _write(slot.node, "display", "inline-block", written) }
+                    _write(slot.node, "min-width", "0", written)
+                    _write(slot.node, "max-width", "none", written)
                 }
             }
             var max = new Map()
             if (!fixed) {
                 for (element of elements) {
-                    for (cell of _measuredOf(element, isBox)) { _write(cell, "width", "max-content", written) }
+                    for (slot of slots.get(element)) {
+                        if (slot.display !== "none") { _write(slot.node, "width", "max-content", written) }
+                    }
                 }
-                for (element of elements) { max.set(element, _measuredOf(element, isBox).map((cell) => finiteWidth(cell.getBoundingClientRect().width))) }
+                for (element of elements) { max.set(element, slots.get(element).map(_widthOf)) }
             }
             for (element of elements) {
-                for (cell of _measuredOf(element, isBox)) { _write(cell, "width", "min-content", written) }
+                for (slot of slots.get(element)) {
+                    if (slot.display !== "none") { _write(slot.node, "width", "min-content", written) }
+                }
             }
             for (element of elements) {
-                var min = _measuredOf(element, isBox).map((cell) => finiteWidth(cell.getBoundingClientRect().width))
+                var min = slots.get(element).map(_widthOf)
                 reads.set(element, {min: min, max: max.get(element) || min})
             }
         } finally {
             for (var entry of written.reverse()) { _unwrite(entry) }
         }
         return reads
+    }
+
+    // What each cell of a table row is measured as: hidden, by the page (the rendered skeleton row's cell is) or by the row's own
+    // inline display, or the display it has, as a table-cell, a block or an inline-block. A row of another structure has no rendered
+    // cell to learn from, so only its inline display counts.
+    _slotsOf(element) {
+        var cells = this._rowBox.signature === _signatureOf(element) ? this._rowBox.cells : null
+        return Array.from(element.children).map(function(cell, index) {
+            var display = cells && cells[index] ? cells[index].display : "table-cell"
+            return {node: cell, display: display === "none" || cell.style.getPropertyValue("display") === "none" ? "none" : display}
+        })
     }
 
     // The cells that were measured go back to the queue they came from, or are released when it is full.
@@ -1562,20 +1584,69 @@ function _unwrite(entry) {
 }
 
 // What a table has until it has read its rows: table rows, and so spacers that are rows with cells.
-const tableRowBox = Object.freeze({mode: "table", signature: null, key: "table"})
+const tableRowBox = Object.freeze({mode: "table", signature: null, cells: null, key: "table"})
 
 // The displays under which a row is a table row, or generates no box that could stand in for the rows of a table.
 const tableRowDisplays = new Set(["table-row", "contents", "none", ""])
+const blockDisplays = new Set(["block", "flex", "grid", "flow-root", "list-item"])
+const inlineDisplays = new Set(["inline", "inline-block", "inline-flex", "inline-grid", "inline-table"])
+const lineStyles = new Set(["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"])
 
-// The boxes whose width is read: a row that is a box is one, and so is each cell of a table row.
-function _measuredOf(element, isBox) {
-    return isBox ? [element] : Array.from(element.children)
+// What a measured box asks of its column; a hidden cell, which is not written, asks nothing.
+function _widthOf(slot) {
+    return slot.display === "none" ? 0 : finiteWidth(slot.node.getBoundingClientRect().width)
 }
 
 function _readRowBox(row, signature) {
     var display = getComputedStyle(row).getPropertyValue("display")
-    if (tableRowDisplays.has(display)) { return Object.freeze({mode: "table", signature: signature, key: "table"}) }
-    return Object.freeze({mode: "box", signature: signature, key: "box"})
+    if (!tableRowDisplays.has(display)) { return Object.freeze({mode: "box", signature: signature, cells: null, key: "box"}) }
+    var cells = Array.from(row.children).map(_readCellBox)
+    return Object.freeze({mode: "table", signature: signature, cells: cells, key: "table" + JSON.stringify(cells)})
+}
+
+// What the page gives a cell of a table row that a spacer's cell has to have too: its display, as the one display a spacer cell can
+// have in its place, and its horizontal padding and border. The page's values are validated here, being written back into the page.
+function _readCellBox(cell) {
+    var style = getComputedStyle(cell)
+    return {
+        display: _displayOf(style.getPropertyValue("display")),
+        paddingLeft: _boxWidth(style.getPropertyValue("padding-left")),
+        paddingRight: _boxWidth(style.getPropertyValue("padding-right")),
+        borderLeft: _boxWidth(style.getPropertyValue("border-left-width")),
+        borderRight: _boxWidth(style.getPropertyValue("border-right-width")),
+        borderLeftStyle: _lineStyle(style.getPropertyValue("border-left-style")),
+        borderRightStyle: _lineStyle(style.getPropertyValue("border-right-style")),
+    }
+}
+
+// A cell in a table row is hidden, a table cell (what a spacer's cell is, so nothing is written), a block, or an inline box; any
+// other value stands for a table cell.
+function _displayOf(value) {
+    if (value === "none") { return "none" }
+    if (blockDisplays.has(value)) { return "block" }
+    if (inlineDisplays.has(value)) { return "inline-block" }
+    return "table-cell"
+}
+
+function _boxWidth(value) {
+    if (!/^(\d+\.?\d*|\.\d+)(px)?$/.test(value)) { return 0 }
+    var width = parseFloat(value)
+    return width <= maxBoxWidth ? width : 0
+}
+
+function _lineStyle(value) {
+    return lineStyles.has(value) ? value : "none"
+}
+
+function _mirrorBox(cell, box) {
+    if (!box) { return }
+    if (box.display !== "table-cell") { cell.style.setProperty("display", box.display, "important") }
+    cell.style.setProperty("padding-left", box.paddingLeft + "px", "important")
+    cell.style.setProperty("padding-right", box.paddingRight + "px", "important")
+    cell.style.setProperty("border-left-width", box.borderLeft + "px", "important")
+    cell.style.setProperty("border-right-width", box.borderRight + "px", "important")
+    cell.style.setProperty("border-left-style", box.borderLeftStyle, "important")
+    cell.style.setProperty("border-right-style", box.borderRightStyle, "important")
 }
 
 // The cell's own horizontal padding and border, which the browser adds around the spans.
