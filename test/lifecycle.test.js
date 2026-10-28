@@ -18,8 +18,11 @@ function recordingController(name, log) {
 
 test("a view looks its element up again once the cached one has left the document", function() {
     var view = new UIView("#icon")
-    var stale = {0: {isConnected: false}, length: 1}
+    var node = {isConnected: true}
+    var stale = {0: node, length: 1}
     view._$el = stale
+    assert.equal(view.$el, stale)
+    node.isConnected = false
     assert.notEqual(view.$el, stale)
     var live = {0: {isConnected: true}, length: 1}
     view._$el = live
@@ -457,6 +460,32 @@ test("a controller bound as an outlet receives awakeFromNib, viewDidLoad, viewWi
     var next = new (recordingController("next", []))()
     next.present(next, {})
     assert.deepEqual(log, ["outletVC.viewWillDisappear", "outletVC.viewDidDisappear"])
+})
+
+// Interface Builder connects a view's actions after its outlets and before awakeFromNib.
+test("a controller bound as an outlet has its actions connected before awakeFromNib, and on restore before didMoveToWindow", function() {
+    var log = []
+    var original = Bind.ibAction
+    Bind.ibAction = function(view, options) {
+        if (view instanceof OutletController) { log.push("outletVC.ibAction") }
+        return original.call(Bind, view, options)
+    }
+    var OutletController = outletControllerClass(log)
+    IBAction("#inner", UIView)(OutletController.prototype, "tapped", {})
+    var Host = recordingController("host", [])
+    IBOutlet("#panel", OutletController)(Host.prototype, "panel", {})
+    try {
+        var host = new Host()
+        host.present(host, {})
+        assert.deepEqual(log, ["outletVC.ibAction", "outletVC.awakeFromNib", "outletVC.viewDidLoad", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
+        log.length = 0
+        var restored = new Host()
+        restored.restore(restored)
+        var appearing = log.filter(function(entry) { return !/Disappear$/.test(entry) })
+        assert.deepEqual(appearing, ["outletVC.ibAction", "outletVC.didMoveToWindow", "outletVC.viewWillAppear", "outletVC.viewDidAppear"])
+    } finally {
+        Bind.ibAction = original
+    }
 })
 
 test("a controller bound as an outlet of a restored controller receives didMoveToWindow, viewWillAppear and viewDidAppear, not viewDidLoad", function() {

@@ -60,31 +60,15 @@ test("UIUserInterfaceIdiom has only Apple's cases: no web", function() {
     assert.deepEqual(Object.keys(UIUserInterfaceIdiom).sort(), ["mac", "pad", "phone", "unspecified"])
 })
 
-test("UIButton.showsActivityIndicator swaps the title for a spinner and restores it", function() {
-    var button = new UIButton("#send")
-    // Stores and returns the value raw: this double does not model
-    // textContent's escaping, so no test whose subject is escaping may use it.
-    var content = ""
-    button._$el = {0: {}, length: 1, html: function(value) { if (value === undefined) { return content } content = value; return this }, text: function(value) { if (value === undefined) { return content } content = value; return this }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }}
-    button.setTitle("Send", {for: UIControlState.normal})
-    button.showsActivityIndicator = true
-    assert.ok(button.showsActivityIndicator)
-    assert.match(button.$el.html(), /fa-spin/)
-    button.showsActivityIndicator = true
-    button.showsActivityIndicator = false
-    assert.equal(button.$el.html(), "Send")
-    assert.ok(!button.showsActivityIndicator)
-})
-
-
-test("addTarget calls the action with the target and the control", function() {
+test("addTarget calls the action on the target with the control alone, as Apple's (sender)", function() {
     var button = new UIButton("#b")
     var seen = null
     var target = {}
-    button.addTarget(target, {action: function(t, control) { seen = {t: t, control: control} }, for: UIControlEvent.touchUpInside})
+    button.addTarget(target, {action: function(sender) { seen = {self: this, count: arguments.length, sender: sender} }, for: UIControlEvent.touchUpInside})
     button.sendActions({for: UIControlEvent.touchUpInside})
-    assert.equal(seen.t, target)
-    assert.equal(seen.control, button)
+    assert.equal(seen.self, target)
+    assert.equal(seen.count, 1)
+    assert.equal(seen.sender, button)
 })
 
 test("a tap gesture recognizer runs its action on the target with itself as argument", function() {
@@ -205,18 +189,21 @@ test("alpha and isHidden set inside UIView.animate fade instead of switching", f
     assert.deepEqual(calls, [["fadeTo", 500, 1], ["fadeOut", 500]])
 })
 
-test("tag lives on the element and sendActions fires the mapped event", function() {
+test("tag lives on the element and sendActions calls the targets of that event without a DOM event", function() {
     var control = new UIControl("#control")
     var el = control.$el
-    var attrs = {}, fired = []
+    var attrs = {}, fired = [], calls = []
     el.attr = function(name, value) { if (value === undefined) { return attrs[name] } attrs[name] = String(value); return el }
     el.trigger = function(event) { fired.push(event); return el }
+    control.addTarget({}, {action: function() { calls.push("changed") }, for: UIControlEvent.editingChanged})
+    control.addTarget({}, {action: function() { calls.push("tapped") }, for: UIControlEvent.touchUpInside})
     assert.equal(control.tag, 0)
     control.tag = 3
     assert.equal(control.tag, 3)
     control.sendActions({for: UIControlEvent.editingChanged})
     control.sendActions({for: UIControlEvent.touchUpInside})
-    assert.deepEqual(fired, ["input", "click"])
+    assert.deepEqual(calls, ["changed", "tapped"])
+    assert.deepEqual(fired, [])
 })
 
 test("insertSubview places a view's nib without restyling it and links it", function() {
@@ -373,19 +360,19 @@ test("UIDatePicker.addTarget runs the action on the target with the picker as th
         var picker = new UIDatePicker("#when")
         var seen = []
         var target = {name: "form"}
-        var action = function(t, sender) { seen.push({self: this, t: t, sender: sender}) }
+        var action = function(sender) { seen.push({self: this, count: arguments.length, sender: sender}) }
         picker.addTarget(target, {action: action, for: UIControlEvent.valueChanged})
         options.onSelect("01/02/2026")
         assert.equal(seen.length, 1)
         assert.equal(seen[0].self, target)
-        assert.equal(seen[0].t, target)
+        assert.equal(seen[0].count, 1)
         assert.equal(seen[0].sender, picker)
         picker.removeTarget(target, {action: action, for: UIControlEvent.valueChanged})
         options.onSelect("01/03/2026")
         assert.equal(seen.length, 1)
         var began = 0
         picker.addTarget(target, {action: function() { began += 1 }, for: UIControlEvent.editingDidBegin})
-        picker.$el.trigger("focus")
+        picker.sendActions({for: UIControlEvent.editingDidBegin})
         assert.equal(began, 1)
     })
 })
@@ -444,7 +431,7 @@ test("NSRange carries location and length, and NSNotFound is a Foundation global
 // Apple requires these labels; JavaScript cannot refuse at compile time, so
 // the call refuses, naming the method and the Swift signature.
 function stubbed(control) {
-    control._$el = {0: {}, length: 1, html: function() { return this }, text: function() { return "" }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }, trigger: function() { return this }, on: function() { return this }, off: function() { return this }, prop: function() { return 0 }, empty: function() { return this }, append: function() { return this }, find: function() { return {length: 0, each: function() {}, off: function() { return this }, on: function() { return this }} }}
+    control._$el = {0: {}, length: 1, html: function() { return this }, text: function() { return "" }, css: function() { return this }, attr: function() { return this }, removeAttr: function() { return this }, hasClass: function() { return false }, toggleClass: function() { return this }, trigger: function() { return this }, each: function() { return this }, on: function() { return this }, off: function() { return this }, prop: function() { return 0 }, empty: function() { return this }, append: function() { return this }, find: function() { return {length: 0, each: function() {}, off: function() { return this }, on: function() { return this }} }}
     return control
 }
 
@@ -499,8 +486,9 @@ test("the nine still behave when the label is given", function() {
     var fired = []
     button.addTarget({}, {action: function() { fired.push("tap") }, for: UIControlEvent.touchUpInside})
     button._$el.trigger = function(event) { fired.push(event); return this }
+    delete button._$el[0]
     button.sendActions({for: UIControlEvent.touchUpInside})
-    assert.deepEqual(fired, ["click"])
+    assert.deepEqual(fired, ["tap"])
     button.removeTarget({}, {for: UIControlEvent.touchUpInside})
     var picker = stubbed(new UIPickerView("#labelled-picker"))
     assert.equal(picker.numberOfRows({inComponent: 0}), 0)

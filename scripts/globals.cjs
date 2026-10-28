@@ -21,7 +21,8 @@ var frameworks = {
     CoreAnimation: "coreanimation",
     CoreMedia: "coremedia",
     AVKit: "avkit",
-    PDFKit: "pdfkit"
+    PDFKit: "pdfkit",
+    UniformTypeIdentifiers: "uniformtypeidentifiers"
 }
 
 globalThis.$ = function() { return {} }
@@ -42,7 +43,7 @@ async function main() {
             globals[name] = "readonly"
         }
     }
-    var dts = imports.join("\n") + "\n\n\n// Names made ambient by `import \"UIKit\"`, `import \"Foundation\"`, `import \"CoreGraphics\"`, `import \"CoreAnimation\"`, `import \"CoreMedia\"` and `import \"AVKit\"`.\ndeclare global {\n" + declarations.join("\n") + "\n}\n\nexport {}\n"
+    var dts = imports.join("\n") + "\n\n\n// Names made ambient by `import \"UIKit\"`, `import \"Foundation\"`, `import \"CoreGraphics\"`, `import \"CoreAnimation\"`, `import \"CoreMedia\"`, `import \"AVKit\"` and `import \"UniformTypeIdentifiers\"`.\ndeclare global {\n" + declarations.join("\n") + "\n}\n\nexport {}\n"
     fs.mkdirSync(path.join(root, "types"), {recursive: true})
     fs.writeFileSync(path.join(root, "types", "globals.d.ts"), dts)
     fs.mkdirSync(path.join(root, "eslint"), {recursive: true})

@@ -54,7 +54,7 @@ export class LinksViewController extends UIViewController {
             link.nib = `<a class="links-option">${page.title}</a>`
             this.listView.addSubview(link)
             link.userActivity = _browsing(page.path)
-            link.addTarget(this, {action: _linkTapped, for: UIControlEvent.touchUpInside})
+            link.addTarget(this, {action: this.linkTapped, for: UIControlEvent.touchUpInside})
         }
     }
 
@@ -132,8 +132,4 @@ function _browsing(url) {
     const activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})
     activity.webpageURL = url
     return activity
-}
-
-function _linkTapped(target, sender) {
-    target.linkTapped(sender)
 }

@@ -122,3 +122,24 @@ test("defineNotificationNames is framework-internal: Foundation's public entry d
     assert.equal(foundation.defineNotificationNames, undefined)
     assert.equal(foundation.NSNotification, NSNotification)
 })
+
+// A page that loads two bundles has two copies of the package and one
+// NotificationCenter.default, as it has one document, so an observer added
+// through one copy hears what the other posts.
+test("two evaluations of the entry share one default center, and each hears the other's posts", async function() {
+    var first = await import("../src/foundation/notificationcenter.js?copy=first")
+    var second = await import("../src/foundation/notificationcenter.js?copy=second")
+    assert.notEqual(first.NotificationCenter, second.NotificationCenter, "two evaluations are two copies of the class")
+    assert.equal(first.NotificationCenter.default, second.NotificationCenter.default)
+    var heard = []
+    var observer = {}
+    second.NotificationCenter.default.addObserver(observer, {name: "crossCopy", selector: function(n) { heard.push(n.userInfo.from) }})
+    first.NotificationCenter.default.post({name: "crossCopy", userInfo: {from: "first"}})
+    second.NotificationCenter.default.removeObserver(observer)
+    assert.deepEqual(heard, ["first"])
+})
+
+test("the default center is the one this package's own copy hands out too", async function() {
+    var copy = await import("../src/foundation/notificationcenter.js?copy=third")
+    assert.equal(copy.NotificationCenter.default, NotificationCenter.default)
+})

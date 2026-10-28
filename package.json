@@ -1,6 +1,6 @@
 {
     "name": "cocoatouch",
-    "version": "1.8.2",
+    "version": "1.9.0",
     "description": "Apple CocoaTouch for the web: UIViewController, UIView, IBOutlet, IBAction, NSNotificationCenter and .xib nibs on top of jQuery",
     "license": "MIT",
     "type": "module",
@@ -39,6 +39,10 @@
             "types": "./types/PDFKit.d.ts",
             "default": "./src/PDFKit.js"
         },
+        "./UniformTypeIdentifiers": {
+            "types": "./types/UniformTypeIdentifiers.d.ts",
+            "default": "./src/UniformTypeIdentifiers.js"
+        },
         "./uikit": {
             "types": "./types/uikit/index.d.ts",
             "default": "./src/uikit/index.js"
@@ -67,6 +71,10 @@
             "types": "./types/pdfkit/index.d.ts",
             "default": "./src/pdfkit/index.js"
         },
+        "./uniformtypeidentifiers": {
+            "types": "./types/uniformtypeidentifiers/index.d.ts",
+            "default": "./src/uniformtypeidentifiers/index.js"
+        },
         "./types/globals.d.ts": "./types/globals.d.ts",
         "./webpack/xibLoader": "./webpack/xibLoader.cjs",
         "./webpack/aliases": "./webpack/aliases.cjs",
@@ -83,6 +91,7 @@
         "LICENSE"
     ],
     "scripts": {
+        "styles:pdfviewer": "node scripts/scopePdfViewerCss.mjs",
         "build": "rm -rf types && tsc -p tsconfig.types.json && node scripts/globals.cjs",
         "pretest": "npm run build",
         "test": "node --import ./test/register.mjs --test test/*.test.js",
@@ -122,6 +131,7 @@
     "devDependencies": {
         "jquery": "^3.7.1",
         "jsdom": "^29.1.1",
+        "postcss": "^8.5.31",
         "typescript": "^5.9.3"
     },
     "peerDependenciesMeta": {

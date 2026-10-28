@@ -1,16 +1,25 @@
 import { UIActivityIndicatorView } from "./uiactivityindicatorview.js"
 import { UIButton } from "./uibutton.js"
+import { NSDirectionalRectEdge } from "./uibuttonconfiguration.js"
 import { UILabel } from "./uilabel.js"
 import { UITableView } from "./uitableview.js"
 import { UITableViewCell } from "./uitableviewcell.js"
 import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
+import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { UITextField } from "./uitextfield.js"
+import { UITextContentType } from "./uitextcontenttype.js"
+import { UITextView } from "./uitextview.js"
+import { UITextPasteItem } from "./uitextpasteitem.js"
 import { UIView } from "./uiview.js"
+import { UIWindow } from "./uiwindow.js"
+import { UIAccessibility, UIAccessibilityTraits } from "./uiaccessibility.js"
 import { UIControl } from "./uicontrol.js"
+import { UIColorWell } from "./uicolorwell.js"
 import { UISwitch } from "./uiswitch.js"
 import { UIImageView } from "./uiimageview.js"
 import { UIImage } from "./uiimage.js"
+import { UIImageRenderingMode } from "./uiimagerenderingmode.js"
 import { UIColor } from "./uicolor.js"
 import { UIControlEvent } from "./uicontrolevent.js"
 import { UIPickerView } from "./uipickerview.js"
@@ -36,22 +45,41 @@ import { UIControlState } from "./uicontrolstate.js"
 import { UINavigationController } from "./uinavigationcontroller.js"
 import { UINavigationBar } from "./uinavigationbar.js"
 import { UINavigationItem } from "./uinavigationitem.js"
+import { UIPasteboard } from "./uipasteboard.js"
+import { UIApplication } from "./uiapplication.js"
+import { UIToolTipInteraction } from "./uitooltipinteraction.js"
+import { UIDocumentPickerViewController } from "./uidocumentpickerviewcontroller.js"
+import { UIDropInteraction } from "./uidropinteraction.js"
+import { UIDropSession } from "./uidropsession.js"
+import { UIDragItem } from "./uidragitem.js"
+import { UIDropProposal } from "./uidropproposal.js"
+import { UIDropOperation } from "./uidropoperation.js"
 
 
 export {
      UIActivityIndicatorView,
      UIButton,
+     NSDirectionalRectEdge,
      UILabel,
      UITableView,
      UITableViewCell,
      UITableViewScrollPosition,
+     UITableViewRowAnimation,
      UITableViewCellEditingStyle,
      UITextField,
+     UITextContentType,
+     UITextView,
+     UITextPasteItem,
      UIView,
+     UIWindow,
+     UIAccessibility,
+     UIAccessibilityTraits,
      UIControl,
+     UIColorWell,
      UISwitch,
      UIImageView,
      UIImage,
+     UIImageRenderingMode,
      UIColor,
      UIControlEvent,
      UIPickerView,
@@ -82,4 +110,13 @@ export {
      UINavigationController,
      UINavigationBar,
      UINavigationItem,
+     UIPasteboard,
+     UIApplication,
+     UIToolTipInteraction,
+    UIDocumentPickerViewController,
+    UIDropInteraction,
+    UIDropSession,
+    UIDragItem,
+    UIDropProposal,
+    UIDropOperation,
 }

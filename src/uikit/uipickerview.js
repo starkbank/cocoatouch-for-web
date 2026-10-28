@@ -20,8 +20,26 @@ export class UIPickerView extends UIView {
         return this._dataSource || null
     }
 
+    // Apple's non-interactive picker cannot be changed by the user. UIView's
+    // pointer-events alone leaves a focused select open to the keyboard, so the
+    // select is also disabled, which takes it out of the focus order too. How a
+    // disabled select looks is the stylesheet's: by default the browser greys it.
+    set isUserInteractionEnabled(bool) {
+        super.isUserInteractionEnabled = bool
+        this._isUserInteractionEnabled = bool
+        if (bool) {
+            this.$el.removeAttr("disabled")
+            return
+        }
+        this.$el.attr("disabled", "")
+    }
+
+    get isUserInteractionEnabled() {
+        return this._isUserInteractionEnabled !== false
+    }
+
     set delegate(delegate) {
-        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIPickerView.delegate")
+        rejectRetiredDelegateNames(delegate, retiredDelegateNames, "UIPickerView.delegate", "1.6.0")
         this._delegate = delegate
         this.$el.off("change.picker").on("change.picker", () => {
             if (delegate && delegate.pickerViewDidSelectRowInComponent) {

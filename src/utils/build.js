@@ -1,3 +1,6 @@
+import { outletElementClass } from "../uikit/iboutlet.js"
+
+
 
 
 export class Build {
@@ -8,7 +11,7 @@ export class Build {
         var outlets = viewController["iboutlets"] || []
 
         for (const outlet of outlets) {
-            var outletNib = outlet.cls.nib || ""
+            var outletNib = outletElementClass(outlet).nib || ""
             if (outletNib) {
                 var selector = outlet.selector
                 var parent = container.find(selector)

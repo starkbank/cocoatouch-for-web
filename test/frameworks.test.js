@@ -36,7 +36,7 @@ test("CoreAnimation and AVKit follow the same shape", async function() {
 
 test("the webpack aliases point every framework name at an existing entry", function() {
     const aliases = require("../webpack/aliases.cjs")
-    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "PDFKit", "UIKit"])
+    assert.deepEqual(Object.keys(aliases).sort(), ["AVKit", "CoreAnimation", "CoreGraphics", "CoreMedia", "Foundation", "PDFKit", "UIKit", "UniformTypeIdentifiers"])
     for (const file of Object.values(aliases)) {
         assert.ok(fs.existsSync(file), file + " does not exist")
         assert.equal(path.basename(path.dirname(file)), "src")
@@ -54,25 +54,22 @@ test("a framework publishes its NSNotification.Name constants by being imported:
     }
 })
 
-test("PDFKit's entry imports pdf_viewer.css and the subpath entry does not, so only a bundler ever meets the stylesheet", function() {
+test("PDFKit's entry imports the scoped viewer stylesheet and the subpath entry imports no css, so only a bundler ever meets it", function() {
     const entry = fs.readFileSync(path.join(here, "../src/PDFKit.js"), "utf8")
     const subpath = fs.readFileSync(path.join(here, "../src/pdfkit/index.js"), "utf8")
-    assert.match(entry, /^import "pdfjs-dist\/web\/pdf_viewer\.css"$/m)
+    assert.match(entry, /^import "\.\.\/styles\/pdf_viewer\.scoped\.css"$/m)
     assert.doesNotMatch(subpath, /\.css/)
 })
 
-// pdf_viewer.css declares `:root { color-scheme: light dark }`, which hands
-// every page that imports PDFKit, PDF or not, to the OS theme. The reset only
-// wins if it loads after the vendored sheet at equal specificity, so the
-// order of the two imports is the whole fix.
-test("PDFKit's entry imports its :root color-scheme reset after pdf_viewer.css, and the reset restores the initial value", function() {
+// pdf_viewer.css is unscoped: it restyles .sidebar, .page, .dialog and :root,
+// color-scheme included, on every page that imports PDFKit. The framework
+// imports its own copy, confined to .ct-pdfview, and no :root reset is left to
+// win a fight with the vendored sheet.
+test("PDFKit's entry no longer imports pdfjs-dist's pdf_viewer.css or a :root reset", function() {
     const entry = fs.readFileSync(path.join(here, "../src/PDFKit.js"), "utf8")
-    const vendored = entry.indexOf('import "pdfjs-dist/web/pdf_viewer.css"')
-    const reset = entry.indexOf('import "../styles/pdfkit.css"')
-    assert.ok(vendored !== -1 && reset !== -1, "both stylesheets are imported")
-    assert.ok(reset > vendored, "the reset is imported after the vendored stylesheet")
-    const css = fs.readFileSync(path.join(here, "../styles/pdfkit.css"), "utf8")
-    assert.match(css.replace(/\/\*[\s\S]*?\*\//g, ""), /:root\s*\{\s*color-scheme:\s*normal;?\s*\}/)
+    assert.doesNotMatch(entry, /pdfjs-dist\/web\/pdf_viewer\.css/)
+    assert.doesNotMatch(entry, /pdfkit\.css/)
+    assert.equal(fs.existsSync(path.join(here, "../styles/pdfkit.css")), false)
 })
 
 
@@ -165,4 +162,9 @@ test("no entry point other than PDFKit's reaches src/pdfkit/ or pdfjs-dist", fun
         assert.deepEqual(problems, [], `${path.relative(repoRoot, root)}`)
         assert.deepEqual(chains, [], `${path.relative(repoRoot, root)} reaches PDFKit`)
     }
+})
+
+test("importing UniformTypeIdentifiers makes UTType ambient and still exports it", async function() {
+    const UniformTypeIdentifiers = await import("../src/UniformTypeIdentifiers.js")
+    assert.equal(globalThis.UTType, UniformTypeIdentifiers.UTType)
 })

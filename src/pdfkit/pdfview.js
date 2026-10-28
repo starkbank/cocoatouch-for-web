@@ -2,6 +2,7 @@ import { UIView } from "../uikit/uiview.js"
 import { NotificationCenter } from "../foundation/notificationcenter.js"
 import { NSNotification } from "../foundation/nsnotification.js"
 import { required, typed, instance, optional, enumeration, arrayOf, Bool, Float } from "../utils/required.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 import { NSNotFound } from "../foundation/nsrange.js"
 import { PDFDocument } from "./pdfdocument.js"
 import { PDFPage } from "./pdfpage.js"
@@ -33,6 +34,8 @@ export class PDFView extends UIView {
         pdfjsWorker()
 
         var host = this.$el[0]
+        // The viewer stylesheet applies only inside this class (see PDFKit.js).
+        host.classList.add("ct-pdfview")
         var viewerElement = document.createElement("div")
         viewerElement.className = "pdfViewer"
         host.appendChild(viewerElement)
@@ -280,6 +283,7 @@ export class PDFView extends UIView {
     // horizontal and wrapped layouts put pages side by side.
     get visiblePages() {
         if (!this._document) { return [] }
+        resolvePendingUnhides()
         var container = this.$el[0].getBoundingClientRect()
         var visible = []
         var count = this._pdfViewer.pagesCount

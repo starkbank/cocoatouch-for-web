@@ -1,8 +1,14 @@
 import { UIControl } from "./uicontrol.js"
+import { UIControlEvent } from "./uicontrolevent.js"
 import { required, typed, Bool } from "../utils/required.js"
 
 
 export class UISwitch extends UIControl {
+
+    // Interface Builder connects a switch's action to valueChanged.
+    static get _nibEvent() {
+        return UIControlEvent.valueChanged
+    }
 
     get isOn() {
         return this.$el.prop("checked")

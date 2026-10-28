@@ -121,24 +121,28 @@ export function pdfjsRendererOptions() {
     return options
 }
 
-// pdf.js's text layer only lines up with its canvas when pdf_viewer.css's
-// `.textLayer { position: absolute; ... }` rule is loaded. PDFKit imports that
-// stylesheet itself, so a missing rule means a consumer CSS pipeline mangled
-// the import the framework made (a stylus or css rule that covers
-// node_modules and rewrites the file), not a host that forgot one. Left
-// alone it renders the canvas in place under an unselectable, misaligned text
-// layer at the document's default static position, which is why the probe
-// fails loudly before a consumer ever sees it. The probe element must be
-// attached to the document when measured: a detached element reads back as
-// unstyled in every real browser, so measuring one in memory would always
-// "pass" whether or not the stylesheet is actually loaded.
+// pdf.js's text layer only lines up with its canvas when the viewer stylesheet's
+// `.textLayer { position: absolute; ... }` rule is loaded, and PDFKit's copy of
+// it is scoped to a `.ct-pdfview`. PDFKit imports that stylesheet itself, so a
+// missing rule means a consumer CSS pipeline mangled the import the framework
+// made (a stylus or css rule that covers node_modules and rewrites the file),
+// not a host that forgot one. Left alone it renders the canvas in place under
+// an unselectable, misaligned text layer at the document's default static
+// position, which is why the probe fails loudly before a consumer ever sees
+// it. The probe sits in a wrapper of its own, as a PDFView's element would
+// hold it, and both must be attached to the document when measured: a detached
+// element reads back as unstyled in every real browser, so measuring one in
+// memory would always "pass" whether or not the stylesheet is actually loaded.
 export function assertTextLayerStylesheet() {
+    var wrapper = document.createElement("div")
+    wrapper.className = "ct-pdfview"
     var probe = document.createElement("div")
     probe.className = "textLayer"
-    document.body.appendChild(probe)
+    wrapper.appendChild(probe)
+    document.body.appendChild(wrapper)
     var position = getComputedStyle(probe).position
-    document.body.removeChild(probe)
+    document.body.removeChild(wrapper)
     if (position !== "absolute") {
-        throw new TypeError(`PDFKit requires pdfjs-dist/web/pdf_viewer.css to be loaded (pdfjsLib.version ${pdfjsLib.version}): ".textLayer" is not positioned absolutely.`)
+        throw new TypeError(`PDFKit's stylesheet pdf_viewer.scoped.css is not loaded (pdfjsLib.version ${pdfjsLib.version}): import "cocoatouch/PDFKit", the entry that loads it. ".ct-pdfview .textLayer" is not positioned absolutely.`)
     }
 }

@@ -1,5 +1,6 @@
 import { UIView } from "./uiview.js"
 import { required, typed, Bool, Float } from "../utils/required.js"
+import { resolvePendingUnhides } from "../utils/pendingunhides.js"
 
 
 // The element is the track and its first child the bar, moved along the track.
@@ -29,6 +30,7 @@ export class UIProgressView extends UIView {
         required(animated, "animated", Bool, "UIProgressView.setProgress", signature)
         typed(progress, "progress", Float, "UIProgressView.setProgress", signature)
         this._progress = progress
+        resolvePendingUnhides()
         var offset = progress * this.$el.width()
         var bar = this.$el.children().stop()
         if (animated) {
