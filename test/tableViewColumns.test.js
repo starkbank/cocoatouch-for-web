@@ -841,3 +841,33 @@ test("a first row that hides a cell by its own state is not the row the spacers 
         }
     })
 })
+
+// Rows past five ask a lot of their columns, so a column that took one in after a reload to five rows would show it.
+function shrunk(row) {
+    return row < 5 ? widths(row) : [[10, 900], [20, 900], [0, 15]]
+}
+
+function reloadToFive(count) {
+    withTable({count, widthsOf: shrunk}, function({table, model, layout}) {
+        settle(layout)
+        var beyond = []
+        model.onAsk = (row) => { if (row >= model.count) { beyond.push(row) } }
+        model.count = 5
+        table.reloadData()
+        assert.deepEqual(beyond, [], "rows asked inside reloadData past the new count")
+        settle(layout)
+        assert.deepEqual(beyond, [], "rows asked by a measuring frame past the new count")
+        assert.deepEqual(Array.from(table._columns.pendingRows).filter((row) => row >= 5), [], "no row past the count waits to be measured")
+        assert.deepEqual(table._columns.records.slice(5).filter((record) => record !== undefined), [], "no row past the count has a record")
+        assert.equal(table._columns.floor, null, "the larger table's floor is dropped")
+        assert.deepEqual(layout.columnWidths(tableElement()), allRows(5, shrunk), "the columns are the five rows' only")
+    })
+}
+
+test("a reload from 6 rows to 5, every row rendered, asks the data source for no row past the new count, and no column takes a width from one", function() {
+    reloadToFive(6)
+})
+
+test("a reload from 1000 rows to 5 asks the data source for no row past the new count, and no column takes a width from one", function() {
+    reloadToFive(1000)
+})

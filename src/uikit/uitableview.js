@@ -933,6 +933,9 @@ export class UITableView extends UIScrollView {
         for (var [row, cell] of rendered) {
             if (row < range.a || row >= range.b) { leaving.push([row, cell]) }
         }
+        // A rendered row that leaves is measured once it is out. The cells a reload hands over are keyed by the rows before it, which
+        // can be past the new count, and the reload asks for every row outside the window itself, so they name no row here.
+        need(this._columns, leaving.map((entry) => entry[0]))
         for (var [row, cell] of this._reusableCells) {
             if (row < range.a || row >= range.b) { leaving.push([row, cell]) }
         }
@@ -941,7 +944,6 @@ export class UITableView extends UIScrollView {
             this._reusableCells.delete(row)
             this._retire(cell, row)
         }
-        need(this._columns, leaving.map((entry) => entry[0]))
         var next = []
         // A row that has no element yet is built into a fragment, and _arrange moves each run of new rows into the page with one write.
         this._insertion = typeof document.createDocumentFragment === "function" ? document.createDocumentFragment() : null
