@@ -1414,7 +1414,8 @@ export class UITableView extends UIScrollView {
     // with every row in the table. Under auto layout a cell holds spans that add up to its widest content and whose widest is its
     // narrowest content. Under fixed layout content cannot change a column, but it can reach beyond it, so the cell holds one span
     // as wide as the narrowest content, and one pixel tall because a box with no height adds no scrollable overflow; a spacer of
-    // less than one pixel is left without, since the span would grow the row. The spans are rewritten only when what they say changes.
+    // less than one pixel is left without, since the span would grow the row. A cell the spacer hides holds no spans. The spans are
+    // rewritten only when what they say changes.
     _replay() {
         var spacers = [this._topSpacer, this._bottomSpacer].filter((spacer) => spacer && spacer.parentNode)
         if (spacers.length === 0 || this._mode === null) { return }
@@ -1693,8 +1694,9 @@ function _writeReplay(spacer, known, extras, {fixed, tall}) {
         var cell = cells[index]
         while (cell.firstChild) { cell.removeChild(cell.firstChild) }
         if (fixed && !tall) { continue }
-        var min = Math.max(0, (known.min[index] || 0) - (extras[index] || 0))
-        var max = Math.max(0, (known.max[index] || 0) - (extras[index] || 0))
+        var hidden = cell.style.getPropertyValue("display") === "none"
+        var min = hidden ? 0 : Math.max(0, (known.min[index] || 0) - (extras[index] || 0))
+        var max = hidden ? 0 : Math.max(0, (known.max[index] || 0) - (extras[index] || 0))
         var spans = fixed ? {widths: min > 0 ? [Math.min(min, 10000)] : [], k: min > 0 ? 1 : 0, ceiled: false, w: min, minTrue: min} : replaySpans(min, max)
         report.push({column: index, k: spans.k, ceiled: spans.ceiled, w: spans.w, minTrue: spans.minTrue})
         if (spans.widths.length === 0) { continue }
