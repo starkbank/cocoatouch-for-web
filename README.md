@@ -59,7 +59,7 @@ Requirements:
 
 ## Nibs
 
-A `.xib` is the html of one view. The webpack loader attaches it to the class of the same name exported by the sibling `.js`, so `codeView.xib` becomes `CodeView.nib`. The link is an import emitted at build time, which survives minification.
+A `.xib` is the html of one view. The webpack loader attaches it to the class of the same name exported by the sibling `.js`, so `codeView.xib` becomes `CodeView.nib`. The link is an import emitted at build time, which survives minification, and the loader also records the class under its name, as a string literal, for the table view to look up (see Table views).
 
 ```js
 // webpack.config.js
@@ -345,7 +345,7 @@ Everything a view or controller observes is released when its root controller is
 
 ## Bundling
 
-The nib link is an ordinary module import, `import { CardView } from "./cardView.js"; CardView.nib = "…"`, so it survives Terser's defaults: the class identifier is mangled and the binding is mangled with it, and nothing is looked up by name. `keep_classnames` and `keep_fnames` are not needed, and nothing should start depending on them. `mangle.properties` would break it, since `nib`, `iboutlets`, `ibactions`, `ibinspectables` and the generated ids are property names. A package that ships `.xib` files must list them in its `sideEffects`, `"./src/**/*.xib"`, as `starkbank-webkit` does, or tree shaking drops the nib assignments; this package has no `sideEffects` key, which is the safe default. A page module reached through a dynamic `import()` carries its nibs into that chunk, so code splitting works per page. PDFKit is not re-exported from the root entry, `"cocoatouch"`, because pdf.js is 35 MB installed and about 1.9 MB bundled (772 KB of main code and a 1.1 MB worker chunk, minified), and only a bundle importing `PDFKit` should pay for that.
+The nib link is an ordinary module import, `import { CardView } from "./cardView.js"; CardView.nib = "…"`, so it survives Terser's defaults: the class identifier is mangled and the binding is mangled with it. The loader also writes `registerNibClass("CardView", CardView)`, a string literal the minifier never rewrites, and that literal is the only way a class is found by name, never `constructor.name`, which Terser mangles. `keep_classnames` and `keep_fnames` are not needed, and nothing should start depending on them. `mangle.properties` would break it, since `nib`, `iboutlets`, `ibactions`, `ibinspectables` and the generated ids are property names. A package that ships `.xib` files must list them in its `sideEffects`, `"./src/**/*.xib"`, as `starkbank-webkit` does, or tree shaking drops the nib assignments; this package has no `sideEffects` key, which is the safe default. A page module reached through a dynamic `import()` carries its nibs into that chunk, so code splitting works per page. PDFKit is not re-exported from the root entry, `"cocoatouch"`, because pdf.js is 35 MB installed and about 1.9 MB bundled (772 KB of main code and a 1.1 MB worker chunk, minified), and only a bundle importing `PDFKit` should pay for that.
 
 ## Editor and linter support
 
