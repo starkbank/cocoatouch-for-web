@@ -14,10 +14,16 @@ test("a .xib links to the class of the same name in the sibling .js", function()
     assert.equal(path.basename(link.sibling), "sampleView.js")
 })
 
-test("the emitted module imports the class and assigns the html as its nib", function() {
+test("the emitted module imports the class, assigns the html as its nib and records the class under its name", function() {
     var link = xibLoader.xibLink(path.join(fixtures, "sampleView.xib"))
-    var module = xibLoader.xibModule("<p class=\"x\">hi</p>\n", link)
-    assert.equal(module, 'import { SampleView } from "./sampleView.js"\nSampleView.nib = "<p class=\\"x\\">hi</p>\\n"\n')
+    var lines = xibLoader.xibModule("<p class=\"x\">hi</p>\n", link).split("\n")
+    assert.equal(lines[0], 'import { SampleView } from "./sampleView.js"')
+    var registry = lines[1].match(/^import \{ registerNibClass \} from (".*src\/utils\/nibclasses\.js")$/)
+    assert.ok(registry, "the registry is imported from src/utils/nibclasses.js")
+    assert.ok(path.isAbsolute(JSON.parse(registry[1])), "the import path is absolute, as the page's own files are not beside it")
+    assert.equal(lines[2], 'SampleView.nib = "<p class=\\"x\\">hi</p>\\n"')
+    assert.equal(lines[3], 'registerNibClass("SampleView", SampleView)')
+    assert.equal(lines[4], "")
 })
 
 test("a .xib without a sibling class file fails the build", function() {
