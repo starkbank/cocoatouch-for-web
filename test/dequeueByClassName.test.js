@@ -61,7 +61,6 @@ function table(identifier, before) {
             return cell
         },
     }
-    view.reloadData()
     return {view, cells}
 }
 
