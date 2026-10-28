@@ -733,3 +733,22 @@ test("a row whose structure is not the skeleton's is measured without reading wh
         assert.equal(lookups, 1, "and one of another structure is not")
     })
 })
+
+test("a first row that hides a cell by its own state is not the row the spacers learn their cells from", function() {
+    withTable({widthsOf: widths}, function({table, model, layout}) {
+        table.register(Switchable, {forCellReuseIdentifier: "row"})
+        model.onAsk = (row, cell) => { cell.secondView.isHidden = row === 0 }
+        table.reloadData()
+        settle(layout)
+        assert.equal(table.cellForRow({at: 0}).secondView.$el[0].style.display, "none", "row 0 hides its second cell")
+        assert.equal(spacers().length, 1)
+        for (var spacer of spacers()) {
+            assert.notEqual(spacer.children[1].style.getPropertyValue("display"), "none")
+            assert.equal(table._rowBox.cells[1].display, "table-cell")
+        }
+        var records = table._columns.records
+        for (var row of [100, 200, 300]) {
+            assert.equal(records[row].min[1], 20, "row " + row)
+        }
+    })
+})
