@@ -1,0 +1,13 @@
+.files-drop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    color: var(--color-muted);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius);
+}
+
+.files-list {
+    white-space: pre-line;
+}

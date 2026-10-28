@@ -1,0 +1,28 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Files</h1>
+    <p class="lead">What 1.9.0 added: UIDocumentPickerViewController, UIDropInteraction and FileManager, for files the user hands to the page.</p>
+
+    <section class="demo">
+        <h2>UIDocumentPickerViewController</h2>
+        <p>The picker is the browser's file input, opened from the tap with <code>present(picker, {animated: true})</code> for PDFs, images and plain text. The delegate gets <code>file:</code> URLs that only <code>FileManager</code> can read.</p>
+        <div class="row">
+            <button id="files-choose" class="button">Choose files</button>
+            <button id="files-clear" class="button button-secondary">Clear</button>
+        </div>
+    </section>
+
+    <section class="demo">
+        <h2>UIDropInteraction</h2>
+        <p>Drop files here. <code>dropInteractionSessionDidUpdate</code> answers a <code>.copy</code> proposal, which lets the drop happen, and <code>performDrop</code> loads each item with <code>loadFileRepresentation</code>.</p>
+        <div id="files-drop" class="files-drop">Drop files here</div>
+    </section>
+
+    <section class="demo">
+        <h2>FileManager</h2>
+        <p><code>displayName</code> and <code>attributesOfItem</code> read each file's name and size without reading its bytes. Leaving the page calls <code>removeItem</code> for every one.</p>
+        <p id="files-list" class="output files-list"></p>
+        <p id="files-status" class="output"></p>
+    </section>
+</main>

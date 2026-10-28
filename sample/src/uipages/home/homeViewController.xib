@@ -41,5 +41,17 @@
             <h3>PDFKit</h3>
             <p>A PDFView outlet and PDFDocument(url:), find with a PDFDocumentDelegate, link clicks through a PDFViewDelegate</p>
         </a>
+        <a id="home-controls" class="home-option">
+            <h3>Controls</h3>
+            <p>UIButton.Configuration, UIToolTipInteraction, UIColorWell and an outlet collection</p>
+        </a>
+        <a id="home-files" class="home-option">
+            <h3>Files</h3>
+            <p>UIDocumentPickerViewController, UIDropInteraction and FileManager</p>
+        </a>
+        <a id="home-core-animation" class="home-option">
+            <h3>Core Animation</h3>
+            <p>CADisplayLink frames and CAEmitterLayer confetti</p>
+        </a>
     </div>
 </main>

@@ -11,6 +11,9 @@ import { LinksViewController } from "./uipages/links/linksViewController.js"
 import { TraitsViewController } from "./uipages/traits/traitsViewController.js"
 import { NavigationViewController } from "./uipages/navigation/navigationViewController.js"
 import { PdfViewController } from "./uipages/pdf/pdfViewController.js"
+import { ControlsViewController } from "./uipages/controls/controlsViewController.js"
+import { FilesViewController } from "./uipages/files/filesViewController.js"
+import { CoreAnimationViewController } from "./uipages/coreAnimation/coreAnimationViewController.js"
 
 
 const routes = {
@@ -25,6 +28,9 @@ const routes = {
     "/navigation": NavigationViewController,
     "/navigation/detail": NavigationViewController,
     "/pdf": PdfViewController,
+    "/controls": ControlsViewController,
+    "/files": FilesViewController,
+    "/core-animation": CoreAnimationViewController,
 }
 
 // The page hosts one root controller at a time. Presenting the next one

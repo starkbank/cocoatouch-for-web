@@ -1,0 +1,36 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Controls</h1>
+    <p class="lead">What 1.9.0 added: UIButton.Configuration, UIToolTipInteraction, UIColorWell and an outlet collection.</p>
+
+    <section class="demo">
+        <h2>UIButton.Configuration</h2>
+        <p><code>button.configuration.image</code> draws an image beside the title, and <code>imagePlacement</code> takes an <code>NSDirectionalRectEdge</code>. <code>showsActivityIndicator</code> draws a spinner and nothing more: the page hides the title and disables the button itself, for a second and a half.</p>
+        <div class="row">
+            <button id="controls-save" class="button controls-save">Save</button>
+            <button id="controls-placement" class="button button-secondary">Next image placement</button>
+        </div>
+        <p id="controls-placement-output" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>UIToolTipInteraction</h2>
+        <p><code>addInteraction(new UIToolTipInteraction({defaultToolTip}))</code> on the Save button above writes its <code>tooltip</code> attribute, which this page's stylesheet draws on hover, and <code>removeInteraction</code> takes it away.</p>
+        <label class="switch"><input id="controls-tooltip-switch" type="checkbox" checked> Tooltip on Save</label>
+    </section>
+
+    <section class="demo">
+        <h2>UIColorWell and an outlet collection</h2>
+        <p><code>@IBOutlet(".controls-swatch", [UIButton]) swatches</code> binds one button per swatch, in document order, and one <code>@IBAction</code> answers all of them with the tapped one as its sender. A swatch sets the well's <code>selectedColor</code>; a pick in the well sets the preview and sends <code>valueChanged</code>.</p>
+        <div class="row">
+            <button class="controls-swatch" aria-label="Blue"></button>
+            <button class="controls-swatch" aria-label="Green"></button>
+            <button class="controls-swatch" aria-label="Red"></button>
+            <button class="controls-swatch" aria-label="Amber"></button>
+            <div id="controls-well" class="controls-well"></div>
+            <div id="controls-preview" class="controls-preview"></div>
+        </div>
+        <p id="controls-color-output" class="output"></p>
+    </section>
+</main>
