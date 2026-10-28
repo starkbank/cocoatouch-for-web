@@ -2,6 +2,7 @@ import { page } from "./dom.js"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { IBOutlet, UILabel, UIButton, UITableView, UITableViewCell, UIControlEvent, IndexPath } from "../src/index.js"
+import { registerNibClass } from "../src/utils/nibclasses.js"
 
 
 var log = []
@@ -18,6 +19,11 @@ class CellB extends UITableViewCell {
 CellB.nib = "<tr><td class=\"kind-b\"><span id=\"name\"></span><button id=\"press\">go</button></td></tr>"
 IBOutlet("#name", UILabel)(CellB.prototype, "nameLabel", {})
 IBOutlet("#press", UIButton)(CellB.prototype, "pressButton", {})
+
+// The class a loader-written registration names: an identifier nobody registered on the table finds it by name.
+class NamedA extends UITableViewCell {}
+NamedA.nib = "<tr><td class=\"kind-named\"></td></tr>"
+registerNibClass("NamedA", NamedA)
 
 // rows[n] is the identifier the data source dequeues for row n on the next reload.
 function table(rows) {
@@ -168,11 +174,12 @@ test("the nested-control exclusion still holds on a cell that replaced another c
     assert.deepEqual(setup.selected, [0])
 })
 
-test("an identifier nobody registered still gives a plain cell, and a row can go from plain to registered", function() {
+test("an identifier nobody registered gives the class its name belongs to, and a row can go from that to a registered one", function() {
     var setup = table(["a"])
-    setup.rows[0] = "unregistered"
+    setup.rows[0] = "NamedA"
     setup.view.reloadData()
-    assert.equal(cellAt(setup, 0).constructor, UITableViewCell)
+    assert.equal(cellAt(setup, 0).constructor, NamedA)
+    assert.deepEqual(kinds(), ["cell-0:kind-named"])
     setup.rows[0] = "a"
     setup.view.reloadData()
     assert.ok(cellAt(setup, 0) instanceof CellA)

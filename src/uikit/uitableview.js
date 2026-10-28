@@ -13,7 +13,8 @@ import { UITableViewScrollPosition } from "./uitableviewscrollposition.js"
 import { UITableViewRowAnimation } from "./uitableviewrowanimation.js"
 import { UITableViewCellEditingStyle } from "./uitableviewcelleditingstyle.js"
 import { rejectRetiredDelegateNames } from "../utils/delegateNames.js"
-import { required, typed, enumeration, optional, arrayOf, Bool, Int, Float, IndexPathType } from "../utils/required.js"
+import { required, typed, enumeration, optional, arrayOf, Bool, Int, Float, StringType, IndexPathType } from "../utils/required.js"
+import { nibClassNamed } from "../utils/nibclasses.js"
 
 
 const retiredDelegateNames = {tableViewCommitEditingStyleForRowAt: "tableViewCommitEditingStyleForRowAtIndexPath"}
@@ -61,7 +62,7 @@ export class UITableView extends UIScrollView {
         this._allowsSelection = true
         this._allowsMultipleSelection = false
         this._selectedRows = new Set()
-        this._registeredCells = {}
+        this._registeredCells = new Map()
         this._heights = createRowHeights({count: 0})
         this._first = 0
         this._visible = []
@@ -210,8 +211,8 @@ export class UITableView extends UIScrollView {
      * @param {string} options.forCellReuseIdentifier
      */
     register(cellClass, {forCellReuseIdentifier}) {
-        var previous = this._registeredCells[forCellReuseIdentifier]
-        this._registeredCells[forCellReuseIdentifier] = cellClass
+        var previous = this._registeredCells.get(forCellReuseIdentifier)
+        this._registeredCells.set(forCellReuseIdentifier, cellClass)
         if (!previous || (previous === cellClass && previous.nib === cellClass.nib)) { return }
         this._discardQueue(forCellReuseIdentifier)
     }
@@ -349,7 +350,10 @@ export class UITableView extends UIScrollView {
     // class, is disposed and its element removed, so no two rows ever have one
     // id; otherwise creates the row element from the registered cell's nib, or
     // takes the previous cell's over when the nib is the same, and binds the
-    // cell class to it.
+    // cell class to it. An identifier nobody registered is the name of the cell
+    // class whose .xib carries it, as on iOS the prototype cell of a storyboard
+    // is found by its identifier, and one that names no cell class is refused
+    // with Apple's error.
     /**
      * @param {object} options
      * @param {string} options.withIdentifier
@@ -357,7 +361,10 @@ export class UITableView extends UIScrollView {
      * @returns {UITableViewCell}
      */
     dequeueReusableCell({withIdentifier, for: indexPath}) {
-        var cellClass = this._registeredCells[withIdentifier] || UITableViewCell
+        var signature = "Apple's is dequeueReusableCell(withIdentifier:for:); write dequeueReusableCell({withIdentifier: \"cell\", for: indexPath})."
+        required(withIdentifier, "withIdentifier", StringType, "UITableView.dequeueReusableCell", signature)
+        required(indexPath, "for", IndexPathType, "UITableView.dequeueReusableCell", signature)
+        var cellClass = this._registeredCells.get(withIdentifier) || _namedCellClass(this._registeredCells, withIdentifier)
         if (this._measuring) { return this._dequeueMeasuring(withIdentifier, cellClass, indexPath) }
         var row = _row(indexPath)
         var reusable = this._reusableCells.get(row)
@@ -1561,6 +1568,17 @@ function _isInsideControl(target, row) {
         if (ownerOf(element) instanceof UIControl) { return true }
     }
     return false
+}
+
+// The name is the literal the loader wrote beside the nib, never constructor.name, which a minifier rewrites. The answer is kept in
+// the table's own registrations, so a miss costs one lookup per identifier.
+function _namedCellClass(registeredCells, identifier) {
+    var cellClass = nibClassNamed(identifier)
+    if (cellClass === null || !(cellClass.prototype instanceof UITableViewCell)) {
+        throw new Error(`unable to dequeue a cell with identifier ${identifier} - must register a nib or a class for the identifier or connect a prototype cell in a storyboard`)
+    }
+    registeredCells.set(identifier, cellClass)
+    return cellClass
 }
 
 function _row(indexPath) {
