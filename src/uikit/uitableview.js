@@ -1174,9 +1174,9 @@ export class UITableView extends UIScrollView {
     }
 
     // What a pass reads about the page that changes what a cell asks of its column and how tall a row is: the window's width, which
-    // media queries answer to, and whether the table is laid out fixed, where content cannot change a column. A change of either
-    // starts the columns over with no floor and drops the row heights, as a width report does, and looks again for the ancestors that
-    // clip, whose overflow media queries can change.
+    // media queries answer to, and whether the table is laid out fixed, where a cell records how far its content reaches and not its
+    // widths. A change of either starts the columns over with no floor and drops the row heights, as a width report does, and looks
+    // again for the ancestors that clip, whose overflow media queries can change.
     _noteEnvironment(read) {
         var element = this.$el[0]
         if (!element || read.tops === null || typeof getComputedStyle !== "function") { return }
@@ -1249,7 +1249,7 @@ export class UITableView extends UIScrollView {
     // One chunk: the nearest rows that have no record are asked of the data source with measuring on, which serves them from the
     // queue, and each cell's smallest and widest width is read in the queue's tbody, written as a box of its own; every write is
     // undone before the chunk returns, whatever the data source did. Reads are two, one after each width keyword, and one when the
-    // table is laid out fixed, where only the smallest can reach beyond a column.
+    // table is laid out fixed, where a cell is laid out at width 0 and only how far its content reaches is read.
     _measureChunk() {
         var columns = this._columns
         if (this._measuring || this._isDetached() || this._dataSource === null || this._lastWidth <= 0 || this._mode === null) { return }
@@ -1292,18 +1292,19 @@ export class UITableView extends UIScrollView {
     }
 
     // The queue's tbody becomes a box with no size and no paint whose rows and cells size themselves to their content, and the
-    // widths are read from it: the cells' border boxes at max-content, then at min-content. Collapsed borders are counted by the
-    // table at half, and the replay adds the cell's own padding and border back, so what is read here is the border box. A cell the
-    // page hides, or that is hidden in its row, asks nothing of its column and is not written; a cell the page lays out as a box keeps
-    // its display. Rows the page lays out as boxes keep their display too and are measured as one column, the row's own border box,
-    // which is what the anonymous cell they share asks of the table.
+    // widths are read from it: the cells' border boxes at max-content, then at min-content, or, under fixed layout, how far each cell's
+    // content reaches when the cell is written width 0. Collapsed borders are counted by the table at half, and the replay adds the
+    // cell's own padding and border back, so what is read here is the border box. A cell the page hides, or that is hidden in its row,
+    // asks nothing of its column and is not written; a cell the page lays out as a box keeps its display. Rows the page lays out as
+    // boxes keep their display too and are measured as one column, the row's own border box, which is what the anonymous cell they
+    // share asks of the table.
     _readWidths(elements, fixed) {
         var reads = new Map()
         var tbody = this._queueBody
         var isBox = this._rowBox.mode === "box"
         resolvePendingUnhides()
         var slots = new Map()
-        for (var element of elements) { slots.set(element, isBox ? [{node: element, display: "block"}] : this._slotsOf(element)) }
+        for (var element of elements) { slots.set(element, isBox ? [{node: element, display: "block", paddingRight: this._rowBox.paddingRight || 0}] : this._slotsOf(element)) }
         var written = []
         try {
             for (var [property, value] of measuringBox) { _write(tbody, property, value, written) }
@@ -1325,13 +1326,15 @@ export class UITableView extends UIScrollView {
                 }
                 for (element of elements) { max.set(element, slots.get(element).map(_widthOf)) }
             }
+            var keyword = fixed ? "0" : "min-content"
             for (element of elements) {
                 for (slot of slots.get(element)) {
-                    if (slot.display !== "none") { _write(slot.node, "width", "min-content", written) }
+                    if (slot.display !== "none") { _write(slot.node, "width", keyword, written) }
                 }
             }
+            var readOf = fixed ? _reachOf : _widthOf
             for (element of elements) {
-                var min = slots.get(element).map(_widthOf)
+                var min = slots.get(element).map(readOf)
                 reads.set(element, {min: min, max: max.get(element) || min})
             }
         } finally {
@@ -1347,7 +1350,11 @@ export class UITableView extends UIScrollView {
         var cells = this._rowBox.signature === _signatureOf(element) ? this._rowBox.cells : null
         return Array.from(element.children).map(function(cell, index) {
             var display = cells && cells[index] ? cells[index].display : "table-cell"
-            return {node: cell, display: display === "none" || cell.style.getPropertyValue("display") === "none" ? "none" : display}
+            return {
+                node: cell,
+                display: display === "none" || cell.style.getPropertyValue("display") === "none" ? "none" : display,
+                paddingRight: cells && cells[index] ? cells[index].paddingRight : 0,
+            }
         })
     }
 
@@ -1421,11 +1428,12 @@ export class UITableView extends UIScrollView {
     // The spacers carry what the rows that are not rendered ask of each column, so the browser lays the columns out as it would
     // with every row in the table. Under auto layout a cell holds spans that add up to its widest content and whose widest is its
     // narrowest content. Under fixed layout content cannot change a column, but it can reach beyond it, so the cell holds one span
-    // as wide as the narrowest content, and one pixel tall because a box with no height adds no scrollable overflow; a spacer of
-    // less than one pixel is left without, since the span would grow the row. A cell the spacer hides holds no spans. The spans are
-    // rewritten only when what they say changes. Spans that move a column can reflow the rendered rows above the anchor, which the next
-    // pass would read as where the user already is, so the anchor is held here, as a pass holds it. New columns are a new layout: every row can
-    // have reflowed, the ones not drawn included, so what was measured under the old columns, heights and means, is dropped as a width change drops it.
+    // as wide as how far the content reaches when the cell is squeezed to nothing, and one pixel tall because a box with no height
+    // adds no scrollable overflow; a spacer of less than one pixel is left without, since the span would grow the row. A cell the
+    // spacer hides holds no spans. The spans are rewritten only when what they say changes. Spans that move a column can reflow the
+    // rendered rows above the anchor, which the next pass would read as where the user already is, so the anchor is held here, as a
+    // pass holds it. New columns are a new layout: every row can have reflowed, the ones not drawn included, so what was measured
+    // under the old columns, heights and means, is dropped as a width change drops it.
     _replay() {
         var spacers = [this._topSpacer, this._bottomSpacer].filter((spacer) => spacer && spacer.parentNode)
         if (spacers.length === 0 || this._mode === null) { return }
@@ -1661,9 +1669,24 @@ function _widthOf(slot) {
     return slot.display === "none" ? 0 : finiteWidth(slot.node.getBoundingClientRect().width)
 }
 
+// Under fixed layout content cannot widen its column, only reach beyond it, and what reaches beyond is what does not shrink: the cell
+// is laid out at width 0, where a percentage resolves to nothing and a clipped box clips, and the reach is read from its scroll width,
+// which runs from its padding edge and, on a box that does not scroll, leaves the end padding out. It is kept as the border box that
+// would just hold it, which the replay takes its padding and border out of again; content that stays inside the padding reaches nothing.
+function _reachOf(slot) {
+    if (slot.display === "none") { return 0 }
+    var node = slot.node
+    var overflow = node.scrollWidth - node.clientWidth
+    if (overflow <= 0) { return 0 }
+    return finiteWidth(node.getBoundingClientRect().width + overflow + slot.paddingRight)
+}
+
 function _readRowBox(row, signature) {
-    var display = getComputedStyle(row).getPropertyValue("display")
-    if (!tableRowDisplays.has(display)) { return Object.freeze({mode: "box", signature: signature, cells: null, key: "box"}) }
+    var style = getComputedStyle(row)
+    var display = style.getPropertyValue("display")
+    if (!tableRowDisplays.has(display)) {
+        return Object.freeze({mode: "box", signature: signature, cells: null, key: "box", paddingRight: _boxWidth(style.getPropertyValue("padding-right"))})
+    }
     var cells = Array.from(row.children).map(_readCellBox)
     return Object.freeze({mode: "table", signature: signature, cells: cells, key: "table" + JSON.stringify(cells)})
 }

@@ -982,3 +982,48 @@ test("C4. a disposed table has no resize frame left and listens to the window no
         assert.equal(table._resizeFrame, null, "the observer is gone")
     })
 })
+
+// Under fixed layout a cell is measured at width 0, where what shrinks reaches nothing; `data-reach` is how far the fake layout says a
+// cell's content then reaches, and a cell that has none reaches as far as its `data-min`.
+function reachOf(reaching) {
+    return function(row, cell) {
+        var first = cell.$el[0].children[0]
+        first.removeAttribute("data-reach")
+        if (reaching.has(row)) { first.setAttribute("data-reach", String(reaching.get(row))) }
+    }
+}
+
+test("D1. under fixed layout the spans are how far the content reaches at width 0, not its narrowest content", function() {
+    var data = (row) => row === 300 ? [[500, 500], [20, 40], [0, 15]] : widths(row)
+    withTable({count: 400, widthsOf: data}, function({table, model, layout}) {
+        model.onAsk = reachOf(new Map([[300, 12]]))
+        tableElement().style.setProperty("table-layout", "fixed")
+        table._dirtyAndSchedule()
+        settle(layout)
+        table.reloadData()
+        settle(layout)
+        assert.deepEqual(spansOf(rowsBody().lastElementChild, 0), [allRows(400).min[0]], "row 300's 500 px shrinks to the 12 it reaches, under the 14 of another row")
+        assert.deepEqual(spansOf(rowsBody().lastElementChild, 2), [], "a column that reaches nothing has no span")
+    })
+})
+
+test("D2. under fixed layout the cell's own padding and border are taken out of what the replay writes, and the span is the content's reach", function() {
+    withTable({count: 400}, function({table, layout}) {
+        var style = document.createElement("style")
+        style.textContent = "td, th { padding: 0 6px; border: 1px solid }"
+        document.head.appendChild(style)
+        try {
+            tableElement().style.setProperty("table-layout", "fixed")
+            table._dirtyAndSchedule()
+            settle(layout)
+            table.reloadData()
+            settle(layout)
+            var bottom = rowsBody().lastElementChild
+            assert.deepEqual(spansOf(bottom, 0), [allRows(400).min[0]])
+            assert.deepEqual(spansOf(bottom, 1), [allRows(400).min[1]])
+            assert.deepEqual(spansOf(bottom, 2), [], "content that stays inside the padding reaches nothing")
+        } finally {
+            style.remove()
+        }
+    })
+})
