@@ -18,7 +18,7 @@
 
     <section class="demo">
         <h2>CAEmitterLayer</h2>
-        <p>One layer with three <code>CAEmitterCell</code>s throws confetti from a line above the window. The layer's canvas is fixed over the page and ignores the pointer, and it goes away when the page is left.</p>
+        <p>One layer with four <code>CAEmitterCell</code>s throws confetti from a line above the window. The layer's canvas is fixed over the page and ignores the pointer, and it goes away when the page is left.</p>
         <button id="core-animation-confetti" class="button button-secondary">Throw confetti</button>
     </section>
 </main>
