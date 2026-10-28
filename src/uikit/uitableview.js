@@ -1607,6 +1607,11 @@ function _indexPathOf(rowElement) {
 // Cells built to be measured and never displayed yet: they are bound to touches when a row first shows them.
 const measuredOnly = new WeakSet()
 
+// What a replay's wrapper is written with, over the page's rules. The spans' line is the wrapper's: the spaces between them are where
+// the cell's narrowest content ends, so they stay wrap opportunities whatever white-space the page gives the cell (a scrolling table
+// container's nowrap, typically), and the inherited spacings stay out of the line's width.
+const replayWrapper = [["font-size", "0"], ["line-height", "0"], ["height", "0"], ["white-space", "normal"], ["word-spacing", "0"], ["letter-spacing", "0"], ["text-indent", "0"]]
+
 const measuringBox = [["display", "block"], ["position", "absolute"], ["width", "0"], ["height", "0"], ["overflow", "hidden"], ["visibility", "hidden"], ["contain", "strict"]]
 
 // An important CSSOM write, remembering what the element had so the measuring leaves nothing behind.
@@ -1714,9 +1719,7 @@ function _writeReplay(spacer, known, extras, {fixed, tall}) {
         report.push({column: index, k: spans.k, ceiled: spans.ceiled, w: spans.w, minTrue: spans.minTrue})
         if (spans.widths.length === 0) { continue }
         var wrapper = document.createElement("div")
-        wrapper.style.setProperty("font-size", "0", "important")
-        wrapper.style.setProperty("line-height", "0", "important")
-        wrapper.style.setProperty("height", "0", "important")
+        for (var [property, value] of replayWrapper) { wrapper.style.setProperty(property, value, "important") }
         for (var i = 0; i < spans.widths.length; i++) {
             if (i > 0) { wrapper.appendChild(document.createTextNode(" ")) }
             var span = document.createElement("span")

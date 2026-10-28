@@ -719,6 +719,9 @@ test("FS15. replay spans are unpainted, and their height is 0 under auto layout 
             assert.equal(wrapper.style.getPropertyValue("font-size"), "0px")
             assert.equal(wrapper.style.getPropertyValue("line-height"), "0")
             assert.equal(wrapper.style.height, "0px")
+            assert.equal(wrapper.style.getPropertyValue("white-space"), "normal", "the spaces between the spans stay wrap opportunities")
+            for (var property of ["white-space", "word-spacing", "letter-spacing", "text-indent"]) { assert.equal(wrapper.style.getPropertyPriority(property), "important", property) }
+            for (var spacing of ["word-spacing", "letter-spacing", "text-indent"]) { assert.equal(parseFloat(wrapper.style.getPropertyValue(spacing)), 0, spacing) }
         }
         check("0px")
         tableElement().style.setProperty("table-layout", "fixed")
