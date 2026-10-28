@@ -15,6 +15,33 @@ function spacerHeight() {
     return spacers().map((element) => parseFloat(element.style.height)).reduce((sum, height) => sum + height, 0)
 }
 
+function settle(layout) {
+    for (var quiet = 0, frames = 0; quiet < 2 && frames < 300; frames++) { quiet = layout.flushFrames() > 0 ? 0 : quiet + 1 }
+}
+
+// Rows of different heights, so that no mean is right for a row, and the page scrolled down in steps of less than the area, so the
+// rows above the anchor are measured: the state in which a page loads its next page.
+function scrolledDown(context, y) {
+    for (var step = 800; step <= y; step += 800) { scrollTo(context.layout, step) }
+    settle(context.layout)
+}
+
+function topSpacerHeight() {
+    return parseFloat(spacers()[0].style.height)
+}
+
+function anchorRow() {
+    return renderedRows().find((row) => rect(row).bottom > 0)
+}
+
+function measuredRows(table) {
+    var found = []
+    table._heights.heights.forEach((height, row) => { if (!Number.isNaN(height)) { found.push(row) } })
+    return found
+}
+
+var mixedHeights = {heightOf: (row) => row % 5 ? 95 : 160}
+
 function rect(row) {
     return document.getElementById("cell-" + row).getBoundingClientRect()
 }
@@ -115,12 +142,24 @@ test("5. estimatedRowHeight = 0 stops after 3 extensions when the rows measure s
     })
 })
 
-test("5. estimatedRowHeight = 0 with a reload at scroll y > 0 renders from the first unmeasured row, not from row 999", function() {
-    withTable({estimatedRowHeight: 0}, function({table, layout}) {
+test("5. estimatedRowHeight = 0 with a reload to fewer rows at scroll y > 0 renders from the first unmeasured row, not from row 999", function() {
+    withTable({estimatedRowHeight: 0}, function({table, model, layout}) {
         scrollTo(layout, 1e9)
+        model.count = 900
         table.reloadData()
         var shown = rows(table)
         assert.equal(shown[0], 0)
+        assert.ok(shown.length < 100)
+    })
+})
+
+test("5. estimatedRowHeight = 0 with a reload of the same rows at scroll y > 0 starts at the row it started at before", function() {
+    withTable({estimatedRowHeight: 0}, function({table, layout}) {
+        scrollTo(layout, 1e9)
+        var before = rows(table)
+        table.reloadData()
+        var shown = rows(table)
+        assert.equal(shown[0], before[0], "the heights the rows measured are kept, so the same rows are in the area")
         assert.ok(shown.length < 100)
     })
 })
@@ -329,5 +368,111 @@ test("a scroll step that stays inside the rendered rows reads the clip and touch
         layout.clearLog()
         layout.flushFrames()
         assert.ok(layout.readWriteLog().includes("write"), "a step that leaves the rendered rows redraws the window")
+    })
+})
+
+test("16. a reloadData that appends a page keeps the top spacer and the anchor row where they were, and the page is not scrolled", function() {
+    withTable(mixedHeights, function(context) {
+        var {table, model, layout} = context
+        scrolledDown(context, 20000)
+        var anchor = anchorRow()
+        var topBefore = rect(anchor).top
+        var spacerBefore = topSpacerHeight()
+        var spy = spyScrollBy()
+        try {
+            model.count += 100
+            table.reloadData()
+            layout.flushFrames()
+            layout.flushFrames()
+            assert.ok(renderedRows().includes(anchor))
+            assert.ok(Math.abs(rect(anchor).top - topBefore) < 0.5, "moved from " + topBefore + " to " + rect(anchor).top)
+            assert.ok(Math.abs(topSpacerHeight() - spacerBefore) < 0.5, "the top spacer went from " + spacerBefore + " to " + topSpacerHeight())
+            assert.equal(spy.calls.length, 0)
+        } finally {
+            spy.restore()
+        }
+    })
+})
+
+test("16. a reloadData that appends a page under native scroll anchoring leaves the page where it was and compensates nothing", function() {
+    withTable(mixedHeights, function(context) {
+        var {table, model, layout} = context
+        scrolledDown(context, 20000)
+        var anchor = anchorRow()
+        var element = document.getElementById("cell-" + anchor)
+        var topBefore = element.getBoundingClientRect().top
+        var scrollBefore = window.scrollY
+        layout.anchorTo(element)
+        var spy = spyScrollBy()
+        try {
+            model.count += 100
+            table.reloadData()
+            layout.flushFrames()
+            layout.flushFrames()
+            assert.equal(window.scrollY, scrollBefore, "the reload wrote nothing above the anchor for the browser to take back")
+            assert.ok(Math.abs(rect(anchor).top - topBefore) < 0.5)
+            assert.equal(spy.calls.length, 0)
+        } finally {
+            spy.restore()
+        }
+    })
+})
+
+test("16. a reloadData of the same rows keeps the heights array and the top spacer", function() {
+    withTable(mixedHeights, function(context) {
+        var {table, layout} = context
+        scrolledDown(context, 20000)
+        var array = table._heights.heights
+        var measuredBefore = measuredRows(table).length
+        var spacerBefore = topSpacerHeight()
+        table.reloadData()
+        layout.flushFrames()
+        layout.flushFrames()
+        assert.equal(table._heights.heights, array, "the model was kept, not rebuilt")
+        assert.ok(measuredRows(table).length >= measuredBefore)
+        assert.ok(Math.abs(topSpacerHeight() - spacerBefore) < 0.5, "the top spacer went from " + spacerBefore + " to " + topSpacerHeight())
+    })
+})
+
+test("16. a reloadData to fewer rows starts from the estimates again", function() {
+    withTable(mixedHeights, function(context) {
+        var {table, model} = context
+        scrolledDown(context, 20000)
+        assert.ok(measuredRows(table).length > renderedRows().length, "rows above the window were measured")
+        model.count = 500
+        table.reloadData()
+        assert.equal(table._heights.count, 500)
+        var rendered = renderedRows()
+        assert.ok(measuredRows(table).every((row) => rendered.includes(row)), "only the rows the reload drew are measured")
+    })
+})
+
+test("16. a new data source keeps nothing, whatever its row count", function() {
+    withTable(mixedHeights, function(context) {
+        var {table} = context
+        scrolledDown(context, 20000)
+        assert.ok(measuredRows(table).length > renderedRows().length, "rows above the window were measured")
+        var source = table.dataSource
+        table.dataSource = {
+            tableViewNumberOfRowsInSection: source.tableViewNumberOfRowsInSection,
+            tableViewCellForRowAtIndexPath: source.tableViewCellForRowAtIndexPath,
+        }
+        assert.equal(table._heights.count, 1000)
+        var rendered = renderedRows()
+        assert.ok(measuredRows(table).every((row) => rendered.includes(row)), "only the rows the reload drew are measured")
+    })
+})
+
+test("16. the rows before the old end keep their offset when a page is appended", function() {
+    withTable(mixedHeights, function(context) {
+        var {table, model, layout} = context
+        scrolledDown(context, 20000)
+        var oldCount = model.count
+        var before = offsetOf(table._heights, oldCount)
+        model.count += 100
+        table.reloadData()
+        settle(layout)
+        assert.equal(table._heights.count, oldCount + 100)
+        assert.equal(offsetOf(table._heights, oldCount), before, "the document's height up to the appended page is what it was")
     })
 })

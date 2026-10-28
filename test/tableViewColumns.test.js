@@ -293,16 +293,105 @@ test("9. a change of innerWidth measures every row again; a width-only report do
     })
 })
 
-test("10. a change of the aggregate resets the row heights and schedules exactly one pass", function() {
+test("10. a change of the aggregate keeps the row heights as estimates and schedules exactly one pass", function() {
     var data = (row) => row === 500 ? [[10, 900], [20, 40], [0, 15]] : [[10, 30], [20, 40], [0, 15]]
     withTable({count: 600, widthsOf: widths}, function({table, model, layout}) {
         settle(layout)
+        var generation = table._heights.generation
+        assert.equal(table._heights.heights[3], 95)
         model.widthsOf = data
         table.reconfigureRows({at: at(500)})
-        assert.ok(Number.isNaN(table._heights.heights[3]), "the heights were reset")
+        assert.equal(table._heights.heights[3], 95, "the heights were kept")
+        assert.ok(table._heights.generation > generation, "as estimates, until the rows are drawn again")
         assert.equal(layout.flushFrames(), 1, "one pass")
         assert.equal(layout.flushFrames(), 0)
         assert.equal(layout.columnWidths(tableElement()).max[0], 900)
+    })
+})
+
+// Calls of the scroller's scrollBy, which is where the anchor compensation goes.
+function spyScrollBy() {
+    var root = document.documentElement
+    var calls = []
+    var original = root.scrollBy
+    root.scrollBy = function() {
+        calls.push(arguments[0])
+        return original.apply(this, arguments)
+    }
+    return {calls, restore() { delete root.scrollBy }}
+}
+
+function rectOf(row) {
+    return document.getElementById("cell-" + row).getBoundingClientRect()
+}
+
+// Spans that change a column reflow the rows above the anchor, as a page whose cells wrap to the new width does: the first time the
+// top spacer's first cell is written, each rendered row above the anchor grows by 20 px. Returns how many rows that was.
+function reflowAbove(table, anchor) {
+    var rows = renderedRows().filter((row) => row < anchor)
+    var cell = table._topSpacer.children[0]
+    var append = cell.appendChild
+    var isReflown = false
+    cell.appendChild = function(node) {
+        if (!isReflown) {
+            isReflown = true
+            for (var row of rows) { document.getElementById("cell-" + row).setAttribute("data-height", "115") }
+        }
+        return append.call(this, node)
+    }
+    return rows.length
+}
+
+function scrolledAway(context) {
+    scrollTo(context.layout, 20000)
+    settle(context.layout)
+    return renderedRows().find((row) => rectOf(row).bottom > 0)
+}
+
+var widerRow = (row) => row === 500 ? [[10, 900], [20, 40], [0, 15]] : [[10, 30], [20, 40], [0, 15]]
+
+test("10. spans that change the columns keep the anchor row where it was, by one scroll taken before the next pass reads", function() {
+    withTable({count: 1000, estimatedRowHeight: 95}, function(context) {
+        var {table, model, layout} = context
+        var anchor = scrolledAway(context)
+        var topBefore = rectOf(anchor).top
+        var above = reflowAbove(table, anchor)
+        assert.ok(above > 0, "rows above the anchor are rendered")
+        var spy = spyScrollBy()
+        try {
+            model.widthsOf = widerRow
+            table.reconfigureRows({at: at(500)})
+            assert.equal(spy.calls.length, 1, "taken back in the replay that wrote the spans")
+            assert.equal(spy.calls[0].top, 20 * above)
+            settle(layout)
+            assert.equal(spy.calls.length, 1, "and not again by the pass that follows")
+            assert.ok(Math.abs(rectOf(anchor).top - topBefore) < 0.5, "moved from " + topBefore + " to " + rectOf(anchor).top)
+        } finally {
+            spy.restore()
+        }
+    })
+})
+
+test("10. spans that change the columns are not compensated twice under native scroll anchoring", function() {
+    withTable({count: 1000, estimatedRowHeight: 95}, function(context) {
+        var {table, model, layout} = context
+        var anchor = scrolledAway(context)
+        var element = document.getElementById("cell-" + anchor)
+        var topBefore = element.getBoundingClientRect().top
+        var above = reflowAbove(table, anchor)
+        assert.ok(above > 0)
+        layout.anchorTo(element)
+        var spy = spyScrollBy()
+        try {
+            model.widthsOf = widerRow
+            table.reconfigureRows({at: at(500)})
+            assert.equal(spy.calls.length, 0, "the browser moved the page; the framework added nothing")
+            settle(layout)
+            assert.equal(spy.calls.length, 0)
+            assert.ok(Math.abs(element.getBoundingClientRect().top - topBefore) < 0.5)
+        } finally {
+            spy.restore()
+        }
     })
 })
 

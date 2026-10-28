@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { automaticDimension, defaultEstimate, createRowHeights, effectiveHeight, offsetOf, rowAt, firstRowAt, totalHeight, insert, measure, reset } from "../src/utils/rowheights.js"
+import { automaticDimension, defaultEstimate, createRowHeights, effectiveHeight, offsetOf, rowAt, firstRowAt, totalHeight, insert, measure, reset, keep } from "../src/utils/rowheights.js"
 
 
 // The same arithmetic written the slow way, from the public fields only, so the cached prefix sums are checked against something
@@ -201,23 +201,30 @@ test("a measurement that moves a mean dirties every row, and one that does not m
     assert.equal(heights.dirtyFrom, 0)
 })
 
-test("the cached offsets equal a brute-force sum after any mix of measure, insert and reset", function() {
+test("the cached offsets equal a brute-force sum after any mix of measure, insert, reset and keep", function() {
     var seed = 7
     var next = function(limit) { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit }
     var heights = createRowHeights({count: 40})
     for (var step = 0; step < 400; step++) {
-        var action = next(10)
+        var action = next(12)
         if (action < 6) { measure(heights, next(heights.count), next(5) === 0 ? 0 : 20 + next(80), ["a", "b", "c"][next(3)]) }
         if (action === 6) { insert(heights, [next(heights.count + 1)]) }
         if (action === 7 && heights.count > 5) { reset(heights, {count: heights.count - 3, keepEstimates: next(2) === 0}) }
         if (action === 8) { assert.equal(offsetOf(heights, next(heights.count + 1)) >= 0, true) }
-        if (action === 9) { heights.estimatedRowHeight = [automaticDimension, 0, 60][next(3)]; heights.dirtyFrom = 0 }
+        if (action === 9) {
+            heights.estimatedRowHeight = [automaticDimension, 0, 60][next(3)]
+            heights.estimatedHeightForRow = next(2) === 0 ? null : function(row) { return 30 + row % 7 }
+            heights.dirtyFrom = 0
+        }
+        if (action === 10) { keep(heights, {count: heights.count + next(5)}) }
+        if (action === 11 && heights.count > 5) { keep(heights, {count: heights.count - 2}) }
         var expected = bruteOffsets(heights)
         assert.equal(totalHeight(heights), expected[heights.count], "total at step " + step)
         var row = next(heights.count + 1)
         assert.equal(offsetOf(heights, row), expected[row], "offset of " + row + " at step " + step)
         assert.equal(heights.heights.length, heights.count)
         assert.equal(heights.identifiers.length, heights.count)
+        assert.equal(heights.measuredIn.length, heights.count)
     }
 })
 
@@ -270,4 +277,95 @@ test("a large table costs a lookup, not a rebuild: 100000 rows, 2000 lookups aft
     assert.equal(heights.dirtyFrom, 100000)
     assert.ok(elapsedMs < 200, "took " + elapsedMs + " ms")
     assert.equal(rowAt(heights, 2400 * 1000), 48000)
+})
+
+test("keep to a larger count keeps every measured height, leaves the new rows unmeasured and dirties from the old end", function() {
+    var heights = measured(5, [[0, 10, "a"], [1, 20, "a"], [2, 30, "b"]], {estimatedRowHeight: 60})
+    assert.equal(totalHeight(heights), 180)
+    keep(heights, {count: 8})
+    assert.equal(heights.count, 8)
+    assert.deepEqual(heights.heights.slice(0, 3), [10, 20, 30])
+    assert.equal(heights.heights.slice(3).every(Number.isNaN), true)
+    assert.deepEqual(heights.identifiers, ["a", "a", "b", undefined, undefined, undefined, undefined, undefined])
+    assert.deepEqual(heights.measuredIn, [0, 0, 0, -1, -1, -1, -1, -1])
+    assert.equal(heights.generation, 1)
+    assert.equal(heights.dirtyFrom, 5, "the offsets above the old end are still valid")
+    assert.equal(offsetOf(heights, 5), 180)
+    assert.deepEqual(heights.offsets, bruteOffsets(heights))
+    assert.equal(totalHeight(heights), 180 + 3 * 60)
+})
+
+test("keep to the same count, an empty last page, keeps every height and dirties nothing", function() {
+    var heights = measured(4, [[0, 10, "a"], [1, 20, "a"]], {estimatedRowHeight: 60})
+    assert.equal(totalHeight(heights), 150)
+    var array = heights.heights
+    keep(heights, {count: 4})
+    assert.equal(heights.heights, array, "the same array, not a copy")
+    assert.deepEqual(array.slice(0, 2), [10, 20])
+    assert.equal(heights.generation, 1)
+    assert.equal(heights.dirtyFrom, 4)
+    assert.equal(totalHeight(heights), 150)
+})
+
+test("keep to fewer rows drops every height, as reset does, and keeps the means", function() {
+    var heights = measured(6, [[0, 100, "a"], [1, 100, "a"]])
+    totalHeight(heights)
+    keep(heights, {count: 3})
+    assert.equal(heights.count, 3)
+    assert.equal(heights.heights.every(Number.isNaN), true)
+    assert.deepEqual(heights.identifiers, [undefined, undefined, undefined])
+    assert.deepEqual(heights.measuredIn, [-1, -1, -1])
+    assert.equal(heights.dominantIdentifier, "a")
+    assert.equal(effectiveHeight(heights, 0), 100)
+    assert.equal(totalHeight(heights), 300)
+})
+
+test("a kept row yields to the delegate's estimate and wins over estimatedRowHeight and the means; before keep the measured height wins over the delegate", function() {
+    var heights = createRowHeights({count: 4, estimatedRowHeight: 60, estimatedHeightForRow: function() { return 77 }})
+    measure(heights, 1, 95, "a")
+    measure(heights, 2, 15, "a")
+    assert.equal(effectiveHeight(heights, 1), 95, "measured since the last reload")
+    keep(heights, {count: 4})
+    assert.equal(effectiveHeight(heights, 1), 77, "measured before the reload: the delegate answers first")
+    assert.equal(effectiveHeight(heights, 3), 77)
+    heights.estimatedHeightForRow = null
+    assert.equal(effectiveHeight(heights, 1), 95, "over estimatedRowHeight 60")
+    assert.equal(effectiveHeight(heights, 3), 60)
+    heights.estimatedRowHeight = automaticDimension
+    assert.equal(effectiveHeight(heights, 1), 95, "over the identifier's mean, which is 55")
+    assert.equal(effectiveHeight(heights, 3), 55)
+})
+
+test("measuring a kept row again at the same height moves no mean and dirties only that row", function() {
+    var heights = measured(10, [[0, 95, "a"], [1, 95, "a"], [2, 95, "a"]])
+    keep(heights, {count: 10})
+    assert.equal(totalHeight(heights), 3 * 95 + 7 * 95)
+    assert.equal(heights.dirtyFrom, 10)
+    measure(heights, 1, 95, "a")
+    assert.equal(heights.estimates.get("a").sum, 285)
+    assert.equal(heights.estimates.get("a").count, 3)
+    assert.equal(heights.dirtyFrom, 1)
+    assert.equal(heights.measuredIn[1], heights.generation)
+    assert.equal(heights.measuredIn[0], 0, "the rows not drawn again stay kept")
+})
+
+test("insert moves each row's generation along with its height", function() {
+    var heights = measured(3, [[0, 10, "a"], [1, 20, "a"], [2, 30, "a"]], {estimatedHeightForRow: function() { return 77 }})
+    keep(heights, {count: 3})
+    measure(heights, 1, 20, "a")
+    insert(heights, [1])
+    assert.deepEqual(heights.measuredIn, [0, -1, 1, 0])
+    assert.equal(effectiveHeight(heights, 0), 77, "kept")
+    assert.equal(effectiveHeight(heights, 1), 77, "inserted")
+    assert.equal(effectiveHeight(heights, 2), 20, "measured since the reload, now at row 2")
+    assert.equal(effectiveHeight(heights, 3), 77, "kept")
+})
+
+test("keep from 100000 to 100100 rows dirties from row 100000 and the total is right", function() {
+    var heights = createRowHeights({count: 100000, estimatedRowHeight: 50})
+    measure(heights, 99990, 80, "a")
+    assert.equal(totalHeight(heights), 5000030)
+    keep(heights, {count: 100100})
+    assert.equal(heights.dirtyFrom, 100000)
+    assert.equal(totalHeight(heights), 100099 * 50 + 80)
 })
