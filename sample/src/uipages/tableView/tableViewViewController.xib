@@ -24,4 +24,27 @@
         </table>
         <p id="table-view-selected" class="output">Tap a row to select it.</p>
     </section>
+
+    <section class="demo">
+        <h2>Cell reuse and the optional register</h2>
+        <p>This table never calls <code>register</code>: <code>dequeueReusableCell({withIdentifier: "RowTableViewCell", for})</code> finds the cell class of that name and its <code>.xib</code>. Only the rows in or near the visible part of the box have a cell, so the count below stays small however far you scroll. Append uses <code>insertRows</code>, Star uses <code>reconfigureRows</code> on the cells that exist and Middle uses <code>scrollToRow</code>.</p>
+        <div class="row">
+            <button id="table-view-append" class="button">Append 100</button>
+            <button id="table-view-star" class="button button-secondary">Star the rows that have a cell</button>
+            <button id="table-view-middle" class="button button-secondary">Scroll to the middle</button>
+        </div>
+        <div class="table-view-scroller">
+            <table id="table-view-rows" class="contacts-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Row</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <p id="table-view-reuse" class="output"></p>
+    </section>
 </main>
