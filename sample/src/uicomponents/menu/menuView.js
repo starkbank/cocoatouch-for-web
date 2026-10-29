@@ -19,6 +19,9 @@ export class MenuView extends UIView {
     @IBOutlet("#menu-traits", UIButton) traitsOption
     @IBOutlet("#menu-navigation", UIButton) navigationOption
     @IBOutlet("#menu-pdf", UIButton) pdfOption
+    @IBOutlet("#menu-controls", UIButton) controlsOption
+    @IBOutlet("#menu-files", UIButton) filesOption
+    @IBOutlet("#menu-core-animation", UIButton) coreAnimationOption
 
     awakeFromNib() {
         const path = window.location.pathname
@@ -33,6 +36,9 @@ export class MenuView extends UIView {
             "/traits": this.traitsOption,
             "/navigation": this.navigationOption,
             "/pdf": this.pdfOption,
+            "/controls": this.controlsOption,
+            "/files": this.filesOption,
+            "/core-animation": this.coreAnimationOption,
         }
         this.brandButton.userActivity = _browsing("/")
         for (const [page, option] of Object.entries(options)) {

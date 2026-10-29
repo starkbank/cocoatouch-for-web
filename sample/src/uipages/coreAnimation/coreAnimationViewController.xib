@@ -1,0 +1,24 @@
+<div id="menu"></div>
+
+<main class="page">
+    <h1>Core Animation</h1>
+    <p class="lead">What 1.9.0 added: CADisplayLink and CAEmitterLayer.</p>
+
+    <section class="demo">
+        <h2>CADisplayLink</h2>
+        <p>A link added to <code>RunLoop.main</code> calls <code>step(link)</code> before every frame, and <code>link.duration</code> is the display's frame interval, the smallest of the last twelve measured. The arm turns by it; <code>isPaused</code> stops the ticks and leaving the page calls <code>invalidate()</code>.</p>
+        <div class="core-animation-stage">
+            <div id="core-animation-arm" class="core-animation-arm"></div>
+        </div>
+        <div class="row">
+            <button id="core-animation-start" class="button">Start</button>
+        </div>
+        <p id="core-animation-frame" class="output"></p>
+    </section>
+
+    <section class="demo">
+        <h2>CAEmitterLayer</h2>
+        <p>One layer with four <code>CAEmitterCell</code>s throws confetti from a line above the window. The layer's canvas is fixed over the page and ignores the pointer, and it goes away when the page is left.</p>
+        <button id="core-animation-confetti" class="button button-secondary">Throw confetti</button>
+    </section>
+</main>

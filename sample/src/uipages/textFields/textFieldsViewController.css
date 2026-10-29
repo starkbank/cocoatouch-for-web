@@ -3,6 +3,11 @@
     font-size: 14px;
 }
 
+.text-fields-message {
+    resize: none;
+    overflow: hidden;
+}
+
 .button-disabled {
     opacity: .45;
 }

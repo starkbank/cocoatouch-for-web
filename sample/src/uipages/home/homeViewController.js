@@ -17,6 +17,9 @@ export class HomeViewController extends UIViewController {
     @IBOutlet("#home-traits", UIButton) traitsOption
     @IBOutlet("#home-navigation", UIButton) navigationOption
     @IBOutlet("#home-pdf", UIButton) pdfOption
+    @IBOutlet("#home-controls", UIButton) controlsOption
+    @IBOutlet("#home-files", UIButton) filesOption
+    @IBOutlet("#home-core-animation", UIButton) coreAnimationOption
 
     viewDidLoad() {
         this.subtitleLabel.text = "Each page is a UIViewController with a .xib. Pick one to see a part of UIKit in use."
@@ -30,6 +33,9 @@ export class HomeViewController extends UIViewController {
             [this.traitsOption, "/traits"],
             [this.navigationOption, "/navigation"],
             [this.pdfOption, "/pdf"],
+            [this.controlsOption, "/controls"],
+            [this.filesOption, "/files"],
+            [this.coreAnimationOption, "/core-animation"],
         ]
         for (const [option, page] of pages) {
             const activity = new NSUserActivity({activityType: NSUserActivityTypeBrowsingWeb})

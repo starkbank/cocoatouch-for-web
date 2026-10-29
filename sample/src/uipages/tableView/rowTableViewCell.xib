@@ -1,0 +1,5 @@
+<tr class="row-cell">
+    <td id="row-number" class="row-number"></td>
+    <td id="row-title"></td>
+    <td id="row-star" class="row-star"></td>
+</tr>

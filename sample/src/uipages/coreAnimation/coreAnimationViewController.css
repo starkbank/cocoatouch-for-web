@@ -1,0 +1,16 @@
+.core-animation-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 140px;
+    margin-bottom: 16px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+.core-animation-arm {
+    width: 120px;
+    height: 12px;
+    background: var(--color-accent);
+    border-radius: 6px;
+}

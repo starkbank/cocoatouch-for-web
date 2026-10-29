@@ -24,3 +24,22 @@
     color: var(--color-muted);
     font-size: 14px;
 }
+
+.table-view-scroller {
+    max-height: 420px;
+    margin-top: 16px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+.table-view-scroller .contacts-table {
+    margin-top: 0;
+}
+
+.table-view-scroller thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface);
+}
