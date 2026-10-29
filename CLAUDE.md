@@ -20,7 +20,7 @@ The `cocoatouch` npm package: Apple's CocoaTouch for the browser. Every interfac
 ## Git
 
 - `master` is the released state. Never commit to it: cut `feature/<slug>` or `fix/<slug>` from the fresh `master` tip, push, open a PR against `master`, merge it as a merge commit (`gh pr merge --merge --delete-branch`), never squash or rebase-merge.
-- Commit subjects are capitalized imperative sentences without prefixes; agent-authored commits end with the `Co-Authored-By` trailer.
+- Commit subjects are capitalized imperative sentences without prefixes.
 
 ## Releasing a version
 
