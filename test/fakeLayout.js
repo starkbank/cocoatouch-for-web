@@ -8,6 +8,8 @@
 //   - an element, or any ancestor, with display: none or [hidden] has no size, and neither do the rows in it;
 //   - layout.box(element, {top, height}) gives an element a box of its own, layout.scroller(...) makes that box scroll its content, and
 //     any other container takes the rect of the tables inside it, as a block of auto height does;
+//   - a cell or a row written width 0 is laid out squeezed to nothing: its border box is its padding and border, its client width its
+//     padding, and its scroll width runs from its padding edge to the end of what it holds, which is its data-reach, else its data-min;
 //   - a row whose computed display is not table-row (flex, grid, block) is a box, not a table row: the cells it holds are not columns,
 //     and the row is one column of the table, the anonymous cell the browser wraps every such row in, as wide as it asks to be;
 //   - the document scrolls by window.scrollY, which scrollTo and scrollBy clamp to the page, and rects are read in client coordinates.
@@ -136,10 +138,24 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
     // A computed style costs a pass over every rule of the page, so a cell's extras are kept for its tag and class while the page's
     // style elements are as they were.
     var extrasCache = new Map()
+    var paddingCache = new Map()
+
+    function styleKey(cell) {
+        var epoch = Array.from(doc.querySelectorAll("style")).map(function(style) { return style.textContent.length }).join(",")
+        return cell.tagName + "|" + cell.className + "|" + epoch
+    }
+
+    function paddingOf(cell) {
+        var key = styleKey(cell)
+        if (paddingCache.has(key)) { return paddingCache.get(key) }
+        var style = rawComputed(cell)
+        var padding = {left: parseFloat(style.getPropertyValue("padding-left")) || 0, right: parseFloat(style.getPropertyValue("padding-right")) || 0}
+        paddingCache.set(key, padding)
+        return padding
+    }
 
     function extrasOf(cell) {
-        var epoch = Array.from(doc.querySelectorAll("style")).map(function(style) { return style.textContent.length }).join(",")
-        var key = cell.tagName + "|" + cell.className + "|" + epoch
+        var key = styleKey(cell)
         if (extrasCache.has(key)) { return extrasCache.get(key) }
         var style = rawComputed(cell)
         var total = 0
@@ -150,14 +166,32 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
 
     // A cell sized by a width keyword, as the measuring box does, is as wide as that keyword says, whatever display it was given or
     // kept; so is a row that keeps its own display and is sized by the keyword, which asks for what the row itself says in data-min
-    // and data-max.
-    function measuringWidth(element) {
-        var keyword = element.style.getPropertyValue("width")
+    // and data-max. At width 0 it is as wide as its padding and border.
+    function measuringKeyword(element) {
         var display = element.style.getPropertyValue("display")
         if (element.tagName.toLowerCase() === "tr" ? display !== "" : display === "none") { return null }
+        return element.style.getPropertyValue("width")
+    }
+
+    function isZeroWidth(element) {
+        var tag = element.tagName.toLowerCase()
+        return (tag === "tr" || tag === "td" || tag === "th") && ["0", "0px"].includes(measuringKeyword(element))
+    }
+
+    function measuringWidth(element) {
+        var keyword = measuringKeyword(element)
         if (keyword === "max-content") { return intrinsicOf(element).max + extrasOf(element) }
         if (keyword === "min-content") { return intrinsicOf(element).min + extrasOf(element) }
+        if (["0", "0px"].includes(keyword)) { return extrasOf(element) }
         return null
+    }
+
+    // Where the content of a cell squeezed to nothing ends, measured from its padding edge, so the padding on the start side is
+    // inside it and the padding on the end side is not.
+    function scrollWidthAtZero(element) {
+        var padding = paddingOf(element)
+        var reach = Number(element.getAttribute("data-reach") ?? element.getAttribute("data-min") ?? 0)
+        return Math.max(padding.left + padding.right, padding.left + reach)
     }
 
     // A row is a table row under these displays; under any other it is a box, and the browser wraps it, with the boxes beside it, in
@@ -270,7 +304,16 @@ export function installLayout({innerHeight = 768, innerWidth = 1024, rowHeight =
         return {x: rect.left, y: rect.top, top: rect.top, left: rect.left, bottom: rect.top + rect.height, right: rect.left + rect.width, width: rect.width, height: rect.height}
     }))
     patch(proto, "clientHeight", {get: logged(function() { return clientHeightOf(this) })})
-    patch(proto, "clientWidth", {get: logged(function() { return isRoot(this) ? innerWidth : clientRect(this).width })})
+    patch(proto, "clientWidth", {get: logged(function() {
+        if (isRoot(this)) { return innerWidth }
+        if (isZeroWidth(this)) { return paddingOf(this).left + paddingOf(this).right }
+        return clientRect(this).width
+    })})
+    var rawScrollWidth = Object.getOwnPropertyDescriptor(proto, "scrollWidth")
+    patch(proto, "scrollWidth", {get: logged(function() {
+        if (isZeroWidth(this)) { return scrollWidthAtZero(this) }
+        return rawScrollWidth && rawScrollWidth.get ? rawScrollWidth.get.call(this) : 0
+    })})
     patch(proto, "clientTop", {get: logged(function() { return 0 })})
     patch(proto, "scrollHeight", {get: logged(function() { return scrollHeightOf(this) })})
     patch(proto, "scrollTop", {

@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import { IBOutlet, UILabel, UIView, UITableViewCell, UITableViewRowAnimation } from "../src/index.js"
 import { offsetOf, totalHeight } from "../src/utils/rowheights.js"
 import { counters, setup, rowsBody, renderedIds, renderedRows, spacers, scrollTo, at } from "./tableReuseHelpers.js"
+import { effectiveHeight } from "../src/utils/rowheights.js"
 
 
 var animation = UITableViewRowAnimation.none
@@ -233,7 +234,7 @@ test("7. under table-layout fixed a chunk reads once, asks each row once, and re
     })
 })
 
-test("7. a spacer under 1 px gets no span, and crossing between fixed and auto follows the A1 rules", function() {
+test("7. a spacer under 1 px gets no span, and a crossing between fixed and auto, in either direction, measures again", function() {
     withTable({count: 400}, function({table, model, layout}) {
         tableElement().style.setProperty("table-layout", "fixed")
         table._dirtyAndSchedule()
@@ -259,8 +260,8 @@ test("7. a spacer under 1 px gets no span, and crossing between fixed and auto f
         tableElement().style.setProperty("table-layout", "fixed")
         table._dirtyAndSchedule()
         settle(layout)
-        assert.equal(table._columns.generation, generation, "auto to fixed keeps the records")
-        assert.deepEqual(model.measured, [], "and measures nothing")
+        assert.equal(table._columns.generation, generation + 1, "auto to fixed starts a new generation")
+        assert.ok(model.measured.length > 0, "and measures again")
         assert.equal(spansOf(rowsBody().lastElementChild, 0).length, 1)
     })
 })
@@ -719,6 +720,9 @@ test("FS15. replay spans are unpainted, and their height is 0 under auto layout 
             assert.equal(wrapper.style.getPropertyValue("font-size"), "0px")
             assert.equal(wrapper.style.getPropertyValue("line-height"), "0")
             assert.equal(wrapper.style.height, "0px")
+            assert.equal(wrapper.style.getPropertyValue("white-space"), "normal", "the spaces between the spans stay wrap opportunities")
+            for (var property of ["white-space", "word-spacing", "letter-spacing", "text-indent"]) { assert.equal(wrapper.style.getPropertyPriority(property), "important", property) }
+            for (var spacing of ["word-spacing", "letter-spacing", "text-indent"]) { assert.equal(parseFloat(wrapper.style.getPropertyValue(spacing)), 0, spacing) }
         }
         check("0px")
         tableElement().style.setProperty("table-layout", "fixed")
@@ -785,6 +789,8 @@ test("FS12. every animation frame a table asks for has run or been cancelled onc
             model.count = 500
             table.reloadData()
             table.estimatedRowHeight = 70
+            window.innerWidth = 760
+            window.dispatchEvent(new window.Event("resize"))
             table._dispose()
             layout.flushFrames()
             assert.ok(requested.size > 0, "the table asked for frames")
@@ -902,4 +908,122 @@ test("a reload from 6 rows to 5, every row rendered, asks the data source for no
 
 test("a reload from 1000 rows to 5 asks the data source for no row past the new count, and no column takes a width from one", function() {
     reloadToFive(1000)
+})
+
+// A pass counted without changing what it does.
+function countPasses(table) {
+    var counted = {passes: 0}
+    var runPass = table._runPass
+    table._runPass = function() {
+        counted.passes++
+        return runPass.apply(this, arguments)
+    }
+    return counted
+}
+
+function resizeWindow(width) {
+    window.innerWidth = width
+    window.dispatchEvent(new window.Event("resize"))
+}
+
+test("C1. a window resize that leaves the table's width as it was lays the table out for the new window, and drops the heights of the rows that are not drawn", function() {
+    var height = 95
+    withTable({count: 300, heightOf: () => height}, function({table, model, layout}) {
+        settle(layout)
+        assert.equal(effectiveHeight(table._heights, 5), 95, "row 5 is measured at the nib's height")
+        scrollTo(layout, 100 + 95 * 200)
+        settle(layout)
+        assert.ok(!renderedRows().includes(5), "row 5 is not drawn")
+        height = 140
+        table.reconfigureRows({at: at(...renderedRows())})
+        var generation = table._columns.generation
+        model.measured.length = 0
+        resizeWindow(760)
+        settle(layout)
+        assert.equal(table._columns.generation, generation + 1, "the columns start over")
+        assert.ok(model.measured.length > 200, "and every row is measured again")
+        assert.equal(effectiveHeight(table._heights, 5), 140, "the height row 5 had is gone, and the mean of what is drawn answers for it")
+    })
+})
+
+test("C2. a window resize that leaves innerWidth as it was runs no pass and asks for no frame", function() {
+    withTable({count: 300}, function({table, layout}) {
+        settle(layout)
+        var counted = countPasses(table)
+        window.dispatchEvent(new window.Event("resize"))
+        assert.equal(table._resizeFrame, null)
+        settle(layout)
+        assert.equal(counted.passes, 0)
+    })
+})
+
+test("C3. a resize that changes the window's width and the table's runs one pass, a frame after both are known", function() {
+    withTable({count: 300}, function({table, layout}) {
+        settle(layout)
+        var counted = countPasses(table)
+        resizeWindow(760)
+        layout.resize(tableElement(), {width: 700})
+        layout.flushFrames()
+        assert.equal(counted.passes, 0, "the frame of the resize and the width report only ask for the pass")
+        layout.flushFrames()
+        assert.equal(counted.passes, 1)
+    })
+})
+
+test("C4. a disposed table has no resize frame left and listens to the window no more", function() {
+    withTable({count: 300}, function({table, layout}) {
+        settle(layout)
+        var counted = countPasses(table)
+        resizeWindow(760)
+        table._dispose()
+        settle(layout)
+        assert.equal(counted.passes, 0, "the frame the resize asked for was cancelled")
+        resizeWindow(800)
+        assert.equal(table._resizeFrame, null, "the observer is gone")
+    })
+})
+
+// Under fixed layout a cell is measured at width 0, where what shrinks reaches nothing; `data-reach` is how far the fake layout says a
+// cell's content then reaches, and a cell that has none reaches as far as its `data-min`.
+function reachOf(reaching) {
+    return function(row, cell) {
+        var first = cell.$el[0].children[0]
+        first.removeAttribute("data-reach")
+        if (reaching.has(row)) { first.setAttribute("data-reach", String(reaching.get(row))) }
+    }
+}
+
+test("D1. under fixed layout the spans are how far the content reaches at width 0, not its narrowest content", function() {
+    var data = (row) => row === 300 ? [[500, 500], [20, 40], [0, 15]] : widths(row)
+    withTable({count: 400, widthsOf: data}, function({table, model, layout}) {
+        model.onAsk = reachOf(new Map([[300, 12]]))
+        tableElement().style.setProperty("table-layout", "fixed")
+        table._dirtyAndSchedule()
+        settle(layout)
+        table.reloadData()
+        settle(layout)
+        assert.deepEqual(spansOf(rowsBody().lastElementChild, 0), [allRows(400).min[0]], "row 300's 500 px shrinks to the 12 it reaches, under the 14 of another row")
+        assert.deepEqual(spansOf(rowsBody().lastElementChild, 2), [], "a column that reaches nothing has no span")
+    })
+})
+
+test("D2. under fixed layout the cell's own padding and border are taken out of what the replay writes, and the span is the content's reach", function() {
+    withTable({count: 400}, function({table, layout}) {
+        var style = document.createElement("style")
+        style.textContent = "td, th { padding: 0 6px; border: 1px solid }"
+        document.head.appendChild(style)
+        try {
+            tableElement().style.setProperty("table-layout", "fixed")
+            table._dirtyAndSchedule()
+            settle(layout)
+            table.reloadData()
+            settle(layout)
+            var bottom = rowsBody().lastElementChild
+            assert.deepEqual(spansOf(bottom, 0), [allRows(400).min[0]])
+            assert.deepEqual(spansOf(bottom, 1), [allRows(400).min[1]])
+            assert.deepEqual(spansOf(bottom, 2), [], "content that stays inside the padding reaches nothing")
+        } finally {
+            style.remove()
+        }
+    })
 })

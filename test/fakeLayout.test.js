@@ -244,3 +244,27 @@ test("a ResizeObserver reports once when it starts observing a sized element, an
         assert.equal(reports.length, 1, "an element with no size has nothing to report")
     })
 })
+
+test("a cell written width 0 is laid out squeezed to nothing: its client width is its padding, and its scroll width runs from its padding edge to the end of what it holds", function() {
+    withLayout({}, function(layout) {
+        var style = document.createElement("style")
+        style.textContent = "td { padding: 0 6px }"
+        document.head.appendChild(style)
+        try {
+            fill(1, 40)
+            var cell = document.querySelector("#cell-0 td")
+            assert.equal(cell.scrollWidth, 0, "a cell that is not measured reads what the document says")
+            cell.style.setProperty("display", "inline-block", "important")
+            cell.style.setProperty("width", "0", "important")
+            cell.setAttribute("data-min", "50")
+            assert.equal(cell.clientWidth, 12)
+            assert.equal(cell.scrollWidth, 56, "the padding edge to the end of the 50 px it asks")
+            cell.setAttribute("data-reach", "20")
+            assert.equal(cell.scrollWidth, 26, "data-reach is what reaches, when it is given")
+            cell.setAttribute("data-reach", "3")
+            assert.equal(cell.scrollWidth, 12, "content inside the padding scrolls no further than the box")
+        } finally {
+            style.remove()
+        }
+    })
+})
